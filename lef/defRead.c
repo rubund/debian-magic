@@ -689,10 +689,11 @@ DefReadPins(f, rootDef, sname, oscale, total)
     int keyword, subkey, values;
     int processed = 0;
     int pinDir = PORT_CLASS_DEFAULT;
-    TileType curlayer;
+    TileType curlayer = -1;
     Rect *currect, topRect;
     Transform t;
     lefLayer *lefl;
+    bool pending = FALSE;
 
     static char *pin_keys[] = {
 	"-",
@@ -744,6 +745,14 @@ DefReadPins(f, rootDef, sname, oscale, total)
 	{
 	    case DEF_PINS_START:		/* "-" keyword */
 
+		// Flag an error if a pin was waiting on a layer
+		// specification that was never given.
+
+		if (pending)
+		{
+		    LefError("Pin specified without layer, was not placed.\n");
+		}
+
 		/* Update the record of the number of pins		*/
 		/* processed and spit out a message for every 5% done.	*/
  
@@ -757,6 +766,7 @@ DefReadPins(f, rootDef, sname, oscale, total)
 		    LefEndStatement(f);
 		    break;
 		}
+		pending = FALSE;
 
 		/* Now do a search through the line for "+" entries	*/
 		/* And process each.					*/
@@ -792,14 +802,27 @@ DefReadPins(f, rootDef, sname, oscale, total)
 			case DEF_PINS_PROP_LAYER:
 			    curlayer = LefReadLayer(f, FALSE);
 			    currect = LefReadRect(f, curlayer, oscale);
+			    if (pending)
+			    {
+				GeoTransRect(&t, currect, &topRect);
+				DBPaint(rootDef, &topRect, curlayer);
+				DBPutLabel(rootDef, &topRect, -1, pinname, curlayer,
+					pinDir);
+				pending = FALSE;
+			    }
 			    break;
 			case DEF_PINS_PROP_FIXED:
 			case DEF_PINS_PROP_PLACED:
 			    DefReadLocation(NULL, f, oscale, &t);
-			    GeoTransRect(&t, currect, &topRect);
-			    DBPaint(rootDef, &topRect, curlayer);
-			    DBPutLabel(rootDef, &topRect, -1, pinname, curlayer,
+			    if (curlayer == -1)
+				pending = TRUE;
+			    else
+			    {
+				GeoTransRect(&t, currect, &topRect);
+				DBPaint(rootDef, &topRect, curlayer);
+				DBPutLabel(rootDef, &topRect, -1, pinname, curlayer,
 					pinDir);
+			    }
 			    break;
 		    }
 		}
