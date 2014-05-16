@@ -841,8 +841,9 @@ keys_and_buttons:
 		idxmax = (nbytes == 0) ? 1 : nbytes;
 		for (idx = 0; idx < idxmax; idx++)
 		{
-		    if (inChar[idx] == 3)	/* Ctrl-C interrupt */
+		    if (xevent->type == KeyPress && inChar[idx] == 3)
 		    {
+			/* Ctrl-C interrupt */
 			if (SigInterruptPending)
 			    MainExit(0);		/* double Ctrl-C */
 			else
