@@ -1062,11 +1062,16 @@ simdevVisit(dev, hierName, scale, trans)
         sprintf(name, "fet");
         simdevOutNode(hierName, subnode->efnode_name->efnn_hier, name, esSimF); 
     }
+    else if (dev->dev_class == DEV_DIODE && dev->dev_nterm == 1 && subnode)
+    {
+        sprintf(name, "fet");
+        simdevOutNode(hierName, subnode->efnode_name->efnn_hier, name, esSimF); 
+    }
     else if (dev->dev_nterm > 2)
         simdevOutNode(hierName, drain->dterm_node->efnode_name->efnn_hier, name, esSimF);
 
     /* Support gemini's substrate comparison */
-    if ( esFormat == LBL && subnode)
+    if (esFormat == LBL && subnode)
     {
 	putc(' ', esSimF);
 	simdevSubstrate(hierName, subnode->efnode_name->efnn_hier,

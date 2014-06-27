@@ -1719,6 +1719,13 @@ spcdevVisit(dev, hierName, scale, trans)
 	case DEV_SUBCKT:
 	case DEV_RSUBCKT:
 	    break;
+	case DEV_DIODE:
+	    if ((dev->dev_nterm < 2) && (subnode == NULL))
+	    {
+		TxError("Diode has only one terminal\n");
+		return 0;
+	    }
+	    break;
 	default:
 	    if (dev->dev_nterm < 2)
 	    {
@@ -2022,8 +2029,13 @@ spcdevVisit(dev, hierName, scale, trans)
 
 	    spcdevOutNode(hierName, gate->dterm_node->efnode_name->efnn_hier,
 			name, esSpiceF);
-	    spcdevOutNode(hierName, source->dterm_node->efnode_name->efnn_hier,
+	    if (dev->dev_nterm > 1)
+		spcdevOutNode(hierName, source->dterm_node->efnode_name->efnn_hier,
 			name, esSpiceF);
+	    else if (subnode)
+		spcdevOutNode(hierName, subnode->efnode_name->efnn_hier,
+			name, esSpiceF); 
+
 	    fprintf(esSpiceF, " %s", EFDevTypes[dev->dev_type]);
 	    break;
 
