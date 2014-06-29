@@ -1522,9 +1522,7 @@ topVisit(def)
 		for (nodeName = sname; nodeName != NULL; nodeName = nodeName->efnn_next)
 		{
 		    portidx = nodeName->efnn_port;
-		    if (portidx > portorder)
-			break;	// This node belongs to a higher numbered port
-		    else if (portidx == portorder)
+		    if (portidx == portorder)
 		    {
 			// fprintf(esSpiceF, " %s", he->h_key.h_name);
 			fprintf(esSpiceF, " %s",
