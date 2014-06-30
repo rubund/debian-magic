@@ -43,7 +43,7 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
 #ifndef MAGIC_WRAPPER
 /* This must match the definition for extDevTable in extract/ExtBasic.c */
 char *extDevTable[] = {"fet", "mosfet", "asymmetric", "bjt", "devres",
-		"devcap", "diode", "subckt", "rsubckt", NULL};
+		"devcap", "diode", "subckt", "rsubckt", "msubckt", NULL};
 #endif
 
 /*
@@ -299,6 +299,7 @@ readfile:
 			   ac = 9;	/* Has device L and W */
 			break;
 		    case DEV_SUBCKT:
+		    case DEV_MSUBCKT:
 		    case DEV_RSUBCKT:
 			ac = 7;	/* Actually can have many arguments, which */
 			break;	/* we will deal with in efBuildDevice().   */

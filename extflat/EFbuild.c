@@ -584,6 +584,7 @@ efBuildDevice(def, class, type, r, argc, argv)
 		argstart = 2;
 	    break;
 	case DEV_SUBCKT:
+	case DEV_MSUBCKT:
 	case DEV_RSUBCKT:
 	    argstart = 0;
 
@@ -624,6 +625,7 @@ efBuildDevice(def, class, type, r, argc, argv)
 	case DEV_RES:
 	case DEV_CAP:
 	case DEV_RSUBCKT:
+	case DEV_MSUBCKT:
 	case DEV_SUBCKT:
 	case DEV_DIODE:
 	    n = argc - argstart;

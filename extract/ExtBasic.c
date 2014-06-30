@@ -54,7 +54,7 @@ static char sccsid[] = "@(#)ExtBasic.c	4.13 MAGIC (Berkeley) 12/5/85";
 
 #ifdef MAGIC_WRAPPER
 char *extDevTable[] = {"fet", "mosfet", "asymmetric", "bjt", "devres",
-	"devcap", "diode", "subckt", "rsubckt", NULL};
+	"devcap", "diode", "subckt", "rsubckt", "msubckt", NULL};
 #endif
 
 /* --------------------- Data local to this file ---------------------- */
@@ -1361,6 +1361,7 @@ extOutputTrans(def, transList, outFile)
 	    case DEV_MOSFET:
 	    case DEV_BJT:
 	    case DEV_SUBCKT:
+	    case DEV_MSUBCKT:
 	    case DEV_ASYMMETRIC:
 		length = extTransRec.tr_gatelen / 2;	/* (default) */
 		width = 0;
@@ -1446,7 +1447,8 @@ extOutputTrans(def, transList, outFile)
 
 		}
 
-		if (ExtCurStyle->exts_deviceClass[t] == DEV_SUBCKT)
+		if (ExtCurStyle->exts_deviceClass[t] == DEV_SUBCKT ||
+			ExtCurStyle->exts_deviceClass[t] == DEV_MSUBCKT)
 		{
 		    for (chkParam = ExtCurStyle->exts_deviceParams[t]; chkParam
 				!= NULL; chkParam = chkParam->pl_next)

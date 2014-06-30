@@ -347,6 +347,7 @@ spcdevHierVisit(hc, dev, scale)
 	    break;
 	case DEV_SUBCKT:
 	case DEV_RSUBCKT:
+	case DEV_MSUBCKT:
 	    devchar = 'X';
 	    break;
     }
@@ -375,6 +376,7 @@ spcdevHierVisit(hc, dev, scale)
 		break;
 	    case DEV_SUBCKT:
 	    case DEV_RSUBCKT:
+	    case DEV_MSUBCKT:
 		fprintf(esSpiceF, "%d", esSbckNum++);
 		break;
 	    default:
@@ -411,6 +413,17 @@ spcdevHierVisit(hc, dev, scale)
 	    fprintf(esSpiceF, " %s", EFDevTypes[dev->dev_type]);
 	    break;
 
+	case DEV_MSUBCKT:
+	    /* msubcircuit is "Xnnn source gate [drain [sub]]]"		*/
+	    /* to more conveniently handle situations where MOSFETs	*/
+	    /* are modeled by subcircuits with the same pin ordering.	*/
+
+	    spcdevOutNode(hc->hc_hierName,
+			source->dterm_node->efnode_name->efnn_hier,
+			"subckt", esSpiceF);
+
+	    /* Drop through to below (no break statement) */
+
 	case DEV_SUBCKT:
 
 	    /* Subcircuit is "Xnnn gate [source [drain [sub]]]"		*/
@@ -427,7 +440,7 @@ spcdevHierVisit(hc, dev, scale)
 	    /* except that the "gate" node is treated as an identifier	*/
 	    /* only and is not output.					*/
 
-	    if (dev->dev_nterm > 1)
+	    if ((dev->dev_nterm > 1) && (dev->dev_class != DEV_MSUBCKT))
 		spcdevOutNode(hc->hc_hierName,
 			source->dterm_node->efnode_name->efnn_hier,
 			"subckt", esSpiceF);

@@ -1716,6 +1716,7 @@ spcdevVisit(dev, hierName, scale, trans)
     {
 	case DEV_SUBCKT:
 	case DEV_RSUBCKT:
+	case DEV_MSUBCKT:
 	    break;
 	case DEV_DIODE:
 	    if ((dev->dev_nterm < 2) && (subnode == NULL))
@@ -1792,6 +1793,7 @@ spcdevVisit(dev, hierName, scale, trans)
 	    break;
 	case DEV_SUBCKT:
 	case DEV_RSUBCKT:
+	case DEV_MSUBCKT:
 	    devchar = 'X';
 	    break;
     }
@@ -1820,6 +1822,7 @@ spcdevVisit(dev, hierName, scale, trans)
 		break;
 	    case DEV_SUBCKT:
 	    case DEV_RSUBCKT:
+	    case DEV_MSUBCKT:
 		fprintf(esSpiceF, "%d", esSbckNum++);
 		break;
 	    default:
@@ -1853,6 +1856,17 @@ spcdevVisit(dev, hierName, scale, trans)
 	    fprintf(esSpiceF, " %s", EFDevTypes[dev->dev_type]);
 	    break;
 
+	case DEV_MSUBCKT:
+
+	    /* MOS-like subcircuit is "Xnnn source gate [drain [sub]]"	*/
+	    /* to more conveniently handle cases where MOS devices are	*/
+	    /* modeled by subcircuits with the same pin ordering.	*/
+
+	    spcdevOutNode(hierName, source->dterm_node->efnode_name->efnn_hier,
+			name, esSpiceF);
+
+	    /* Drop through to below (no break statement) */
+
 	case DEV_SUBCKT:
 
 	    /* Subcircuit is "Xnnn gate [source [drain [sub]]]"		*/
@@ -1868,7 +1882,7 @@ spcdevVisit(dev, hierName, scale, trans)
 	    /* except that the "gate" node is treated as an identifier	*/
 	    /* only and is not output.					*/
 
-	    if (dev->dev_nterm > 1)
+	    if ((dev->dev_nterm > 1) && (dev->dev_class != DEV_MSUBCKT))
 		spcdevOutNode(hierName, source->dterm_node->efnode_name->efnn_hier,
 			name, esSpiceF);
 	    if (dev->dev_nterm > 2)
@@ -2936,6 +2950,7 @@ parallelDevs(f1, f2)
 
 	case DEV_SUBCKT:
 	case DEV_RSUBCKT:
+	case DEV_MSUBCKT:
 	    break;
     }
     return NOT_PARALLEL;

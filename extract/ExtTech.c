@@ -170,7 +170,7 @@ static keydesc keyTable[] = {
  * Table used for parsing the "device" keyword types
  *
  * (Note: "10" for max types in subcircuit is arbitrary---the parser
- * ignores max types for DEV_SUBCKT).
+ * ignores max types for DEV_SUBCKT and DEV_MSUBCKT).
  */
 
 /* types are enumerated in extract.h */
@@ -196,6 +196,9 @@ static keydesc devTable[] = {
 
     "rsubcircuit",	DEV_RSUBCKT,		4,	7,
 "name dev-types terminal-types [sub-types|None sub-node] [options]",
+
+    "msubcircuit",	DEV_MSUBCKT,		4,	11,
+"name dev-types [N] [term1-types ... termN-types [sub-types|None sub-node]] [options]",
 
     0
 };
@@ -1872,13 +1875,14 @@ ExtTechLine(sectionName, argc, argv)
 	    if ((argc - 1) < dv->k_minargs)
 		goto usage;
 
-	    /* No limit on arguments in DEV_SUBCKT! */
+	    /* No limit on arguments in DEV_SUBCKT and DEV_MSUBCKT! */
 	    /* And. . . check DEV_RSUBCKT later, after parsing parameter names */
 	    class = dv->k_key;
 	    switch (class)
 	    {
 		case DEV_SUBCKT:
 		case DEV_RSUBCKT:
+		case DEV_MSUBCKT:
 		    break;
 		default:
 		    if ((argc - 1) > dv->k_maxargs)
@@ -1985,6 +1989,7 @@ ExtTechLine(sectionName, argc, argv)
 		    break;
 
 		case DEV_SUBCKT:
+		case DEV_MSUBCKT:
 		    /* Check final arguments for "x=y" statements showing what	*/
 		    /* parameter names the subcircuit uses.			*/
 
