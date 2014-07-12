@@ -2655,7 +2655,17 @@ drcRectOnly(argc, argv)
  *	edge4way layers1 ~(layers2)/plane1 dist NULL ~(layers2)/plane1 \
  *		dist why
  *
- * 
+ * Extension added July 12, 2014:  For via rules where an asymmetric
+ * surround is allowed, with a smaller surround allowed on two sides if
+ * the remaining two sides have a larger surround.  This can be implemented
+ * with a trigger rule, and is specified by the syntax above with "presence"
+ * being "directional".  Note that the rule expresses that the overhang rule
+ * requires the presence of the material on one side of a corner.  If the
+ * other side has a non-zero minimum surround requirement, then it should
+ * be implemented with an additional (absence_illegal) surround rule.
+ * Otherwise, any width of material less than "dist" on one side of a
+ * corner will trigger the rule requiring at least "dist" width of the same
+ * material on the other side of the corner.
  *
  * ----------------------------------------------------------------------------
  */
@@ -2669,12 +2679,13 @@ drcSurround(argc, argv)
     int distance = atoi(argv[3]);
     char *presence = argv[4];
     char *why = drcWhyDup(argv[5]);
-    TileTypeBitMask set1, set2, setM, invM;
-    DRCCookie *dp, *dpnew;
+    TileTypeBitMask set1, set2, setM, invM, setR;
+    DRCCookie *dp, *dpnew, *dptrig;
     int plane1, plane2;
     PlaneMask pmask, pmask2, pset, ptest;
     TileType i, j;
-    bool exact = FALSE;
+    bool isExact = FALSE;
+    bool isDirectional = FALSE;
 
     ptest = DBTechNoisyNameMask(layers1, &setM);
     pmask = CoincidentPlanes(&setM, ptest);
@@ -2695,7 +2706,15 @@ drcSurround(argc, argv)
     /* "exact_width" rule implemented 9/16/10.  This enforces an exact	*/
     /* surround distance.  "absence_illegal" is implied.  		*/
 
-    if (!strncmp(presence, "exact_", 6)) exact = TRUE;
+    if (!strncmp(presence, "exact_", 6)) isExact = TRUE;
+    else if (!strncmp(presence, "directional", 11))
+    {
+	isDirectional = TRUE;
+	/* Combined mask */
+	TTMaskZero(&setR);
+	TTMaskSetMask(&setR, &setM);
+	TTMaskSetMask(&setR, &set2);
+    }
 
     /* invert setM */
     TTMaskCom2(&invM, &setM);
@@ -2710,34 +2729,81 @@ drcSurround(argc, argv)
 	    if (i == j) continue;	/* Ignore false edges */
 	    if (pset = (DBTypesOnSamePlane(i, j) & pmask2))
 	    {
-		if (TTMaskHasType(&set1, i) && TTMaskHasType(&set2, j))
+		if (isDirectional)
 		{
-		    plane1 = LowestMaskBit(pmask);
-		    plane2 = LowestMaskBit(pset);
+		    /* Directional surround is done entirely differently */
 
-		    /* Find bucket preceding the new one we wish to insert */
-		    dp = drcFindBucket(i, j, distance);
-		    dpnew = (DRCCookie *)mallocMagic(sizeof(DRCCookie));
-		    drcAssign(dpnew, distance, dp->drcc_next, &invM, &set2,
-				why, distance,
-				DRC_FORWARD | DRC_BOTHCORNERS,
-				plane1, plane2);
-		    dp->drcc_next = dpnew;
+		    if (TTMaskHasType(&setM, i) && TTMaskHasType(&invM, j))
+		    {
+			plane1 = LowestMaskBit(pmask);
+			plane2 = LowestMaskBit(pset);
 
-		    /* find bucket preceding new one we wish to insert */
-		    dp = drcFindBucket(j, i, distance);
-		    dpnew = (DRCCookie *)mallocMagic(sizeof(DRCCookie));
-		    drcAssign(dpnew, distance, dp->drcc_next, &invM, &set2,
+			/* Find bucket preceding the new one we wish to insert */
+			dp = drcFindBucket(i, j, distance);
+			dpnew = (DRCCookie *)mallocMagic(sizeof(DRCCookie));
+
+			/* Insert triggered rule */
+			drcAssign(dpnew, distance, dp->drcc_next, &setR,
+				&DBAllTypeBits,
 				why, distance,
 				DRC_REVERSE | DRC_BOTHCORNERS,
 				plane1, plane2);
-		    dp->drcc_next = dpnew;
+			dptrig = (DRCCookie *)mallocMagic(sizeof(DRCCookie));
+			drcAssign(dptrig, distance, dpnew, &set2,
+				&DBZeroTypeBits, why, 0,
+				DRC_FORWARD | DRC_TRIGGER,
+				plane1, plane2);
+			dp->drcc_next = dptrig;
+
+			/* And the other direction. . . */
+			dp = drcFindBucket(j, i, distance);
+			dpnew = (DRCCookie *)mallocMagic(sizeof(DRCCookie));
+
+			/* Insert triggered rule */
+			drcAssign(dpnew, distance, dp->drcc_next, &setR,
+				&DBAllTypeBits,
+				why, distance,
+				DRC_FORWARD | DRC_BOTHCORNERS,
+				plane1, plane2);
+			dptrig = (DRCCookie *)mallocMagic(sizeof(DRCCookie));
+			drcAssign(dptrig, distance, dpnew, &set2,
+				&DBZeroTypeBits, why, 0,
+				DRC_REVERSE | DRC_TRIGGER,
+				plane1, plane2);
+			dp->drcc_next = dptrig;
+		    }
+		}
+		else
+		{
+		    if (TTMaskHasType(&set1, i) && TTMaskHasType(&set2, j))
+		    {
+			plane1 = LowestMaskBit(pmask);
+			plane2 = LowestMaskBit(pset);
+
+			/* Find bucket preceding the new one we wish to insert */
+			dp = drcFindBucket(i, j, distance);
+			dpnew = (DRCCookie *)mallocMagic(sizeof(DRCCookie));
+			drcAssign(dpnew, distance, dp->drcc_next, &invM, &set2,
+				why, distance,
+				DRC_FORWARD | DRC_BOTHCORNERS,
+				plane1, plane2);
+			dp->drcc_next = dpnew;
+
+			/* find bucket preceding new one we wish to insert */
+			dp = drcFindBucket(j, i, distance);
+			dpnew = (DRCCookie *)mallocMagic(sizeof(DRCCookie));
+			drcAssign(dpnew, distance, dp->drcc_next, &invM, &set2,
+				why, distance,
+				DRC_REVERSE | DRC_BOTHCORNERS,
+				plane1, plane2);
+			dp->drcc_next = dpnew;
+		    }
 		}
 	    }
 	}
     }
 
-    if (exact)
+    if (isExact)
     {
 	for (i = 0; i < DBNumTypes; i++)
 	{
@@ -2773,7 +2839,7 @@ drcSurround(argc, argv)
 	}
     }
 
-    if ((!exact) && strcmp(presence, "absence_illegal")) return distance;
+    if ((!isExact) && strcmp(presence, "absence_illegal")) return distance;
 
     /* Add an extra rule when presence of the surrounding	*/
     /* layer is required.  Rule is different if planes match.	*/
