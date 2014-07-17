@@ -125,7 +125,7 @@ CmdCalma(w, cmd)
 	"help		print this help information",
 	"arrays [yes|no]	output arrays as individual subuses (like in CIF)",
 	"contacts [yes|no]	optimize output by arraying contacts as subcells",
-	"drcnocheck [yes|no]	do not mark cells as needing a DRC check",
+	"drccheck [yes|no]	mark all cells as needing DRC checking",
 	"flatten [yes|no]	flatten simple cells (e.g., contacts) on input",
 	"ordering [on|off]	cause cells to be read in post-order",
 	"labels [yes|no]	cause labels to be output when writing GDS-II",
@@ -250,10 +250,10 @@ CmdCalma(w, cmd)
 	    if (cmd->tx_argc == 2)
 	    {
 #ifdef MAGIC_WRAPPER
-		Tcl_SetObjResult(magicinterp, Tcl_NewBooleanObj(CalmaNoDRCCheck));
+		Tcl_SetObjResult(magicinterp, Tcl_NewBooleanObj(!CalmaNoDRCCheck));
 #else
-		TxPrintf("GDS cells read from input file are set read-%s.\n",
-			(CalmaNoDRCCheck) ?  "only" : "write");
+		TxPrintf("GDS cells read from input file are%s checked for DRC.\n",
+			(CalmaNoDRCCheck) ?  " not" : " ");
 #endif
 		return;
 	    }
@@ -263,7 +263,7 @@ CmdCalma(w, cmd)
 	    option = Lookup(cmd->tx_argv[2], cmdCalmaYesNo);
 	    if (option < 0)
 		goto wrongNumArgs;
-	    CalmaNoDRCCheck = (option < 3) ? FALSE : TRUE;
+	    CalmaNoDRCCheck = (option < 3) ? TRUE : FALSE;
 	    return;
 
 	case CALMA_FLATTEN:
@@ -937,7 +937,7 @@ CmdCif(w, cmd)
 	"*hier layer		display CIF layer under box (hier only)",
 	"arealabels yes|no	enable/disable us of area label extension",
 	"coverage layer		print area coverage of indicated layer",
-	"drccheck [yes|no]	mark cells as needing DRC checking",
+	"drccheck [yes|no]	mark all cells as needing DRC checking",
 	"help		print this help information",
 	"idcell yes|no	enable/disable use of cell ID extension",
 	"istyle [style]	change style for reading CIF to style",
@@ -1283,10 +1283,10 @@ CmdCif(w, cmd)
 	    if (argc == 2)
 	    {
 #ifdef MAGIC_WRAPPER
-		Tcl_SetObjResult(magicinterp, Tcl_NewBooleanObj(CIFNoDRCCheck));
+		Tcl_SetObjResult(magicinterp, Tcl_NewBooleanObj(!CIFNoDRCCheck));
 #else
-		TxPrintf("Internal grid rescaling %sallowed\n",
-			(CIFNoDRCCheck) ?  "" : "dis");
+		TxPrintf("CIF cells are marked as%s requiring DRC checks.\n",
+			(CIFNoDRCCheck) ?  " not" : " ");
 #endif
 		return;
 	    }
@@ -1296,9 +1296,7 @@ CmdCif(w, cmd)
 	    yesno = Lookup(argv[2], cmdCifYesNo);
 	    if (yesno < 0)
 		goto wrongNumArgs;
-	    CIFNoDRCCheck = yesno;
-	    if (!CIFNoDRCCheck)
-		CIFWarningLevel = CIF_WARN_LIMIT;
+	    CIFNoDRCCheck = !yesno;
 	    return;
 	
 	case SEE:
