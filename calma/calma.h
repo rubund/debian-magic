@@ -30,6 +30,7 @@ extern bool CalmaDoLabels;
 extern bool CalmaDoLower;
 extern bool CalmaMergeTiles;
 extern bool CalmaFlattenArrays;
+extern bool CalmaNoDRCCheck;
 extern bool CalmaFlattenUses;
 extern bool CalmaReadOnly;
 extern bool CalmaContactArrays;

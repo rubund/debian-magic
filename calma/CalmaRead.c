@@ -65,6 +65,10 @@ bool CalmaReadOnly = FALSE;		/* Set files to read-only and
 					 * retain file position information
 					 * so cells can be written verbatim.
 					 */
+bool CalmaNoDRCCheck = FALSE;		/* If TRUE, don't mark cells as needing
+					 * a DRC check;  they will be assumed
+					 * DRC clean.
+					 */
 bool CalmaPostOrder = FALSE;		/* If TRUE, forces the GDS parser to
 					 * read cells in post-order.  It is
 					 * necessary, e.g., when we need to

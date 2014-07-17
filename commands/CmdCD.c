@@ -91,17 +91,18 @@ bool cmdDumpParseArgs();
 #define CALMA_HELP	0
 #define CALMA_ARRAYS	1
 #define CALMA_CONTACTS	2
-#define	CALMA_FLATTEN	3
-#define CALMA_ORDERING	4
-#define	CALMA_LABELS	5
-#define	CALMA_LOWER	6
-#define CALMA_MERGE	7
-#define CALMA_READ	8
-#define CALMA_READONLY	9
-#define CALMA_RESCALE	10
-#define CALMA_WARNING	11
-#define CALMA_WRITE	12
-#define CALMA_POLYS	13
+#define CALMA_DRCCHECK	3
+#define	CALMA_FLATTEN	4
+#define CALMA_ORDERING	5
+#define	CALMA_LABELS	6
+#define	CALMA_LOWER	7
+#define CALMA_MERGE	8
+#define CALMA_READ	9
+#define CALMA_READONLY	10
+#define CALMA_RESCALE	11
+#define CALMA_WARNING	12
+#define CALMA_WRITE	13
+#define CALMA_POLYS	14
 
 #define CALMA_WARN_HELP CIF_WARN_END	/* undefined by CIF module */
 
@@ -124,6 +125,7 @@ CmdCalma(w, cmd)
 	"help		print this help information",
 	"arrays [yes|no]	output arrays as individual subuses (like in CIF)",
 	"contacts [yes|no]	optimize output by arraying contacts as subcells",
+	"drcnocheck [yes|no]	do not mark cells as needing a DRC check",
 	"flatten [yes|no]	flatten simple cells (e.g., contacts) on input",
 	"ordering [on|off]	cause cells to be read in post-order",
 	"labels [yes|no]	cause labels to be output when writing GDS-II",
@@ -242,6 +244,26 @@ CmdCalma(w, cmd)
 	    if (option < 0)
 		goto wrongNumArgs;
 	    CalmaContactArrays = (option < 3) ? FALSE : TRUE;
+	    return;
+
+	case CALMA_DRCCHECK:
+	    if (cmd->tx_argc == 2)
+	    {
+#ifdef MAGIC_WRAPPER
+		Tcl_SetObjResult(magicinterp, Tcl_NewBooleanObj(CalmaNoDRCCheck));
+#else
+		TxPrintf("GDS cells read from input file are set read-%s.\n",
+			(CalmaNoDRCCheck) ?  "only" : "write");
+#endif
+		return;
+	    }
+	    else if (cmd->tx_argc != 3)
+		goto wrongNumArgs;
+
+	    option = Lookup(cmd->tx_argv[2], cmdCalmaYesNo);
+	    if (option < 0)
+		goto wrongNumArgs;
+	    CalmaNoDRCCheck = (option < 3) ? FALSE : TRUE;
 	    return;
 
 	case CALMA_FLATTEN:
@@ -864,23 +886,24 @@ badusage:
 #define HIER		 1
 #define	AREALABELS	 2
 #define COVERAGE	 3
-#define HELP		 4
-#define IDCELL		 5
-#define ISTYLE		 6
-#define CIF_LAMBDA	 7
-#define CIF_LIMIT	 8
-#define OSTYLE		 9
-#define CIF_PAINT	10
-#define PREFIX		11
-#define READ		12
-#define RESCALE		13
-#define SEE		14
-#define STATS		15
-#define WARNING		16
-#define CIF_WRITE	17
-#define CIF_WRITE_FLAT	18
-#define POLYGONS	19
-#define UNFRACTURE	20
+#define CIF_DRC_CHECK	 4
+#define HELP		 5
+#define IDCELL		 6
+#define ISTYLE		 7
+#define CIF_LAMBDA	 8
+#define CIF_LIMIT	 9
+#define OSTYLE		10
+#define CIF_PAINT	11
+#define PREFIX		12
+#define READ		13
+#define RESCALE		14
+#define SEE		15
+#define STATS		16
+#define WARNING		17
+#define CIF_WRITE	18
+#define CIF_WRITE_FLAT	19
+#define POLYGONS	20
+#define UNFRACTURE	21
 
 #define CIF_WARN_HELP  CIF_WARN_END	/* undefined by CIF module */
 
@@ -914,6 +937,7 @@ CmdCif(w, cmd)
 	"*hier layer		display CIF layer under box (hier only)",
 	"arealabels yes|no	enable/disable us of area label extension",
 	"coverage layer		print area coverage of indicated layer",
+	"drccheck [yes|no]	mark cells as needing DRC checking",
 	"help		print this help information",
 	"idcell yes|no	enable/disable use of cell ID extension",
 	"istyle [style]	change style for reading CIF to style",
@@ -1252,6 +1276,28 @@ CmdCif(w, cmd)
 		goto wrongNumArgs;
 	    CIFRescaleAllow = yesno;
 	    if (!CIFRescaleAllow)
+		CIFWarningLevel = CIF_WARN_LIMIT;
+	    return;
+	
+	case CIF_DRC_CHECK:
+	    if (argc == 2)
+	    {
+#ifdef MAGIC_WRAPPER
+		Tcl_SetObjResult(magicinterp, Tcl_NewBooleanObj(CIFNoDRCCheck));
+#else
+		TxPrintf("Internal grid rescaling %sallowed\n",
+			(CIFNoDRCCheck) ?  "" : "dis");
+#endif
+		return;
+	    }
+	    else if (argc != 3)
+		goto wrongNumArgs;
+
+	    yesno = Lookup(argv[2], cmdCifYesNo);
+	    if (yesno < 0)
+		goto wrongNumArgs;
+	    CIFNoDRCCheck = yesno;
+	    if (!CIFNoDRCCheck)
 		CIFWarningLevel = CIF_WARN_LIMIT;
 	    return;
 	

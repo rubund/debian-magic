@@ -411,10 +411,11 @@ calmaParseStructure(filename)
     DBReComputeBbox(cifReadCellDef);
 
     /* Don't bother to register with DRC if we're going to delete the	*/
-    /* cell, or if the cell is read-only.				*/
+    /* cell, or if the cell is read-only, or if "calma drcnocheck true"	*/
+    /* has been issued.							*/
 
     if (!CalmaFlattenUses || (npaths >= 10) || (nsrefs != 0))
-	if (!CalmaReadOnly)
+	if (!CalmaReadOnly && !CalmaNoDRCCheck)
 	    DRCCheckThis(cifReadCellDef, TT_CHECKPAINT, &cifReadCellDef->cd_bbox);
 
     DBWAreaChanged(cifReadCellDef, &cifReadCellDef->cd_bbox,

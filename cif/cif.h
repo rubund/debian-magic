@@ -35,6 +35,7 @@
 extern int  CIFWarningLevel;
 extern int  CIFRescaleLimit;
 extern bool CIFRescaleAllow;
+extern bool CIFNoDRCCheck;
 extern bool CIFDoAreaLabels;
 extern bool CIFDoCellIdLabels;
 extern char *CIFPathPrefix;

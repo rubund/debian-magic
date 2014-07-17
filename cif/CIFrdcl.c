@@ -35,6 +35,7 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
 #include "database/database.h"
 #include "cif/CIFint.h"
 #include "cif/CIFread.h"
+#include "cif/cif.h"
 #include "utils/utils.h"
 #include "windows/windows.h"
 #include "dbwind/dbwind.h"
@@ -1220,7 +1221,8 @@ CIFReadCellCleanup()
 	}
 	else
 	{
-	    DRCCheckThis(def, TT_CHECKPAINT, &def->cd_bbox);
+	    if (CIFNoDRCCheck == FALSE)
+		DRCCheckThis(def, TT_CHECKPAINT, &def->cd_bbox);
 	    DBWAreaChanged(def, &def->cd_bbox, DBW_ALLWINDOWS, &DBAllButSpaceBits);
 	    DBCellSetModified(def, TRUE);
 	}

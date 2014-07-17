@@ -74,6 +74,9 @@ int CIFRescaleLimit = CIFMAXRESCALE;	/* Don't increase cifReadScale1 by more
 bool CIFRescaleAllow = TRUE;		/* Don't subdivide the magic internal
 					 * grid if this is FALSE.
 					 */
+bool CIFNoDRCCheck = FALSE;		/* If TRUE, then cell is marked DRC clean
+					 * and not DRC checked.
+					 */
 char *CIFErrorFilename;			/* Name of file for error redirection */
 
 int  CifPolygonCount;			/* Count of generated subcells
