@@ -1659,6 +1659,6 @@ CIFReadFile(file)
     CIFReadError("no \"End\" statement.\n");
 
     done:
-    CIFReadCellCleanup();
+    CIFReadCellCleanup(0);
     UndoEnable();
 }

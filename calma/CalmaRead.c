@@ -229,7 +229,7 @@ done:
 	freeMagic(libname);
     }
 
-    CIFReadCellCleanup();
+    CIFReadCellCleanup(1);
     HashKill(&calmaDefInitHash);
     UndoEnable();
 

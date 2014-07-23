@@ -36,6 +36,7 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
 #include "cif/CIFint.h"
 #include "cif/CIFread.h"
 #include "cif/cif.h"
+#include "calma/calma.h"
 #include "utils/utils.h"
 #include "windows/windows.h"
 #include "dbwind/dbwind.h"
@@ -1153,7 +1154,8 @@ CIFParseUser()
  */
 
 void
-CIFReadCellCleanup()
+CIFReadCellCleanup(type)
+    int type;		 // 0 = CIF, 1 = GDS, because routine is used by both
 {
     HashEntry *h;
     HashSearch hs;
@@ -1162,7 +1164,10 @@ CIFReadCellCleanup()
 
     if (cifSubcellBeingRead)
     {
-	CIFReadError("CIF ended partway through a symbol definition.\n");
+	if (type == 0)
+	    CIFReadError("CIF ended partway through a symbol definition.\n");
+	else
+	    calmaReadError("GDS ended partway through a symbol definition.\n");
 	(void) CIFParseFinish();
     }
 
@@ -1175,12 +1180,18 @@ CIFReadCellCleanup()
 	def = (CellDef *) HashGetValue(h);
 	if (def == NULL)
 	{
-	    CIFReadError("cell table has NULL entry (Magic error).\n");
+	    if (type == 0)
+		CIFReadError("cell table has NULL entry (Magic error).\n");
+	    else
+		calmaReadError("cell table has NULL entry (Magic error).\n");
 	    continue;
 	}
 	if (!(def->cd_flags & CDAVAILABLE))
 	{
-	    CIFReadError("cell %s was used but not defined.\n", def->cd_name);
+	    if (type == 0)
+		CIFReadError("cell %s was used but not defined.\n", def->cd_name);
+	    else
+		calmaReadError("cell %s was used but not defined.\n", def->cd_name);
         }
 	if (def->cd_flags & CDPROCESSEDGDS)
 	{
@@ -1208,20 +1219,37 @@ CIFReadCellCleanup()
 	    if (def->cd_parents != (CellUse *)NULL)
 	    {
 		CellUse *cu_p = def->cd_parents;
-		TxError("GDS read warning:  Cell %s has parent %s\n", savename,
-				cu_p->cu_id);
+		if (type == 0)
+		    CIFReadError("CIF read warning:  Cell %s has parent %s\n",
+				savename, cu_p->cu_id);
+		else
+		    calmaReadError("GDS read warning:  Cell %s has parent %s\n",
+				savename, cu_p->cu_id);
 		def->cd_parents = (CellUse *)NULL;
 	    }
 	    if (DBCellDeleteDef(def) == FALSE)
-		TxError("GDS read error:  Unable to delete cell %s\n", savename);
+	    {
+		if (type == 0)
+		    CIFReadError("CIF read error:  Unable to delete cell %s\n",
+				savename);
+		else
+		    calmaReadError("GDS read error:  Unable to delete cell %s\n",
+				savename);
+	    }
 	    else
-		TxPrintf("GDS read:  Removed flattened cell %s\n", savename);
+	    {
+		if (type == 0)
+		    CIFReadError("CIF read:  Removed flattened cell %s\n", savename);
+		else
+		    calmaReadError("GDS read:  Removed flattened cell %s\n", savename);
+	    }
 	    UndoEnable();
 	    freeMagic(savename);
 	}
 	else
 	{
-	    if (CIFNoDRCCheck == FALSE)
+	    if ((type == 0 && CIFNoDRCCheck == FALSE) ||
+			(type == 1 && CalmaNoDRCCheck == FALSE))
 		DRCCheckThis(def, TT_CHECKPAINT, &def->cd_bbox);
 	    DBWAreaChanged(def, &def->cd_bbox, DBW_ALLWINDOWS, &DBAllButSpaceBits);
 	    DBCellSetModified(def, TRUE);
