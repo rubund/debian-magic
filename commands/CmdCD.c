@@ -3103,6 +3103,14 @@ CmdDrc(w, cmd)
 	    argv++;
 	    argc--;
 	}
+
+	/* Make sure "list" or "listall" is followed by additional arguments */
+	if (argc < 2)
+	{
+	    TxError("No option given in \":drc\" command.\n");
+	    option = DRC_HELP;
+	}
+
 	option = Lookup(argv[1], cmdDrcOption);
 	if (option < 0)
 	{
@@ -3358,7 +3366,11 @@ CmdDrc(w, cmd)
 		    && (strcmp(argv[2], "wizard") == 0))
 		wizardHelp = TRUE;
 	    else wizardHelp = FALSE;
+#ifdef MAGIC_WRAPPER
+	    TxPrintf("DRC commands have the form \":drc [list|listall] option\",");
+#else
 	    TxPrintf("DRC commands have the form \":drc option\",");
+#endif
 	    TxPrintf(" where option is one of:\n");
 	    for (msg = &(cmdDrcOption[0]); *msg != NULL; msg++)
 	    {
