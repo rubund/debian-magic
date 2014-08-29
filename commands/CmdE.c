@@ -117,6 +117,7 @@ CmdEdit(w, cmd)
     cmdFoundNewEdit = FALSE;
     csave = EditRootDef;
     usave = EditCellUse;
+    EditCellUse = NULL;
 
     (void) SelEnumCells(FALSE, (bool *) NULL, (SearchContext *) NULL,
 	    cmdEditEnumFunc, (ClientData) &pointArea);

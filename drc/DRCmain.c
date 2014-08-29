@@ -179,18 +179,21 @@ drcPaintError(celldef, rect, cptr, plane)
  */
 
 void
-drcPrintError (celldef, rect, cptr, area)
+drcPrintError (celldef, rect, cptr, scx)
     CellDef   * celldef;	/* CellDef being checked -- not used here */
     Rect      * rect;		/* Area of error */
     DRCCookie * cptr;  		/* Design rule violated */
-    Rect      * area;		/* Only errors in this area get reported. */
+    SearchContext * scx;	/* Only errors in scx->scx_area get reported. */
 {
     HashEntry *h;
     int i;
+    Rect *area, r;
 
     ASSERT (cptr != (DRCCookie *) NULL, "drcPrintError");
 
-    if ((area != NULL) && (!GEO_OVERLAP(area, rect))) return;
+    GeoTransRect(&scx->scx_trans, rect, &r);
+    area = &scx->scx_area;
+    if ((area != NULL) && (!GEO_OVERLAP(area, &r))) return;
     DRCErrorCount += 1;
     h = HashFind(&DRCErrorTable, cptr->drcc_why);
     i = (spointertype) HashGetValue(h);
@@ -206,18 +209,21 @@ drcPrintError (celldef, rect, cptr, area)
 #ifdef MAGIC_WRAPPER
 
 void
-drcListError (celldef, rect, cptr, area)
+drcListError (celldef, rect, cptr, scx)
     CellDef   * celldef;	/* CellDef being checked -- not used here */
     Rect      * rect;		/* Area of error */
     DRCCookie * cptr;  		/* Design rule violated */
-    Rect      * area;		/* Only errors in this area get reported. */
+    SearchContext * scx;	/* Only errors in scx->scx_area get reported */
 {
     HashEntry *h;
     int i;
+    Rect *area, r;
 
     ASSERT (cptr != (DRCCookie *) NULL, "drcListError");
 
-    if ((area != NULL) && (!GEO_OVERLAP(area, rect))) return;
+    GeoTransRect(&scx->scx_trans, rect, &r);
+    area = &scx->scx_area;
+    if ((area != NULL) && (!GEO_OVERLAP(area, &r))) return;
     DRCErrorCount += 1;
     h = HashFind(&DRCErrorTable, cptr->drcc_why);
     i = (spointertype) HashGetValue(h);
@@ -237,18 +243,21 @@ drcListError (celldef, rect, cptr, area)
 /* along with position information.					*/
 
 void
-drcListallError (celldef, rect, cptr, area)
+drcListallError (celldef, rect, cptr, scx)
     CellDef   * celldef;	/* CellDef being checked -- not used here */
     Rect      * rect;		/* Area of error */
     DRCCookie * cptr;  		/* Design rule violated */
-    Rect      * area;		/* Only errors in this area get reported. */
+    SearchContext * scx;	/* Only errors in scx->scx_area get reported. */
 {
     Tcl_Obj *lobj, *pobj;
     HashEntry *h;
+    Rect *area, r;
 
     ASSERT (cptr != (DRCCookie *) NULL, "drcListallError");
 
-    if ((area != NULL) && (!GEO_OVERLAP(area, rect))) return;
+    GeoTransRect(&scx->scx_trans, rect, &r);
+    area = &scx->scx_area;
+    if ((area != NULL) && (!GEO_OVERLAP(area, &r))) return;
     DRCErrorCount += 1;
     h = HashFind(&DRCErrorTable, cptr->drcc_why);
     lobj = (Tcl_Obj *) HashGetValue(h);
@@ -257,10 +266,10 @@ drcListallError (celldef, rect, cptr, area)
     
     pobj = Tcl_NewListObj(0, NULL);
 
-    Tcl_ListObjAppendElement(magicinterp, pobj, Tcl_NewIntObj(rect->r_xbot));
-    Tcl_ListObjAppendElement(magicinterp, pobj, Tcl_NewIntObj(rect->r_ybot));
-    Tcl_ListObjAppendElement(magicinterp, pobj, Tcl_NewIntObj(rect->r_xtop));
-    Tcl_ListObjAppendElement(magicinterp, pobj, Tcl_NewIntObj(rect->r_ytop));
+    Tcl_ListObjAppendElement(magicinterp, pobj, Tcl_NewIntObj(r.r_xbot));
+    Tcl_ListObjAppendElement(magicinterp, pobj, Tcl_NewIntObj(r.r_ybot));
+    Tcl_ListObjAppendElement(magicinterp, pobj, Tcl_NewIntObj(r.r_xtop));
+    Tcl_ListObjAppendElement(magicinterp, pobj, Tcl_NewIntObj(r.r_ytop));
     Tcl_ListObjAppendElement(magicinterp, lobj, pobj);
 
     HashSetValue(h, lobj);
@@ -524,13 +533,13 @@ drcWhyFunc(scx, cdarg)
     
 //  (void) DRCBasicCheck(def, &haloArea, &scx->scx_area,
 //		(dolist) ? drcListError : drcPrintError,
-//		(ClientData) &scx->scx_area);
+//		(ClientData) scx);
     (void) DRCInteractionCheck(def, &scx->scx_area, &scx->scx_area,
 		(dolist) ? drcListError : drcPrintError,
-		(ClientData) &scx->scx_area);
+		(ClientData) scx);
     (void) DRCArrayCheck(def, &scx->scx_area,
 		(dolist) ? drcListError : drcPrintError,
-		(ClientData) &scx->scx_area);
+		(ClientData) scx);
     
     /* Also search children. */
 
@@ -551,9 +560,9 @@ drcWhyAllFunc(scx, cdarg)
     /* Check paint and interactions in this subcell. */
     
     (void) DRCInteractionCheck(def, &scx->scx_area, &scx->scx_area,
-		drcListallError, (ClientData) &scx->scx_area);
+		drcListallError, (ClientData)scx);
     (void) DRCArrayCheck(def, &scx->scx_area,
-		drcListallError, (ClientData) &scx->scx_area);
+		drcListallError, (ClientData)scx);
     
     /* Also search children. */
 

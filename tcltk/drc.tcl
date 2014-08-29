@@ -6,7 +6,7 @@ namespace path {::tcl::mathop ::tcl::mathfunc}
 
 magic::suspendall
 set fout [open "drc.out" w]
-set oscale [cif lambda out]
+set oscale [cif scale out]
 
 select top cell
 set origcell [cellname list self]

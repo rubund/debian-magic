@@ -337,7 +337,7 @@ proc magic::ruler {{text {}} {orient auto}} {
 
 proc magic::measure {{orient auto}} {
 
-   set scale [cif lambda out]
+   set scale [cif scale out]
 
    set bv [box values]
    set llx [lindex $bv 0]

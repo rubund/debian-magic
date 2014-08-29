@@ -897,13 +897,14 @@ badusage:
 #define PREFIX		12
 #define READ		13
 #define RESCALE		14
-#define SEE		15
-#define STATS		16
-#define WARNING		17
-#define CIF_WRITE	18
-#define CIF_WRITE_FLAT	19
-#define POLYGONS	20
-#define UNFRACTURE	21
+#define CIF_SCALE	15
+#define SEE		16
+#define STATS		17
+#define WARNING		18
+#define CIF_WRITE	19
+#define CIF_WRITE_FLAT	20
+#define POLYGONS	21
+#define UNFRACTURE	22
 
 #define CIF_WARN_HELP  CIF_WARN_END	/* undefined by CIF module */
 
@@ -949,6 +950,7 @@ CmdCif(w, cmd)
 	"prefix [path]	prepend path to cell names in CIF output",
 	"read file		read CIF from \"file\" into edit cell",
 	"rescale [yes|no]	allow/disallow rescaling of internal grid",
+	"scale in|out	show microns per internal units for the current style",
 	"see layer		display CIF layer under box",
 	"statistics		print out statistics for CIF generator",
 	"warning [option]	set warning display options",
@@ -1089,6 +1091,7 @@ CmdCif(w, cmd)
 	    return;
 
 	case CIF_LAMBDA:
+	case CIF_SCALE:
 	    if (argc != 3) goto wrongNumArgs;
 	    yesno = Lookup(argv[2], cmdCifInOut); /* "input" or "output" */
 	    if (yesno < 0)
@@ -1097,11 +1100,17 @@ CmdCif(w, cmd)
 		curscale = CIFGetInputScale(1000);
 	    else
 		curscale = CIFGetOutputScale(1000);
+
+	    if (option == CIF_LAMBDA)
+	    {
+		TxPrintf("Warning:  \"cif lambda\" is deprecated;  use "
+			"\"cif scale\" instead.  Units are not in lambda.\n");
+	    }
 #ifdef MAGIC_WRAPPER
 	    Tcl_SetObjResult(magicinterp, Tcl_NewDoubleObj((double)curscale));
 #else
-	    TxPrintf("%s lambda is %2.1f microns.\n", (yesno) ?
-			"Output" : "Input", curscale);
+	    TxPrintf("One %s internal unit is %2.1f microns.\n", (yesno) ?
+			"output" : "input", curscale);
 #endif
 	    return;
 

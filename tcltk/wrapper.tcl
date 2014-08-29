@@ -191,7 +191,7 @@ proc magic::setgrid {gridsize} {
    set tech1 [lindex $techlambda 1]
    set tech0 [lindex $techlambda 0]
    set tscale [expr {$tech1 / $tech0}]
-   set lambdaout [expr {[magic::cif lambda output] * $tscale}]
+   set lambdaout [expr {[magic::cif scale output] * $tscale}]
    set gridlambda [expr {$gridsize/$lambdaout}]
    magic::grid ${gridlambda}l
    magic::snap on
@@ -390,10 +390,10 @@ proc magic::techmanager {{option "update"}} {
    set techstuff [magic::tech version]
    .techmgr.title.tvers configure -text "(version [lindex $techstuff 0])"
    .techmgr.subtitle configure -text [lindex $techstuff 1]
-   set lotext [format "%g" [expr {[magic::cif lambda output] * $tscale}]]
+   set lotext [format "%g" [expr {[magic::cif scale output] * $tscale}]]
    .techmgr.lambda0.lval configure -text $lotext
    .techmgr.cif0.lstyle configure -text [magic::cif list istyle]
-   set litext [format "%g" [expr {[magic::cif lambda input] * $tscale}]]
+   set litext [format "%g" [expr {[magic::cif scale input] * $tscale}]]
    .techmgr.cif0.llambda configure -text $litext
    .techmgr.cif1.lstyle configure -text [magic::cif list ostyle]
    .techmgr.cif1.llambda configure -text $lotext
