@@ -386,6 +386,8 @@ typedef struct celldef
  *	    stream data to be read in post-order.
  *	CDVENDORGDS indicates that the cell was read from a GDS stream
  *	    with the option "gds readonly true".
+ *	CDVISITED indicates that at least one instance of the cell was
+ *	    already output during a file write.
  */
 
 #define	CDAVAILABLE	 0x0001
@@ -401,6 +403,7 @@ typedef struct celldef
 #define CDFLATGDS	 0x0400
 #define CDPROCESSEDGDS	 0x0800
 #define CDVENDORGDS	 0x1000
+#define CDVISITED	 0x2000
 
 /*
  * Description of an array.

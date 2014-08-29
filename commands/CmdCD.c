@@ -542,6 +542,8 @@ outputCalma:
  * or
  *	cellname rename [name] [newname]
  * or
+ *	cellname [list] filepath [path|"default"]
+ * or
  *	cellname property [name] [property_key [property_value]]
  *
  * Results:
@@ -582,6 +584,7 @@ CmdCellname(w, cmd)
 	"window		list top-level cell of a layout window",
 	"create		create a new cell definition",
 	"delete		delete the named cell definition",
+	"filepath	list the full path of the file for the cell",
 	"flags		list option flags of the indicated cell definition",
 	"lock		lock the named cell (prevent changes to cell use)",
 	"unlock		unlock the named cell (allow changes to cell use)",
@@ -593,7 +596,7 @@ CmdCellname(w, cmd)
     typedef enum { IDX_CHILDREN, IDX_PARENTS, IDX_EXISTS, IDX_SELF,
 		   IDX_INSTANCE, IDX_CHILDINST, IDX_CELLDEF, IDX_ALLCELLS,
 		   IDX_TOPCELLS, IDX_IN_WINDOW, IDX_CREATE,
-		   IDX_DELETE, IDX_FLAGS, IDX_LOCK, IDX_UNLOCK,
+		   IDX_DELETE, IDX_FILEPATH, IDX_FLAGS, IDX_LOCK, IDX_UNLOCK,
 		   IDX_PROPERTY, IDX_RENAME, IDX_READWRITE } optionType;
 
     if (strstr(cmd->tx_argv[0], "in"))
@@ -614,7 +617,8 @@ CmdCellname(w, cmd)
     if (option < 0) goto badusage;
 
     if ((locargc > 3) && (option != IDX_RENAME) && (option != IDX_DELETE) &&
-		(option != IDX_READWRITE) && (option != IDX_PROPERTY))
+		(option != IDX_READWRITE) && (option != IDX_PROPERTY) &&
+		(option != IDX_FILEPATH))
 	goto badusage;
 
     if ((locargc > 4) && (option != IDX_PROPERTY))
@@ -650,7 +654,8 @@ CmdCellname(w, cmd)
 	    case IDX_TOPCELLS:
 		TxError("Instances do not have a top level.  Use \"cellname\"?\n");
 		return;
-	    case IDX_IN_WINDOW: case IDX_READWRITE: case IDX_FLAGS: case IDX_PROPERTY:
+	    case IDX_IN_WINDOW: case IDX_READWRITE: case IDX_FLAGS:
+	    case IDX_PROPERTY: case IDX_FILEPATH:
 		TxError("Function unimplemented for instances.\n");
 		return;
 	    case IDX_DELETE:
@@ -795,6 +800,73 @@ CmdCellname(w, cmd)
 
 		    WindAreaChanged(w, &w->w_screenArea);
 		    CmdSetWindCaption(EditCellUse, (CellDef *)NULL);
+		}
+	    }
+	    break;
+
+	case IDX_FILEPATH:
+	    if (cellname == NULL)
+		cellDef = EditRootDef;
+	    else
+		cellDef = DBCellLookDef(cellname);
+	    if (cellDef == (CellDef *) NULL)
+	    {
+		TxError("Unknown cell %s\n", cellname);
+		break;
+	    }
+	    if (locargc == 3)
+	    {
+		if (cellDef->cd_file == NULL)
+		{
+#ifdef MAGIC_WRAPPER
+		    if (dolist)
+			Tcl_SetResult(magicinterp, "default", 0);
+		    else
+#endif
+			TxPrintf("default\n");
+		}
+		else
+		{
+		    char *pathend;
+
+		    pathend = strrchr(cellDef->cd_file, '/');
+		    if (pathend) *pathend = '\0';
+#ifdef MAGIC_WRAPPER
+		    if (dolist)
+			Tcl_SetResult(magicinterp, cellDef->cd_file, 0);
+		    else
+#endif
+		 	TxPrintf("%s\n", cellDef->cd_file);
+
+		    if (pathend) *pathend = '/';
+		}
+	    }
+	    else if (locargc == 4)
+	    {
+		char *filepath;
+
+		filepath = cmd->tx_argv[3 + ((dolist) ? 1 : 0)];
+		if (!strcmp(filepath, "default"))
+		{
+		    if (cellDef->cd_file != NULL)
+		    {
+			freeMagic(cellDef->cd_file);
+			cellDef->cd_file = NULL;
+		    }
+		}
+		else
+		{
+		    char *fullpath;
+		    fullpath = (char *)mallocMagic(strlen(filepath) +
+			strlen(cellDef->cd_name) + 6);
+		    sprintf(fullpath, "%s/%s.mag", filepath, cellDef->cd_name);
+
+		    if (cellDef->cd_file != NULL)
+		    {
+			freeMagic(cellDef->cd_file);
+			cellDef->cd_file = NULL;
+		    }
+		    cellDef->cd_file = fullpath;	
 		}
 	    }
 	    break;
