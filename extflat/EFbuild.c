@@ -498,7 +498,11 @@ efBuildDeviceParams(name, argc, argv)
 	    continue;
 	}
 	newparm = (DevParam *)mallocMagic(sizeof(DevParam));
-	newparm->parm_type = *argv[n];
+	newparm->parm_type[0] = *argv[n];
+	if ((pptr - argv[n]) == 1)
+	    newparm->parm_type[1] = '\0';
+	else
+	    newparm->parm_type[1] = *(argv[n] + 1);
 
 	if ((mult = strchr(pptr + 1, '*')) != NULL)
 	{
@@ -549,7 +553,7 @@ efBuildDevice(def, class, type, r, argc, argv)
 			 * and an attribute list (or the token 0).
 			 */
 {
-    int n, nterminals;
+    int n, nterminals, pn;
     DevTerm *term;
     Dev *newdev, devtmp;
     char ptype, *pptr, **av;
@@ -595,10 +599,26 @@ efBuildDevice(def, class, type, r, argc, argv)
 		switch(*argv[argstart])
 		{
 		    case 'a':
-			devtmp.dev_area = atoi(pptr);
+			if ((pptr - argv[argstart]) == 1)
+			    devtmp.dev_area = atoi(pptr);
+			else
+			{
+			    pn = *(argv[argstart] + 1) - '0';
+			    if (pn == 0)
+				devtmp.dev_area = atoi(pptr);
+			    /* Otherwise, punt */
+			}
 			break;
 		    case 'p':
-			devtmp.dev_perim = atoi(pptr);
+			if ((pptr - argv[argstart]) == 1)
+			    devtmp.dev_perim = atoi(pptr);
+			else
+			{
+			    pn = *(argv[argstart] + 1) - '0';
+			    if (pn == 0)
+				devtmp.dev_perim = atoi(pptr);
+			    /* Otherwise, punt */
+			}
 			break;
 		    case 'l':
 			devtmp.dev_length = atoi(pptr);
@@ -745,7 +765,9 @@ efBuildDevice(def, class, type, r, argc, argv)
     {
 	term = &newdev->dev_terms[n];
 	term->dterm_node = efBuildDevNode(def, av[TERM_NAME], FALSE);
-	term->dterm_perim = atoi(av[TERM_PERIM]);
+	term->dterm_length = atoi(av[TERM_PERIM]);
+	term->dterm_area = 0;
+	term->dterm_perim = 0;
 
 	/* If the attr list is '0', this signifies no attributes */
 	if (av[TERM_ATTRS][0] == '0' && av[TERM_ATTRS][1] == '\0')
@@ -757,6 +779,49 @@ efBuildDevice(def, class, type, r, argc, argv)
 #undef	TERM_NAME
 #undef	TERM_PERIM
 #undef	TERM_ATTRS
+
+    /* Re-parse the arguments for terminal-specific parameters	*/
+    /* (only for "subcircuit" and similar classes) 		*/
+
+    switch (class)
+    {
+	case DEV_SUBCKT:
+	case DEV_MSUBCKT:
+	case DEV_RSUBCKT:
+
+	    argstart = 0;
+
+	    while ((pptr = strchr(argv[argstart], '=')) != NULL)
+	    {
+		pptr++;
+		switch(*argv[argstart])
+		{
+		    case 'a':
+			if ((pptr - argv[argstart]) > 1)
+			{
+			    pn = *(argv[argstart] + 1) - '0';
+			    if (pn > 0 && pn < nterminals)
+			    {
+				term = &newdev->dev_terms[pn];
+				term->dterm_area = atoi(pptr);
+			    }
+			}
+			break;
+		    case 'p':
+			if ((pptr - argv[argstart]) > 1)
+			{
+			    pn = *(argv[argstart] + 1) - '0';
+			    if (pn > 0 && pn < nterminals)
+			    {
+				term = &newdev->dev_terms[pn];
+				term->dterm_perim = atoi(pptr);
+			    }
+			}
+			break;
+		}
+		argstart++;
+	    }
+    }
 
     /* Add this dev to the list for def */
     newdev->dev_next = def->def_devs;

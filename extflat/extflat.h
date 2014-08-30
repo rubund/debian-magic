@@ -225,7 +225,9 @@ typedef struct devterm
 {
     EFNode	*dterm_node;	/* Node to which we're connected */
     char	*dterm_attrs;	/* Attribute list */
-    int		 dterm_perim;	/* Length (perimeter) of terminal */
+    int		 dterm_length;	/* Length of terminal connection to gate */
+    int		 dterm_perim;	/* Terminal perimeter if passed as a param */
+    int		 dterm_area;	/* Terminal area if passed as a param */
 } DevTerm;
 
 /*
@@ -237,7 +239,7 @@ typedef struct devterm
 
 typedef struct parm
 {
-    char	 parm_type;
+    char	 parm_type[2];
     char	*parm_name;
     double	 parm_scale;
     struct parm	*parm_next;

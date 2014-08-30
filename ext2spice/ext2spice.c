@@ -1684,7 +1684,7 @@ spcdevVisit(dev, hierName, scale, trans)
     DevParam *plist, *pptr;
     DevTerm *gate, *source, *drain;
     EFNode  *subnode, *snode, *dnode, *subnodeFlat = NULL;
-    int l, w, i;
+    int l, w, i, parmval;
     bool subAP= FALSE, hierS, hierD, extHierSDAttr() ;
     float sdM; 
     char name[12], devchar;
@@ -1904,7 +1904,7 @@ spcdevVisit(dev, hierName, scale, trans)
 
 	    plist = efGetDeviceParams(EFDevTypes[dev->dev_type]);
 	    for (pptr = plist; pptr != NULL; pptr = pptr->parm_next)
-		if (pptr->parm_type == 's')
+		if (pptr->parm_type[0] == 's')
 		    break;
 
 	    if ((pptr == NULL) && subnode)
@@ -1922,27 +1922,53 @@ spcdevVisit(dev, hierName, scale, trans)
 	    while (plist != NULL)
 	    {
 		fprintf(esSpiceF, " %s=", plist->parm_name);
-		switch (plist->parm_type)
+		switch (plist->parm_type[0])
 		{
 		    case 'a':
+			// Check for area of terminal node vs. device area
+			if (plist->parm_type[1] == '\0' || plist->parm_type[1] == '0')
+			    parmval = dev->dev_area;
+			else 
+			{
+			    int pn;
+
+			    pn = plist->parm_type[1] - '0';
+			    if (pn >= dev->dev_nterm) pn = dev->dev_nterm - 1;
+
+			    parmval = dev->dev_terms[pn].dterm_area;
+			}
+
 			if (esScale < 0)
-			    fprintf(esSpiceF, "%g", dev->dev_area * scale * scale);
+			    fprintf(esSpiceF, "%g", parmval * scale * scale);
 			else if (plist->parm_scale != 1.0)
-			    fprintf(esSpiceF, "%g", dev->dev_area * scale * scale
+			    fprintf(esSpiceF, "%g", parmval * scale * scale
 					* esScale * esScale * plist->parm_scale
 					* 1E-12);
 			else
-			    fprintf(esSpiceF, "%gp", dev->dev_area * scale * scale
+			    fprintf(esSpiceF, "%gp", parmval * scale * scale
 					* esScale * esScale);
 			break;
 		    case 'p':
+			// Check for perimeter of terminal node vs. device perimeter
+			if (plist->parm_type[1] == '\0' || plist->parm_type[1] == '0')
+			    parmval = dev->dev_perim;
+			else 
+			{
+			    int pn;
+
+			    pn = plist->parm_type[1] - '0';
+			    if (pn >= dev->dev_nterm) pn = dev->dev_nterm - 1;
+
+			    parmval = dev->dev_terms[pn].dterm_perim;
+			}
+
 			if (esScale < 0)
-			    fprintf(esSpiceF, "%g", dev->dev_perim * scale);
+			    fprintf(esSpiceF, "%g", parmval * scale);
 			else if (plist->parm_scale != 1.0)
-			    fprintf(esSpiceF, "%g", dev->dev_perim * scale
+			    fprintf(esSpiceF, "%g", parmval * scale
 					* esScale * plist->parm_scale * 1E-6);
 			else
-			    fprintf(esSpiceF, "%gu", dev->dev_perim * scale
+			    fprintf(esSpiceF, "%gu", parmval * scale
 					* esScale);
 			break;
 		    case 'l':

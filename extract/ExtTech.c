@@ -2000,7 +2000,15 @@ ExtTechLine(sectionName, argc, argv)
 			paramName++;
 			newParam = (ParamList *)mallocMagic(sizeof(ParamList));
 			newParam->pl_count = 0;
-			newParam->pl_param = *argv[argc - 1];
+			newParam->pl_param[0] = *argv[argc - 1];
+			newParam->pl_param[1] = '\0';
+
+			if (paramName - argv[argc - 1] == 3)
+			    newParam->pl_param[1] = *(argv[argc - 1] + 1);
+
+			else if (paramName - argv[argc - 1] > 3)
+			    TechError("Parameter name %s can be no more than"
+				"two characters.\n", argv[argc - 1]);
 
 			// Parameter syntax "<type>=<name>*<scale>" indicates
 			// that the subcircuit has internal scaling, and the
@@ -2056,9 +2064,17 @@ ExtTechLine(sectionName, argc, argv)
 			paramName++;
 			newParam = (ParamList *)mallocMagic(sizeof(ParamList));
 			newParam->pl_count = 0;
-			newParam->pl_param = *argv[argc - 1];
+			newParam->pl_param[0] = *argv[argc - 1];
+			newParam->pl_param[1] = '\0';
 
-			// See comments for DEV_SUBCKT above.
+			if (paramName - argv[argc - 1] == 3)
+			    newParam->pl_param[1] = *(argv[argc - 1] + 1);
+
+			else if (paramName - argv[argc - 1] > 3)
+			    TechError("Parameter name %s can be no more than"
+				"two characters.\n", argv[argc - 1]);
+
+			// See comments for DEV_SUBCKT/DEV_MSUBCKT above.
 
 			if ((mult = strchr(paramName, '*')) != NULL)
 			{

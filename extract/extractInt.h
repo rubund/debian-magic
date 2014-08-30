@@ -53,13 +53,18 @@ typedef int ResValue;	/* Warning:  in some places resistances are stored
 /* These lists keep track of what parameter names subcircuit definitions
  * use for parameters that magic knows how to generate.  Valid pl_param
  * values are a (area), p (perimeter), w (width), l (length), s (substrate),
- * x (position), and y (position).
+ * x (position), and y (position).  Values "a" and "p" may be followed by
+ * an additional integer indicating the terminal from which the value is
+ * used (e.g., source area, drain perimeter, etc.).  An integer "0"
+ * indicates the device identifier region (e.g., gate) and is equivalent
+ * to having no integer at all.  Integers "1" and up indicate terminals,
+ * in order.
  */
 
 typedef struct pl
 {
     int		 pl_count;	/* Share this list. . . */
-    char	 pl_param;	/* Default character for parameter */
+    char	 pl_param[2];	/* Default character for parameter */
     char	*pl_name;	/* Full name for parameter */
     double	 pl_scale;	/* Scaling of parameter, if specified */
     struct pl	*pl_next;	/* Next parameter in list */

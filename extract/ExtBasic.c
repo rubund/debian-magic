@@ -1134,9 +1134,9 @@ extSeparateBounds(nterm)
  *
  * Scan through the TransRegion in the supplied list, and collect a mask of
  * all transistor types used in the layout.  Then for each transistor type,
- * find if it belongs to a "subcircuit" or "rsubcircuit" definition.  If it
- * does, output a record containing the list of parameter names used by that
- * subcircuit.
+ * find if it belongs to a "subcircuit" (including "rsubcircuit" and
+ * "msubcircuit") definition.  If it does, output a record containing the
+ * list of parameter names used by that subcircuit.
  *
  * Results:
  *	None.
@@ -1172,16 +1172,78 @@ extOutputParameters(def, transList, outFile)
 		fprintf(outFile, "parameters %s", ExtCurStyle->exts_transName[t]);
 		for (; plist != NULL; plist = plist->pl_next)
 		{
-		    if (plist->pl_scale != 1.0)
-			fprintf(outFile, " %c=%s*%g", plist->pl_param,
+		    if (plist->pl_param[1] != '\0')
+		    {
+			if (plist->pl_scale != 1.0)
+			    fprintf(outFile, " %c%c=%s*%g", 
+					plist->pl_param[0], plist->pl_param[1],
 					plist->pl_name, plist->pl_scale);
+			else
+			    fprintf(outFile, " %c%c=%s", plist->pl_param[0],
+					plist->pl_param[1], plist->pl_name);
+		    }
 		    else
-			fprintf(outFile, " %c=%s", plist->pl_param, plist->pl_name);
+		    {
+			if (plist->pl_scale != 1.0)
+			    fprintf(outFile, " %c=%s*%g", 
+					plist->pl_param[0],
+					plist->pl_name, plist->pl_scale);
+			else
+			    fprintf(outFile, " %c=%s", plist->pl_param[0],
+					plist->pl_name);
+		    }
 		}
 		fprintf(outFile, "\n");
 	    }
 	}
     }
+}
+
+/*
+ * ----------------------------------------------------------------------------
+ *
+ * extGetNativeResistClass() --
+ *
+ * For the purpose of generating a node area and perimeter value to output
+ * to a subcircuit call as a passed parameter.  The value output is assumed
+ * to refer only to the part of the whole eletrical node that is the
+ * actual device node, not to include connected metal, contacts, etc.
+ * Since area and perimeter information about a node is separated into
+ * resist classes, we need to figure out which resist class belongs to
+ * the device terminal type.
+ *
+ * "type" is the type identifier for the device (e.g., gate).  "term" is
+ * the index of the terminal for the device.  Devices with symmetrical
+ * terminals (e.g., MOSFETs), may have fewer type masks than terminals.
+ *
+ * ----------------------------------------------------------------------------
+ */
+
+int
+extGetNativeResistClass(type, term)
+    TileType type;
+    int term;
+{
+    TileTypeBitMask *tmask, *rmask;
+    int i, n;
+
+    tmask = NULL;
+    for (i = 0;; i++)
+    {
+	rmask = &ExtCurStyle->exts_transSDTypes[type][i];
+	if (TTMaskHasType(rmask, TT_SPACE)) break;
+	tmask = rmask;
+	if (i == term) break;
+    }
+    if (tmask == NULL) return -1;	/* Error */
+
+    for (n = 0; n < ExtCurStyle->exts_numResistClasses; n++)
+    {
+	rmask = &ExtCurStyle->exts_typesByResistClass[n];
+	if (TTMaskIntersect(rmask, tmask))
+	    return n;
+    }
+    return -1; 		/* Error */
 }
 
 /*
@@ -1227,7 +1289,7 @@ extOutputTrans(def, transList, outFile)
     FindRegion arg;
     LabelList *ll;
     TileType t;
-    int nsd, length, width, n, i, ntiles, corners;
+    int nsd, length, width, n, i, ntiles, corners, tn, rc;
     double dres, dcap;
     char mesg[256];
     bool isAnnular, hasModel;
@@ -1460,26 +1522,59 @@ extOutputTrans(def, transList, outFile)
 		    for (chkParam = ExtCurStyle->exts_deviceParams[t]; chkParam
 				!= NULL; chkParam = chkParam->pl_next)
 		    {
-			switch(tolower(chkParam->pl_param))
+			switch(tolower(chkParam->pl_param[0]))
 			{
 			    case 'a':
-				fprintf(outFile, " %c=%d", chkParam->pl_param,
+				if (chkParam->pl_param[1] == '\0' ||
+				    chkParam->pl_param[1] == '0')
+				{
+				    fprintf(outFile, " %c=%d", chkParam->pl_param[0],
 						reg->treg_area);
+				}
+				else
+				{
+				    // Find and output the area of the terminal
+				    // node.  This is tricky, as the record
+				    // contains area information on everything
+				    // connected to the node.  However, what we
+				    // really want to generate is the area of
+				    // the terminal material only.
+
+				    tn = (int)(chkParam->pl_param[1] - '0') - 1;
+				    rc = extGetNativeResistClass(t, tn);
+				    if (rc >= 0 && tn < extTransRec.tr_nterm)
+				    fprintf(outFile, " %c%c=%d", chkParam->pl_param[0],
+					chkParam->pl_param[1],
+					extTransRec.tr_termnode[tn]->nreg_pa[rc].pa_area);
+				}
 				break;
 			    case 'p':
-				fprintf(outFile, " %c=%d", chkParam->pl_param,
+				if (chkParam->pl_param[1] == '\0' ||
+				    chkParam->pl_param[1] == '0')
+				{
+				    fprintf(outFile, " %c=%d", chkParam->pl_param[0],
 						extTransRec.tr_perim);
+				}
+				else
+				{
+				    tn = (int)(chkParam->pl_param[1] - '0') - 1;
+				    rc = extGetNativeResistClass(t, tn);
+				    if (rc >= 0 && tn < extTransRec.tr_nterm)
+				    fprintf(outFile, " %c%c=%d", chkParam->pl_param[0],
+					chkParam->pl_param[1],
+					extTransRec.tr_termnode[tn]->nreg_pa[rc].pa_perim);
+				}
 				break;
 			    case 'l':
-				fprintf(outFile, " %c=%d", chkParam->pl_param,
+				fprintf(outFile, " %c=%d", chkParam->pl_param[0],
 						length);
 				break;
 			    case 'w':
-				fprintf(outFile, " %c=%d", chkParam->pl_param,
+				fprintf(outFile, " %c=%d", chkParam->pl_param[0],
 						width);
 				break;
 			    case 'c':
-				fprintf(outFile, " %c=%g", chkParam->pl_param,
+				fprintf(outFile, " %c=%g", chkParam->pl_param[0],
 					(ExtCurStyle->exts_transGateCap[t]
 					* reg->treg_area) +
 					(ExtCurStyle->exts_transSDCap[t]
@@ -1491,7 +1586,7 @@ extOutputTrans(def, transList, outFile)
 				/* Do nothing;  these values are standard output */
 				break;
 			    default:
-				fprintf(outFile, " %c=", chkParam->pl_param);
+				fprintf(outFile, " %c=", chkParam->pl_param[0]);
 				break;
 			}
 		    }
@@ -1625,30 +1720,56 @@ extOutputTrans(def, transList, outFile)
 		    for (chkParam = ExtCurStyle->exts_deviceParams[t]; chkParam
 				!= NULL; chkParam = chkParam->pl_next)
 		    {
-			switch(tolower(chkParam->pl_param))
+			switch(tolower(chkParam->pl_param[0]))
 			{
 			    case 'a':
-				fprintf(outFile, " %c=%d", chkParam->pl_param,
-					reg->treg_area);
+				if (chkParam->pl_param[1] == '\0' ||
+				    chkParam->pl_param[1] == '0')
+				{
+				    fprintf(outFile, " %c=%d", chkParam->pl_param[0],
+						reg->treg_area);
+				}
+				else
+				{
+				    tn = (int)(chkParam->pl_param[1] - '0') - 1;
+				    rc = extGetNativeResistClass(t, tn);
+				    if (rc >= 0 && tn < extTransRec.tr_nterm)
+				    fprintf(outFile, " %c%c=%d", chkParam->pl_param[0],
+					chkParam->pl_param[1],
+					extTransRec.tr_termnode[tn]->nreg_pa[rc].pa_area);
+				}
 				break;
 			    case 'p':
-				fprintf(outFile, " %c=%d", chkParam->pl_param,
-					extTransRec.tr_perim);
+				if (chkParam->pl_param[1] == '\0' ||
+				    chkParam->pl_param[1] == '0')
+				{
+				    fprintf(outFile, " %c=%d", chkParam->pl_param[0],
+						extTransRec.tr_perim);
+				}
+				else
+				{
+				    tn = (int)(chkParam->pl_param[1] - '0') - 1;
+				    rc = extGetNativeResistClass(t, tn);
+				    if (rc >= 0 && tn < extTransRec.tr_nterm)
+				    fprintf(outFile, " %c%c=%d", chkParam->pl_param[0],
+					chkParam->pl_param[1],
+					extTransRec.tr_termnode[tn]->nreg_pa[rc].pa_area);
+				}
 				break;
 			    case 'l':
-				fprintf(outFile, " %c=%d", chkParam->pl_param,
+				fprintf(outFile, " %c=%d", chkParam->pl_param[0],
 					length);
 				break;
 			    case 'w':
-				fprintf(outFile, " %c=%d", chkParam->pl_param,
+				fprintf(outFile, " %c=%d", chkParam->pl_param[0],
 					width);
 				break;
 			    case 'r':
-				fprintf(outFile, " %c=%g", chkParam->pl_param,
+				fprintf(outFile, " %c=%g", chkParam->pl_param[0],
 					dres / 1000.0);
 				break;
 			    case 'c':
-				fprintf(outFile, " %c=%g", chkParam->pl_param,
+				fprintf(outFile, " %c=%g", chkParam->pl_param[0],
 					(ExtCurStyle->exts_transGateCap[t]
 					* reg->treg_area) +
 					(ExtCurStyle->exts_transSDCap[t]
@@ -1660,7 +1781,7 @@ extOutputTrans(def, transList, outFile)
 				/* Do nothing;  these values are standard output */
 				break;
 			    default:
-				fprintf(outFile, " %c=", chkParam->pl_param);
+				fprintf(outFile, " %c=", chkParam->pl_param[0]);
 				break;
 			}
 		    }

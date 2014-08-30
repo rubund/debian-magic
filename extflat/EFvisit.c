@@ -214,8 +214,8 @@ EFGetLengthAndWidth(dev, lptr, wptr)
 		source = drain = &dev->dev_terms[1];
 		if (dev->dev_nterm >= 3)
 		    drain = &dev->dev_terms[2];
-		l = gate->dterm_perim / 2;
-		w = (source->dterm_perim + drain->dterm_perim) / 2;
+		l = gate->dterm_length / 2;
+		w = (source->dterm_length + drain->dterm_length) / 2;
 	    }
 	    if (gate->dterm_attrs) efDevFixLW(gate->dterm_attrs, &l, &w);
 	    break;
