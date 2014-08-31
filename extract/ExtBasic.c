@@ -1526,50 +1526,15 @@ extOutputTrans(def, transList, outFile)
 			{
 			    case 'a':
 				if (chkParam->pl_param[1] == '\0' ||
-				    chkParam->pl_param[1] == '0')
-				{
+					chkParam->pl_param[1] == '0')
 				    fprintf(outFile, " %c=%d", chkParam->pl_param[0],
 						reg->treg_area);
-				}
-				else
-				{
-				    // Find and output the area of the terminal
-				    // node.  This is tricky, as the record
-				    // contains area information on everything
-				    // connected to the node.  However, what we
-				    // really want to generate is the area of
-				    // the terminal material only.
-
-				    // Code removed, not needed  
-				    /*
-				    tn = (int)(chkParam->pl_param[1] - '0') - 1;
-				    rc = extGetNativeResistClass(t, tn);
-				    if (rc >= 0 && tn < extTransRec.tr_nterm)
-				    fprintf(outFile, " %c%c=%d", chkParam->pl_param[0],
-					chkParam->pl_param[1],
-					extTransRec.tr_termnode[tn]->nreg_pa[rc].pa_area);
-				    */
-				}
 				break;
 			    case 'p':
 				if (chkParam->pl_param[1] == '\0' ||
-				    chkParam->pl_param[1] == '0')
-				{
+					chkParam->pl_param[1] == '0')
 				    fprintf(outFile, " %c=%d", chkParam->pl_param[0],
 						extTransRec.tr_perim);
-				}
-				else
-				{
-				    // Code removed, not needed  
-				    /*
-				    tn = (int)(chkParam->pl_param[1] - '0') - 1;
-				    rc = extGetNativeResistClass(t, tn);
-				    if (rc >= 0 && tn < extTransRec.tr_nterm)
-				    fprintf(outFile, " %c%c=%d", chkParam->pl_param[0],
-					chkParam->pl_param[1],
-					extTransRec.tr_termnode[tn]->nreg_pa[rc].pa_perim);
-				    */
-				}
 				break;
 			    case 'l':
 				fprintf(outFile, " %c=%d", chkParam->pl_param[0],
@@ -1730,43 +1695,15 @@ extOutputTrans(def, transList, outFile)
 			{
 			    case 'a':
 				if (chkParam->pl_param[1] == '\0' ||
-				    chkParam->pl_param[1] == '0')
-				{
+					chkParam->pl_param[1] == '0')
 				    fprintf(outFile, " %c=%d", chkParam->pl_param[0],
 						reg->treg_area);
-				}
-				else
-				{
-				    // Code removed, not needed  
-				    /*
-				    tn = (int)(chkParam->pl_param[1] - '0') - 1;
-				    rc = extGetNativeResistClass(t, tn);
-				    if (rc >= 0 && tn < extTransRec.tr_nterm)
-				    fprintf(outFile, " %c%c=%d", chkParam->pl_param[0],
-					chkParam->pl_param[1],
-					extTransRec.tr_termnode[tn]->nreg_pa[rc].pa_area);
-				    */
-				}
 				break;
 			    case 'p':
 				if (chkParam->pl_param[1] == '\0' ||
-				    chkParam->pl_param[1] == '0')
-				{
+					chkParam->pl_param[1] == '0')
 				    fprintf(outFile, " %c=%d", chkParam->pl_param[0],
 						extTransRec.tr_perim);
-				}
-				else
-				{
-				    // Code removed, not needed  
-				    /*
-				    tn = (int)(chkParam->pl_param[1] - '0') - 1;
-				    rc = extGetNativeResistClass(t, tn);
-				    if (rc >= 0 && tn < extTransRec.tr_nterm)
-				    fprintf(outFile, " %c%c=%d", chkParam->pl_param[0],
-					chkParam->pl_param[1],
-					extTransRec.tr_termnode[tn]->nreg_pa[rc].pa_area);
-				    */
-				}
 				break;
 			    case 'l':
 				fprintf(outFile, " %c=%d", chkParam->pl_param[0],
