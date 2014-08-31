@@ -1921,57 +1921,140 @@ spcdevVisit(dev, hierName, scale, trans)
 	    sdM = getCurDevMult();
 	    while (plist != NULL)
 	    {
-		fprintf(esSpiceF, " %s=", plist->parm_name);
 		switch (plist->parm_type[0])
 		{
 		    case 'a':
 			// Check for area of terminal node vs. device area
 			if (plist->parm_type[1] == '\0' || plist->parm_type[1] == '0')
-			    parmval = dev->dev_area;
-			else 
 			{
-			    int pn;
-
-			    pn = plist->parm_type[1] - '0';
-			    if (pn >= dev->dev_nterm) pn = dev->dev_nterm - 1;
-
-			    parmval = dev->dev_terms[pn].dterm_area;
-			}
-
-			if (esScale < 0)
-			    fprintf(esSpiceF, "%g", parmval * scale * scale);
-			else if (plist->parm_scale != 1.0)
-			    fprintf(esSpiceF, "%g", parmval * scale * scale
+			    parmval = dev->dev_area;
+			    if (esScale < 0)
+				fprintf(esSpiceF, "%g", parmval * scale * scale);
+			    else if (plist->parm_scale != 1.0)
+				fprintf(esSpiceF, "%g", parmval * scale * scale
 					* esScale * esScale * plist->parm_scale
 					* 1E-12);
-			else
-			    fprintf(esSpiceF, "%gp", parmval * scale * scale
+			    else
+				fprintf(esSpiceF, "%gp", parmval * scale * scale
 					* esScale * esScale);
-			break;
-		    case 'p':
-			// Check for perimeter of terminal node vs. device perimeter
-			if (plist->parm_type[1] == '\0' || plist->parm_type[1] == '0')
-			    parmval = dev->dev_perim;
+			}
 			else 
 			{
 			    int pn;
 
 			    pn = plist->parm_type[1] - '0';
 			    if (pn >= dev->dev_nterm) pn = dev->dev_nterm - 1;
+	
+			    hierD = extHierSDAttr(&dev->dev_terms[pn]);
 
-			    parmval = dev->dev_terms[pn].dterm_perim;
+			    // For parameter a<n> followed by parameter p<n>,
+			    // process both at the same time.
+	
+			    if (plist->parm_next && plist->parm_next->parm_type[0]
+					== 'p' && plist->parm_next->parm_type[1]
+					== plist->parm_type[1])
+			    {
+				if (hierD)
+				    spcnAPHier(&dev->dev_terms[pn], hierName,
+					esFetInfo[dev->dev_type].resClassSD,
+					scale, plist->parm_type,
+					plist->parm_next->parm_type,
+					sdM, esSpiceF);
+				else
+				{
+				    dnode = SpiceGetNode(hierName,
+				 	dev->dev_terms[pn].dterm_node->efnode_name->efnn_hier);
+				    spcnAP(dnode, esFetInfo[dev->dev_type].resClassSD,
+					scale, plist->parm_name,
+					plist->parm_next->parm_name,
+					sdM, esSpiceF, w);
+			 	}
+				plist = plist->parm_next;
+			    }
+			    else
+			    {
+				if (hierD)
+				    spcnAPHier(&dev->dev_terms[pn], hierName,
+					esFetInfo[dev->dev_type].resClassSD,
+					scale, plist->parm_type, NULL,
+					sdM, esSpiceF);
+				else
+				{
+				    dnode = SpiceGetNode(hierName,
+				    	dev->dev_terms[pn].dterm_node->efnode_name->efnn_hier);
+				    spcnAP(dnode, esFetInfo[dev->dev_type].resClassSD,
+					scale, plist->parm_name, NULL,
+					sdM, esSpiceF, w);
+				}
+			    }
 			}
 
-			if (esScale < 0)
-			    fprintf(esSpiceF, "%g", parmval * scale);
-			else if (plist->parm_scale != 1.0)
-			    fprintf(esSpiceF, "%g", parmval * scale
-					* esScale * plist->parm_scale * 1E-6);
-			else
-			    fprintf(esSpiceF, "%gu", parmval * scale
-					* esScale);
 			break;
+		    case 'p':
+			// Check for area of terminal node vs. device area
+			if (plist->parm_type[1] == '\0' || plist->parm_type[1] == '0')
+			{
+			    parmval = dev->dev_perim;
+			    if (esScale < 0)
+				fprintf(esSpiceF, "%g", parmval * scale);
+			    else if (plist->parm_scale != 1.0)
+				fprintf(esSpiceF, "%g", parmval * scale
+					* esScale * plist->parm_scale * 1E-6);
+			    else
+				fprintf(esSpiceF, "%gu", parmval * scale * esScale);
+			}
+			else 
+			{
+			    int pn;
+
+			    pn = plist->parm_type[1] - '0';
+			    if (pn >= dev->dev_nterm) pn = dev->dev_nterm - 1;
+	
+			    hierD = extHierSDAttr(&dev->dev_terms[pn]);
+
+			    // For parameter p<n> followed by parameter a<n>,
+			    // process both at the same time.
+	
+			    if (plist->parm_next && plist->parm_next->parm_type[0]
+					== 'a' && plist->parm_next->parm_type[1]
+					== plist->parm_type[1])
+			    {
+				if (hierD)
+				    spcnAPHier(&dev->dev_terms[pn], hierName,
+					esFetInfo[dev->dev_type].resClassSD,
+					scale, plist->parm_next->parm_type,
+					plist->parm_type, sdM, esSpiceF);
+				else
+				{
+				    dnode = SpiceGetNode(hierName,
+				 	dev->dev_terms[pn].dterm_node->efnode_name->efnn_hier);
+				    spcnAP(dnode, esFetInfo[dev->dev_type].resClassSD,
+					scale, plist->parm_next->parm_name,
+					plist->parm_name, sdM, esSpiceF, w);
+			 	}
+				plist = plist->parm_next;
+			    }
+			    else
+			    {
+				if (hierD)
+				    spcnAPHier(&dev->dev_terms[pn], hierName,
+					esFetInfo[dev->dev_type].resClassSD,
+					scale, NULL, plist->parm_type,
+					sdM, esSpiceF);
+				else
+				{
+				    dnode = SpiceGetNode(hierName,
+				    	dev->dev_terms[pn].dterm_node->efnode_name->efnn_hier);
+				    spcnAP(dnode, esFetInfo[dev->dev_type].resClassSD,
+					scale, NULL, plist->parm_name,
+					sdM, esSpiceF, w);
+				}
+			    }
+			}
+			break;
+
 		    case 'l':
+			fprintf(esSpiceF, " %s=", plist->parm_name);
 			if (esScale < 0)
 			    fprintf(esSpiceF, "%g", l * scale);
 			else if (plist->parm_scale != 1.0)
@@ -1981,6 +2064,7 @@ spcdevVisit(dev, hierName, scale, trans)
 			    fprintf(esSpiceF, "%gu", l * scale * esScale);
 			break;
 		    case 'w':
+			fprintf(esSpiceF, " %s=", plist->parm_name);
 			if (esScale < 0)
 			    fprintf(esSpiceF, "%g", w * scale);
 			else if (plist->parm_scale != 1.0)
@@ -1990,11 +2074,13 @@ spcdevVisit(dev, hierName, scale, trans)
 			    fprintf(esSpiceF, "%gu", w * scale * esScale);
 			break;
 		    case 's':
+			fprintf(esSpiceF, " %s=", plist->parm_name);
 			subnodeFlat = spcdevSubstrate(hierName,
 				subnode->efnode_name->efnn_hier,
 				dev->dev_type, esSpiceF);
 			break;
 		    case 'x':
+			fprintf(esSpiceF, " %s=", plist->parm_name);
 			if (esScale < 0)
 			    fprintf(esSpiceF, "%g", dev->dev_rect.r_xbot * scale);
 			else if (plist->parm_scale != 1.0)
@@ -2005,6 +2091,7 @@ spcdevVisit(dev, hierName, scale, trans)
 					* esScale);
 			break;
 		    case 'y':
+			fprintf(esSpiceF, " %s=", plist->parm_name);
 			if (esScale < 0)
 			    fprintf(esSpiceF, "%g", dev->dev_rect.r_ybot * scale);
 			else if (plist->parm_scale != 1.0)
@@ -2015,9 +2102,11 @@ spcdevVisit(dev, hierName, scale, trans)
 					* esScale);
 			break;
 		    case 'r':
+			fprintf(esSpiceF, " %s=", plist->parm_name);
 			fprintf(esSpiceF, "%f", (double)(dev->dev_res));
 			break;
 		    case 'c':
+			fprintf(esSpiceF, " %s=", plist->parm_name);
 			fprintf(esSpiceF, "%ff", (double)(dev->dev_cap));
 			break;
 		}
@@ -2169,20 +2258,20 @@ spcdevVisit(dev, hierName, scale, trans)
 	    fprintf(esSpiceF, "\n+ ");
 	    if (hierD) 
         	spcnAPHier(drain, hierName, esFetInfo[dev->dev_type].resClassSD,
-			scale, "d", sdM, esSpiceF);
+			scale, "ad", "pd", sdM, esSpiceF);
 	    else
 	    {
 		dnode = SpiceGetNode(hierName, drain->dterm_node->efnode_name->efnn_hier);
         	spcnAP(dnode, esFetInfo[dev->dev_type].resClassSD, scale,
-			"d", sdM, esSpiceF, w);
+			"ad", "pd", sdM, esSpiceF, w);
 	    }
 	    if (hierS)
 		spcnAPHier(source, hierName, esFetInfo[dev->dev_type].resClassSD,
-			scale, "s", sdM, esSpiceF);
+			scale, "as", "ps", sdM, esSpiceF);
 	    else {
 		snode= SpiceGetNode(hierName, source->dterm_node->efnode_name->efnn_hier);
 		spcnAP(snode, esFetInfo[dev->dev_type].resClassSD, scale,
-			"s", sdM, esSpiceF, w);
+			"as", "ps", sdM, esSpiceF, w);
 	    }
 	    if (subAP)
 	    {
@@ -2195,7 +2284,7 @@ spcdevVisit(dev, hierName, scale, trans)
 		}
 		else if (subnodeFlat) 
 		    spcnAP(subnodeFlat, esFetInfo[dev->dev_type].resClassSub, scale, 
-	       			"sub", sdM, esSpiceF, -1);
+	       			"asub", "psub", sdM, esSpiceF, -1);
 		else
 		    fprintf(esSpiceF, "asub=0 psub=0");
 	    }
@@ -2287,96 +2376,145 @@ FILE *outf;
  *
  * ----------------------------------------------------------------------------
  */
-int spcnAP(node, resClass, scale, sterm, m, outf, w)
+int spcnAP(node, resClass, scale, asterm, psterm, m, outf, w)
     EFNode *node;
     int  resClass;
     float scale, m;
-    char *sterm;
+    char *asterm, *psterm;
     FILE *outf;
     int w;
 {
-	char fmt[30];
-	float dsc ;
+    char afmt[15], pfmt[15];
+    float dsc;
 
-	if ((node == NULL) || (node->efnode_client == (ClientData)NULL))
-	{
-	    TxError("spcnAP: major internal inconsistency\n");
-	    return 1;
-	}
+    if ((node == NULL) || (node->efnode_client == (ClientData)NULL))
+    {
+	TxError("spcnAP: major internal inconsistency\n");
+	return 1;
+    }
 
-	if ( esScale < 0 )
-	     sprintf(fmt,"a%s=%%g p%s=%%g ", sterm, sterm);
-	else sprintf(fmt,"a%s=%%gp p%s=%%gu ", sterm, sterm);
+    if (esScale < 0)
+    {
+	if (asterm) sprintf(afmt, " %s=%%g", asterm);
+	if (psterm) sprintf(pfmt, " %s=%%g", psterm);
+    }
+    else
+    {
+	if (asterm) sprintf(afmt, " %s=%%gp", asterm);
+	if (psterm) sprintf(pfmt, " %s=%%gu", psterm);
+    }
 
-	if ( !esDistrJunct || w == -1 ) goto oldFmt;
+    if (!esDistrJunct || w == -1) goto oldFmt;
 
-	dsc = w/((nodeClient*)node->efnode_client)->m_w.widths[resClass];
-	if ( esScale < 0 )
-	   fprintf(outf,fmt,
-		node->efnode_pa[resClass].pa_area*scale*scale*dsc,
-		node->efnode_pa[resClass].pa_perim*scale*dsc);
-	else 
-	   fprintf(outf,fmt,
-	    ((float)node->efnode_pa[resClass].pa_area*scale*scale)
-	    *esScale*esScale*dsc,
-	    ((float)node->efnode_pa[resClass].pa_perim*scale)*esScale*dsc);
-	return 0;
+    dsc = w / ((nodeClient*)node->efnode_client)->m_w.widths[resClass];
+    if (esScale < 0)
+    {
+	if (asterm)
+	    fprintf(outf, afmt,
+			node->efnode_pa[resClass].pa_area * scale * scale * dsc);
+	if (psterm)
+	    fprintf(outf, pfmt,
+			node->efnode_pa[resClass].pa_perim * scale * dsc);
+    }
+    else 
+    {
+	if (asterm)
+	    fprintf(outf, afmt,
+			((float)node->efnode_pa[resClass].pa_area * scale * scale)
+			* esScale * esScale * dsc);
+	if (psterm)
+	    fprintf(outf, pfmt,
+			((float)node->efnode_pa[resClass].pa_perim * scale)
+			* esScale * dsc);
+    }
+    return 0;
 
 oldFmt:
-	if ( resClass == NO_RESCLASS ||
-	     beenVisited((nodeClient *)node->efnode_client, resClass) ) 
-		scale = 0 ;
-	else   markVisited((nodeClient *)node->efnode_client, resClass);
-	if ( esScale < 0 )
-	   fprintf(outf,fmt,
-		node->efnode_pa[resClass].pa_area*scale*scale/m,
-		node->efnode_pa[resClass].pa_perim*scale/m);
-	else 
-	   fprintf(outf,fmt,
-	    ((float)node->efnode_pa[resClass].pa_area*scale*scale)*esScale*esScale,
-	    ((float)node->efnode_pa[resClass].pa_perim*scale)*esScale);
+    if (resClass == NO_RESCLASS ||
+		beenVisited((nodeClient *)node->efnode_client, resClass)) 
+	scale = 0;
+    else
+	markVisited((nodeClient *)node->efnode_client, resClass);
 
-	return 0;
+    if (esScale < 0)
+    {
+	if (asterm)
+	    fprintf(outf, afmt,
+			node->efnode_pa[resClass].pa_area * scale * scale / m);
+	if (psterm)
+	    fprintf(outf, pfmt,
+			node->efnode_pa[resClass].pa_perim * scale / m);
+    }
+    else 
+    {
+	if (asterm)
+	    fprintf(outf, afmt,
+			((float)node->efnode_pa[resClass].pa_area * scale * scale)
+			* esScale * esScale);
+	if (psterm)
+	    fprintf(outf, pfmt,
+			((float)node->efnode_pa[resClass].pa_perim * scale)
+			* esScale);
+    }
+    return 0;
 }
 
-int spcnAPHier(dterm, hierName, resClass, scale, sterm, m, outf)
+int spcnAPHier(dterm, hierName, resClass, scale, asterm, psterm, m, outf)
     DevTerm *dterm;
     HierName *hierName;
     int  resClass;
     float scale, m;
-    char *sterm;
+    char *asterm, *psterm;
     FILE *outf;
 {
-	EFNode *node = dterm->dterm_node;
-	nodeClientHier   *nc ;
-	char fmt[30];
+    EFNode *node = dterm->dterm_node;
+    nodeClientHier   *nc;
+    char afmt[15], pfmt[15];
 
-	if ( esScale < 0 )
-	     sprintf(fmt,"a%s=%%g p%s=%%g ", sterm, sterm);
-	else sprintf(fmt,"a%s=%%gp p%s=%%gu ", sterm, sterm);
-	if ( node->efnode_client == (ClientData) NULL ) 
-	if ( node->efnode_client == (ClientData) NULL ) 
-		initNodeClientHier(node);
-	nc = (nodeClientHier *)node->efnode_client;
-	if ( nc->lastPrefix != hierName ) {
-		clearVisited(nc);
-		nc->lastPrefix = hierName;
-	}
-	if (resClass == NO_RESCLASS ||
+    if (esScale < 0)
+    {
+	sprintf(afmt," %s=%%g", asterm);
+	sprintf(pfmt," %s=%%g", psterm);
+    }
+    else
+    {
+	sprintf(afmt," %s=%%gp", asterm);
+	sprintf(pfmt," %s=%%gu", psterm);
+    }
+    if (node->efnode_client == (ClientData) NULL) 
+	initNodeClientHier(node);
+
+    nc = (nodeClientHier *)node->efnode_client;
+    if (nc->lastPrefix != hierName)
+    {
+	clearVisited(nc);
+	nc->lastPrefix = hierName;
+    }
+    if (resClass == NO_RESCLASS ||
 	    beenVisited((nodeClientHier *)node->efnode_client, resClass) ) 
-		scale = 0.0;
-	else markVisited((nodeClientHier *)node->efnode_client, resClass);
-	if ( esScale < HSPICE )
-	   fprintf(outf,fmt,
-		node->efnode_pa[resClass].pa_area*scale*scale/m,
-		node->efnode_pa[resClass].pa_perim*scale/m);
-	else
-	   fprintf(outf,fmt,
-	    ((float)node->efnode_pa[resClass].pa_area*scale)*esScale*esScale,
-	    ((float)node->efnode_pa[resClass].pa_perim*scale)*esScale);
-	return 0;
+	scale = 0.0;
+    else
+	markVisited((nodeClientHier *)node->efnode_client, resClass);
+
+    if (esScale < HSPICE)
+    {
+	fprintf(outf, afmt,
+		node->efnode_pa[resClass].pa_area * scale * scale / m);
+	fprintf(outf, pfmt,
+		node->efnode_pa[resClass].pa_perim * scale / m);
+    }
+    else
+    {
+	fprintf(outf, afmt,
+		((float)node->efnode_pa[resClass].pa_area * scale)
+			* esScale * esScale);
+	fprintf(outf, pfmt,
+		((float)node->efnode_pa[resClass].pa_perim * scale)
+			* esScale);
+    }
+    return 0;
 }
-
+
 /*
  * ----------------------------------------------------------------------------
  *

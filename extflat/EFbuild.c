@@ -780,6 +780,14 @@ efBuildDevice(def, class, type, r, argc, argv)
 #undef	TERM_PERIM
 #undef	TERM_ATTRS
 
+// Removing this code---area and perimeter are derived from
+// node values, and do not need to be calculated and put in
+// the device line.  The "parameters" line tells ext2spice if
+// terminal area and perimeter need to be passed to the
+// subcircuit in the subcircuit call.
+
+#if 0
+
     /* Re-parse the arguments for terminal-specific parameters	*/
     /* (only for "subcircuit" and similar classes) 		*/
 
@@ -822,6 +830,8 @@ efBuildDevice(def, class, type, r, argc, argv)
 		argstart++;
 	    }
     }
+
+#endif	/* 0 */
 
     /* Add this dev to the list for def */
     newdev->dev_next = def->def_devs;
