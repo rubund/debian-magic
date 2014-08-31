@@ -1124,7 +1124,7 @@ dbReadUse(cellDef, line, len, f, scalen, scaled)
 {
     int xlo, xhi, ylo, yhi, xsep, ysep, childStamp;
     int absa, absb, absd, abse;
-    char cellname[1024], useid[1024], path[1024], *cellpath;
+    char cellname[1024], useid[1024];
     CellUse *subCellUse;
     CellDef *subCellDef;
     Transform t;
@@ -1142,22 +1142,6 @@ dbReadUse(cellDef, line, len, f, scalen, scaled)
     {
 	TxError("Malformed \"use\" line: %s", line);
 	return (FALSE);
-    }
-
-    // Added August 29, 2014 by Tim:
-    // Optional 3rd argument gives an expected path for the
-    // location of this cell.  This can be used to verify that
-    // the cell is in the expected location or to prevent
-    // loading a different cell that may precede it in the
-    // search path.
-
-    if (sscanf(line, "use %*s %*s %1023s", path) < 1)
-	cellpath = NULL;
-    else
-    {
-	cellpath = (char *)mallocMagic(strlen(path) + strlen(cellname) +
-			strlen(DBSuffix) + 2);
-	sprintf(cellpath, "%s/%s%s", path, cellname, DBSuffix);
     }
 
     locked = (useid[0] == CULOCKCHAR) ? TRUE : FALSE;
@@ -1271,7 +1255,7 @@ badTransform:
     subCellDef = DBCellLookDef(cellname);
     if (subCellDef == (CellDef *) NULL)
     {
-	subCellDef = DBCellNewDef(cellname, cellpath);
+	subCellDef = DBCellNewDef(cellname, (char *)NULL);
 	subCellDef->cd_timestamp = childStamp;
 
 	/* Make sure rectangle is non-degenerate */
@@ -1345,8 +1329,6 @@ badTransform:
 	    subCellDef->cd_timestamp = 0;
 	else DBStampMismatch(subCellDef, &subCellDef->cd_bbox);
     }
-
-    if (cellpath != NULL) freeMagic(cellpath);
 
 nextLine:
     return (dbFgets(line, len, f) != NULL);
@@ -2449,16 +2431,6 @@ DBCellWrite(cellDef, fileName)
 	/* surprises can occur after saving a file as a different	*/
 	/* filename.							*/
 
-	if (cellDef->cd_file != NULL)
-	{
-	    if (strcmp(cellDef->cd_file, realname))
-	    {
-		TxError("Warning:  Cell \"%s\" write path has been changed"
-			" from \"%s\" to \"%s\"\n",
-			cellDef->cd_name, cellDef->cd_file, realname);
-	    }
-	    freeMagic(cellDef->cd_file);
-	}
 	cellDef->cd_file = StrDup(&cellDef->cd_file, realname);
     }
     else if (cellDef->cd_file)
