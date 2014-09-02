@@ -333,6 +333,12 @@ CmdTech(w, cmd)
 		    TTMaskAndMask(&lockedLayers, &DBAllButSpaceAndDRCBits);
 		    DBTechPrintTypes(&lockedLayers, TRUE);
 		}
+		else if (!strcmp(cmd->tx_argv[2], "revert"))
+		{
+		    // Copy DBTechActiveLayerBits back to DBActiveLayerBits
+		    TTMaskZero(&DBActiveLayerBits);
+		    TTMaskSetMask(&DBActiveLayerBits, &DBTechActiveLayerBits);
+		}
 		else
 		    DBTechPrintCanonicalType(cmd->tx_argv[2]);
 	    }

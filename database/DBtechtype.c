@@ -64,6 +64,7 @@ TileTypeBitMask DBAllButSpaceAndDRCBits;
 TileTypeBitMask DBSpaceBits;
 TileTypeBitMask DBUserLayerBits;
 TileTypeBitMask DBActiveLayerBits;	/* Layers that are locked */
+TileTypeBitMask DBTechActiveLayerBits;	/* Layers marked locked in the techfile */
 
 
 /* Table of default, builtin planes */
@@ -579,6 +580,9 @@ DBTechFinalType()
     /* Set locked layer bitmask */
     TTMaskCom(&DBActiveLayerBits);
     TTMaskAndMask(&DBActiveLayerBits, &DBAllButSpaceAndDRCBits);
+    /* Save this mask for later reference */
+    TTMaskZero(&DBTechActiveLayerBits);
+    TTMaskSetMask(&DBTechActiveLayerBits, &DBActiveLayerBits);
 
     /* Space is visible on all planes but the subcell plane */
     TTMaskZero(&DBPlaneTypes[PL_CELL]);

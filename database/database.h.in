@@ -843,6 +843,9 @@ extern TileType DBTransformDiagonal();
 /* -------------------------- Layer locking ------------------------------*/
 
 extern TileTypeBitMask DBActiveLayerBits; /* Layers that are locked */
+extern TileTypeBitMask DBTechActiveLayerBits; /* Layers that are marked as
+					       * locked in the techfile
+					       */
 
 #define LOCKLAYERCHAR '-'   /* Layer names beginning with this are locked */
 #define LockedLayer(tiletype)  (!TTMaskHasType(&DBActiveLayerBits, tiletype)) 
