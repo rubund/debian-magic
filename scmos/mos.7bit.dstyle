@@ -192,6 +192,7 @@ layout_styles
 # ----+------+--------+--------+------+-------+------+--------------
 1	0x07	1	0x00	solid	0	-	polysilicon
 87      0x07    50	0x00	solid   0       -       poly_light
+88	0x07	1	0x00	stipple 1	-	obspoly
 2	0x07	2	0x00	solid	0	-	ndiffusion
 3	0x07	2	0x00	stipple	13	-	ndiff_in_nwell
 4	0x07	3	0x00	solid	0	-	pdiffusion
@@ -250,16 +251,21 @@ layout_styles
 40	0x3f	53	0x00	stipple 5	-	check_paint
 41	0x3f	54	0x00	stipple 7	-	check_subcells
 42	0x3f	32	0x00	stipple 4	-	error_waffle
-43      0x07    2	0x00	stipple 5       -       nselect
-44      0x07    3	0x00	stipple 7       -       pselect
+43      0x07    2	0x00	stipple 5       -       nselect2
+44      0x07    3	0x00	stipple 7       -       pselect2
 45      0x07    35	0x00	solid   0       -       comment
 46      0x07    42	0x00	stipple 7       -       silicide_block
 47      0x07    1	0x00	solid   0       -       poly_resist
 48      0x07    3	0x00	stipple 7       -       poly_resist_stripes    
 #jws
 49	0x08	8	0x00	stipple 19	-	metal1tight
+89	0x08	8	0x00	stipple 1	-	obsmetal1
 50	0x10	16	0x00	stipple 19	-	metal2tight
+90	0x10	16	0x00	stipple 1	-	obsmetal2
 51	0x3f	53	0x00	stipple	8	-	metal3tight
+91	0x3f	53	0x00	stipple 1	-	obsmetal3
+92	0x3f	33	0x00	stipple 1	-	obsmetal4
+93	0x3f	44	0x00	stipple 1	-	obsmetal5
 52	0x07	2	0x00	stipple 19	-	cwellnsc
 53      0x07    7	0x00	stipple 7       -       nwell_field_implant
 54      0x07    7	0x00	stipple 5       -       substrate_field_implant
@@ -277,13 +283,18 @@ layout_styles
 78	0x3f	7	0xff	stipple 31	-	via9
 #
 64	0x3f	46	0x00	stipple 17	-	metal6
+94	0x3f	46	0x00	stipple 1	-	obsmetal6
 65	0x3f	38	0x00	stipple 9	-	metal7
+95	0x3f	38	0x00	stipple 1	-	obsmetal7
 66	0x3f	34	0x00	stipple 16	-	metal8
+96	0x3f	34	0x00	stipple 1	-	obsmetal8
 75	0x3f	40	0x00	stipple 26	-	metal9
+97	0x3f	40	0x00	stipple 1	-	obsmetal9
 77	0x3f	42	0x00	stipple 23	-	metal10
+98	0x3f	42	0x00	stipple 1	-	obsmetal10
 #
-62	0x3f	0	0x00	solid	0	-	stack1
-63	0x3f	0	0x00	solid	0	-	stack2
+62	0x3f	0	0x00	solid	0	-	mim_bottom
+63	0x3f	0	0x00	solid	0	-	mim_top
 67	0x07	9	0x00	outline	0	-	subcircuit
 68	0x3f	34	0xff	stipple 12	-	mems
 #
@@ -308,6 +319,7 @@ pale_styles
 # ----+------+--------+--------+------+-------+------+--------------
 1	0x07	1	0x00	stipple 14	-	polysilicon
 87      0x07    49	0x00	solid   0       -       poly_light
+88	0x07	1	0x00	stipple 1	-	obspoly
 2	0x07	2	0x00	stipple 14	-	ndiffusion
 3	0x07	2	0x00	stipple	13	-	ndiff_in_nwell
 4	0x07	3	0x00	stipple 14	-	pdiffusion
@@ -366,16 +378,21 @@ pale_styles
 40	0x3f	53	0x00	stipple 5	-	check_paint
 41	0x3f	54	0x00	stipple 7	-	check_subcells
 42	0x3f	32	0x00	stipple 4	-	error_waffle
-43	0x07    2	0x00	stipple 5       -       nselect
-44	0x07    3	0x00	stipple 7       -       pselect
+43	0x07    2	0x00	stipple 5       -       nselect2
+44	0x07    3	0x00	stipple 7       -       pselect2
 45	0x07    15	0x00	solid   0       -       comment
 46	0x07    42	0x00	stipple 7       -       silicide_block
 47	0x07    1	0x00	solid   0       -       poly_resist
 48	0x07    3	0x00	stipple 7       -       poly_resist_stripes
 #jws:
 49	0x08	8	0x00	stipple 14	-	metal1tight
+89	0x08	8	0x00	stipple 1	-	obsmetal1
 50	0x10	16	0x00	stipple 5	-	metal2tight
+90	0x10	16	0x00	stipple 1	-	obsmetal2
 51	0x3f	53	0x00	stipple	21	-	metal3tight
+91	0x3f	53	0x00	stipple 1	-	obsmetal3
+92	0x3f	33	0x00	stipple 1	-	obsmetal4
+93	0x3f	44	0x00	stipple 1	-	obsmetal5
 52	0x07	2	0x00	stipple 13	-	cwellnsc
 53	0x07    7	0x00	stipple 7       -       nwell_field_implant
 54	0x07    7	0x00	stipple 5       -       substrate_field_implant
@@ -393,13 +410,18 @@ pale_styles
 78	0x3f	34	0xff	stipple 31	-	via9
 #
 64	0x3f	46	0x00	stipple 11	-	metal6
+94	0x3f	46	0x00	stipple 1	-	obsmetal6
 65	0x3f	38	0x00	stipple 5	-	metal7
+95	0x3f	38	0x00	stipple 1	-	obsmetal7
 66	0x3f	34	0x00	stipple 10	-	metal8
+96	0x3f	34	0x00	stipple 1	-	obsmetal8
 75	0x3f	40	0x00	stipple 27	-	metal9
+97	0x3f	40	0x00	stipple 1	-	obsmetal9
 77	0x3f	42	0x00	stipple 20	-	metal10
+98	0x3f	42	0x00	stipple 1	-	obsmetal10
 #
-62	0x3f	0	0x00	solid	0	-	stack1
-63	0x3f	0	0x00	solid	0	-	stack2
+62	0x3f	0	0x00	solid	0	-	mim_bottom
+63	0x3f	0	0x00	solid	0	-	mim_top
 67	0x07	9	0x00	outline	0	-	subcircuit
 68	0x3f	33	0xff	stipple 12	-	mems
 #

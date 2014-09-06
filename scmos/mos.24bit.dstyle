@@ -218,8 +218,8 @@ layout_styles
 41	0x3f	54	0x00	stipple 7	-	check_subcells
 42	0x3f	32	0x00	stipple 4	-	error_waffle
 #
-43      0x07    2	0x00    stipple 5       -	nselect
-44      0x07    3	0x00    stipple 7       -	pselect
+43      0x07    2	0x00    stipple 5       -	nselect2
+44      0x07    3	0x00    stipple 7       -	pselect2
 45      0x07    35	0x00    solid   0       -	comment
 46      0x07    42	0x00    stipple 7       -	silicide_block
 47      0x07    1	0x00    solid   0       -	poly_resist
@@ -260,8 +260,8 @@ layout_styles
 98	0x3f	75	0x00	stipple 1	-	obsmetal10
 78	0x3f	7	0xff	stipple 31	-	via9
 #
-62	0x3f	0	0x00	solid	0	-	stack1
-63	0x3f	0	0x00	solid	0	-	stack2
+62	0x3f	0	0x00	solid	0	-	mim_bottom
+63	0x3f	0	0x00	solid	0	-	mim_top
 34	0x3f	34	0xff	stipple 10	-	overglass
 67	0x3f	9	0x00	outline	0	-	subcircuit
 68	0x3f	34	0xff	stipple 12	-	mems
@@ -343,8 +343,8 @@ pale_styles
 41	0x3f	54	0x00	stipple 7	-	check_subcells
 42	0x3f	32	0x00	stipple 4	-	error_waffle
 #
-43	0x07    2	0x00    stipple 5       -       nselect
-44	0x07    3	0x00    stipple 7       -       pselect
+43	0x07    2	0x00    stipple 5       -       nselect2
+44	0x07    3	0x00    stipple 7       -       pselect2
 45	0x07    15	0x00    solid   0       -       comment
 46	0x07    42	0x00    stipple 7       -       silicide_block
 47	0x07    1	0x00    solid   0       -       poly_resist
@@ -385,8 +385,8 @@ pale_styles
 98	0x3f	75	0x00	stipple 1	-	obsmetal10
 78	0x3f	34	0xff	stipple 31	-	via9
 #
-62	0x3f	0	0x00	solid	0	-	stack1
-63	0x3f	0	0x00	solid	0	-	stack2
+62	0x3f	0	0x00	solid	0	-	mim_bottom
+63	0x3f	0	0x00	solid	0	-	mim_top
 34	0x3f	34	0xff	stipple 10	-	overglass
 67	0x3f	9	0x00	outline	0	-	subcircuit
 68	0x3f	33	0x00	stipple 12	-	mems
