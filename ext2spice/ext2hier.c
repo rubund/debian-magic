@@ -485,6 +485,7 @@ spcdevHierVisit(hc, dev, scale)
 		switch (plist->parm_type[0])
 		{
 		    case 'a':
+			fprintf(esSpiceF, " %s=", plist->parm_name);
 			// Check for area of terminal node vs. device area
 			if (plist->parm_type[1] == '\0' || plist->parm_type[1] == '0')
 			{
@@ -531,6 +532,7 @@ spcdevHierVisit(hc, dev, scale)
 	
 			break;
 		    case 'p':
+			fprintf(esSpiceF, " %s=", plist->parm_name);
 			// Check for perimeter of terminal node vs. device perimeter
 			if (plist->parm_type[1] == '\0' || plist->parm_type[1] == '0')
 			{

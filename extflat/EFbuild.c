@@ -599,7 +599,7 @@ efBuildDevice(def, class, type, r, argc, argv)
 		switch(*argv[argstart])
 		{
 		    case 'a':
-			if ((pptr - argv[argstart]) == 1)
+			if ((pptr - argv[argstart]) == 2)
 			    devtmp.dev_area = atoi(pptr);
 			else
 			{
@@ -610,7 +610,7 @@ efBuildDevice(def, class, type, r, argc, argv)
 			}
 			break;
 		    case 'p':
-			if ((pptr - argv[argstart]) == 1)
+			if ((pptr - argv[argstart]) == 2)
 			    devtmp.dev_perim = atoi(pptr);
 			else
 			{
