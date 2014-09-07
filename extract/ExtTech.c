@@ -2048,6 +2048,12 @@ ExtTechLine(sectionName, argc, argv)
 
 		    if (nterm == 0) i++;
 
+		    // Type MSUBCKT:  Source and drain are symmetric.  The
+		    // number of unique terminals in the definition is 1,
+		    // but nterm needs to be set to 2 for proper extraction.
+
+		    if ((dv->k_key == DEV_MSUBCKT) && (nterm == 1)) nterm = 2;
+
 		    if (argc > i)
 			DBTechNoisyNameMask(argv[i], &subsTypes); /* substrate */
 		    if (argc > (i + 1)) subsName = argv[i + 1];
