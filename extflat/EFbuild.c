@@ -1213,7 +1213,7 @@ efConnInitSubs(conn, nodeName1, nodeName2)
 
     if (c1->cn_nsubs != c2->cn_nsubs)
     {
-	efReadError("Number of subscripts don't match\n");
+	efReadError("Number of subscripts doesn't match\n");
 	goto bad;
     }
 

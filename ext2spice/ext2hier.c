@@ -485,10 +485,10 @@ spcdevHierVisit(hc, dev, scale)
 		switch (plist->parm_type[0])
 		{
 		    case 'a':
-			fprintf(esSpiceF, " %s=", plist->parm_name);
 			// Check for area of terminal node vs. device area
 			if (plist->parm_type[1] == '\0' || plist->parm_type[1] == '0')
 			{
+			    fprintf(esSpiceF, " %s=", plist->parm_name);
 			    parmval = dev->dev_area;
 			    if (esScale < 0)
 				fprintf(esSpiceF, "%g", parmval * scale * scale);
@@ -532,10 +532,10 @@ spcdevHierVisit(hc, dev, scale)
 	
 			break;
 		    case 'p':
-			fprintf(esSpiceF, " %s=", plist->parm_name);
 			// Check for perimeter of terminal node vs. device perimeter
 			if (plist->parm_type[1] == '\0' || plist->parm_type[1] == '0')
 			{
+			    fprintf(esSpiceF, " %s=", plist->parm_name);
 			    parmval = dev->dev_perim;
 
 			    if (esScale < 0)
@@ -1412,6 +1412,7 @@ esHierVisit(hc, cdata)
     EFHierVisitResists(hcf, spcresistHierVisit, (ClientData)NULL);
 
     /* Output lumped capacitances */
+    sprintf( esSpiceCapFormat,  "C%%d %%s %%s %%.%dlffF\n", esCapAccuracy);
     EFHierVisitCaps(hcf, spccapHierVisit, (ClientData)NULL);
 
     if (def != topdef)
