@@ -493,13 +493,13 @@ proc magic::startselect {window {option {}}} {
    if {$Opts(motion) == {}} {
       if {$option == "pick"} {
          select pick
-	 set Opts(origin) [cursor]
       } else {
 	 set slist [what -list]
 	 if {$slist == {{} {} {}}} {
 	    select nocycle
 	 }
       }
+      set Opts(origin) [cursor]
       set Opts(motion) [bind ${window} <Motion>]
       bind ${window} <Motion> [subst {$Opts(motion); set p \[cursor\]; \
 	set x \[expr {\[lindex \$p 0\] - [lindex $Opts(origin) 0]}\]i; \

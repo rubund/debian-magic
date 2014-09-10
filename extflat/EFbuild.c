@@ -1091,6 +1091,7 @@ efBuildConnect(def, nodeName1, nodeName2, deltaC, av, ac)
 		    + (efNumResistClasses - 1) * sizeof (PerimArea);
 
     conn = (Connection *) mallocMagic((unsigned)(size));
+
     if (efConnInitSubs(conn, nodeName1, nodeName2))
     {
 	conn->conn_cap = (EFCapValue) deltaC;

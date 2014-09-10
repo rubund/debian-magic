@@ -24,6 +24,7 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
 #endif  /* not lint */
 
 #include <stdio.h>
+#include <string.h>
 #include <math.h>
 
 #include "utils/magic.h"
@@ -120,8 +121,9 @@ extHierConnectFunc1(oneTile, ha)
     Rect r;
     TileTypeBitMask mask, *connected;
     TileType rtype;
-    Label *lab;
+    Label *lab, *newlab;
     int i;
+    unsigned n;
 
     /*
      * Find all tiles that connect to 'srcTile', but in the
@@ -165,8 +167,15 @@ extHierConnectFunc1(oneTile, ha)
     /* This allows the extractor to catch "sticky" labels that are not	*/
     /* attached to a physical layer in the parent cell.			*/
 
+    // NOTE by Tim, 9/10/2014:  This generates phantom nodes when the
+    // labels are created by the "hard" node search;  I think this code
+    // should be restricted to sticky labels only.  But not certain.
+    // Definitely this causes problems in arrays, because the array node
+    // name may refer to a range of array elements, and the generated
+    // node only describes a single point.
+
     for (lab = cumDef->cd_labels;  lab;  lab = lab->lab_next)
-	if (GEO_TOUCH(&r, &lab->lab_rect))
+	if (GEO_TOUCH(&r, &lab->lab_rect) && (lab->lab_flags & LABEL_STICKY))
 	    if (TTMaskHasType(connected, lab->lab_type))
 	    {
 		HashTable *table = &ha->ha_connHash;
@@ -200,6 +209,29 @@ extHierConnectFunc1(oneTile, ha)
 		    node1->node_names = node2->node_names;
 		    freeMagic((char *) node2);
 		}
+
+#if 0
+		/* Copy this label to the parent def with a	*/
+		/* special flag, so we can output it as a node	*/
+	 	/* and then delete it.  Don't duplicate labels	*/
+		/* that are already in the parent.		*/
+
+		for (newlab = ha->ha_parentUse->cu_def->cd_labels;
+				newlab; newlab = newlab->lab_next)
+		    if (!strcmp(newlab->lab_text, lab->lab_text))
+			break;
+
+		if (newlab == NULL)
+		{
+		    n = sizeof(Label) + strlen(lab->lab_text)
+				- sizeof lab->lab_text + 1;
+		    newlab = (Label *)mallocMagic((unsigned)n);
+		    bcopy((char *)lab, (char *)newlab, (int)n);
+		
+		    newlab->lab_next = ha->ha_parentUse->cu_def->cd_labels;
+		    ha->ha_parentUse->cu_def->cd_labels = newlab;
+		}
+#endif
 	    }
 
     return (0);

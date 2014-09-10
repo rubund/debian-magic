@@ -291,6 +291,7 @@ typedef struct label
 					/* has been previously visited.	*/
 
 #define LABEL_STICKY	   0x1000000	/* Label does not change layers	*/
+#define LABEL_GENERATE	   0x2000000	/* Auto-generated label		*/
 
 /*
  * Macros for dealing with label rectangles.
