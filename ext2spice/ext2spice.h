@@ -57,7 +57,6 @@ extern unsigned long initMask;
 extern int esCapNum, esDevNum, esResNum, esDiodeNum;
 extern int esNodeNum;  /* just in case we're extracting spice2 */
 extern int esSbckNum; 	/* used in hspice node name shortening   */
-extern int esAttrNum;	/* allows device attribute names to auto-increment */
 extern int esNoModelType;  /* index for device type "None" (model-less device) */
 
 extern bool esMergeDevsA; /* aggresive merging of devs L1=L2 merge them */
