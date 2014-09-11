@@ -65,6 +65,7 @@ unsigned short esFormat = SPICE3 ;
 
 int esCapNum, esDevNum, esResNum, esDiodeNum;
 int esNodeNum;  /* just in case we're extracting spice2 */
+int esAttrNum;	/* allows device attribute names to auto-increment */
 int esSbckNum; 	/* used in hspice node name shortening   */
 int esNoModelType;  /* index for device type "None" (model-less device) */
 
@@ -577,6 +578,7 @@ runexttospice:
     esDiodeNum = 0;
     esSbckNum = 0;
     esNodeNum = 10; /* just in case we're extracting spice2 */
+    esAttrNum = 0;
     esFMIndex = 0;
     esSpiceDevsMerged = 0;
 
@@ -1803,7 +1805,23 @@ spcdevVisit(dev, hierName, scale, trans)
     /* otherwise, the device is numbered in sequence.		*/
 
     if (gate->dterm_attrs)
-	fprintf(esSpiceF, "%s", gate->dterm_attrs);
+    {
+        /* If the attribute name contains "%d", then    */
+        /* substitute the value of esAttrNum, and       */
+        /* increment.                                   */
+
+        char *pptr;
+        if (((pptr = strchr(gate->dterm_attrs, '%')) != NULL) &&
+                *(pptr + 1) == 'd')
+        {
+            *pptr = '\0';
+            fprintf(esSpiceF, "%s%d%s", gate->dterm_attrs,
+                        esAttrNum++, pptr + 2);
+            *pptr = '%';
+        }
+        else
+            fprintf(esSpiceF, "%s", gate->dterm_attrs);
+    }
     else
     {
 	switch (dev->dev_class)
@@ -2139,7 +2157,19 @@ spcdevVisit(dev, hierName, scale, trans)
 			l, w, 2);
 		fprintf(esSpiceF, "\n%c", devchar);
 		if (gate->dterm_attrs)
-		    fprintf(esSpiceF, "%sB", gate->dterm_attrs);
+		{
+		    char *pptr;
+		    if (((pptr = strchr(gate->dterm_attrs, '%')) != NULL) &&
+		                *(pptr + 1) == 'd')
+		    {
+			*pptr = '\0';
+			fprintf(esSpiceF, "%s%d%sB", gate->dterm_attrs,
+				esAttrNum - 1, pptr + 2);
+			*pptr = '%';
+		    }
+		    else
+			fprintf(esSpiceF, "%sB", gate->dterm_attrs);
+		}
 		else
 		    fprintf(esSpiceF, "%dB", esResNum - 1);
 		esOutputResistor(dev, hierName, scale, gate, drain, has_model,
