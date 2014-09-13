@@ -859,8 +859,8 @@ spcdevHierMergeVisit(hc, dev, scale)
 
     EFGetLengthAndWidth(dev, &l, &w);
 
-    fp = mkDevMerge(l * scale, w * scale, gnode, snode, dnode, subnode,
-		hc->hc_hierName, dev);
+    fp = mkDevMerge((float)((float)l * scale), (float)((float)w * scale),
+		gnode, snode, dnode, subnode, hc->hc_hierName, dev);
 		
     for (cfp = devMergeList; cfp != NULL; cfp = cfp->next)
     {
@@ -874,7 +874,7 @@ spcdevHierMergeVisit(hc, dev, scale)
 		case DEV_MSUBCKT:
 		case DEV_ASYMMETRIC:
 		case DEV_FET:
-		    m = esFMult[cfp->esFMIndex] + ((float)fp->w / (float)cfp->w);
+		    m = esFMult[cfp->esFMIndex] + (fp->w / cfp->w);
 		    break;
 		case DEV_RSUBCKT:
 		case DEV_RES:
@@ -882,7 +882,7 @@ spcdevHierMergeVisit(hc, dev, scale)
 			m = esFMult[cfp->esFMIndex] + (fp->dev->dev_res
 				/ cfp->dev->dev_res);
 		    else
-			m = esFMult[cfp->esFMIndex] + ((float)fp->l / (float)cfp->l);
+			m = esFMult[cfp->esFMIndex] + (fp->l / cfp->l);
 		    break;
 		case DEV_CAP:
 		    if (fp->dev->dev_type == esNoModelType)
@@ -890,8 +890,7 @@ spcdevHierMergeVisit(hc, dev, scale)
 				/ cfp->dev->dev_cap);
 		    else
 			m = esFMult[cfp->esFMIndex] +
-				(((float)fp->l * (float)fp->w)
-				/ ((float)cfp->l * (float)cfp->w));
+				((fp->l * fp->w) / (cfp->l * cfp->w));
 		    break;
 	    }
 	    setDevMult(fp->esFMIndex, DEV_KILLED);
@@ -1111,7 +1110,7 @@ devMergeHierVisit(hc, dev, scale)
     /* Get length and width of the device */
     EFGetLengthAndWidth(dev, &l, &w);
 
-    fp = mkDevMerge((int)((float)l * scale), (int)((float)w * scale),
+    fp = mkDevMerge((float)((float)l * scale), (float)((float)w * scale),
 			gnode, snode, dnode, subnode, NULL, dev);
     hS = extHierSDAttr(source);
     hD = extHierSDAttr(drain);
@@ -1169,7 +1168,7 @@ mergeThem:
 		        m = esFMult[cfp->esFMIndex] + (fp->dev->dev_res
 				/ cfp->dev->dev_res);
 		    else
-		        m = esFMult[cfp->esFMIndex] + ((float)fp->l / (float)cfp->l);
+		        m = esFMult[cfp->esFMIndex] + (fp->l / cfp->l);
 		    break;
 		case DEV_CAP:
 		    if (fp->dev->dev_type == esNoModelType)
@@ -1177,8 +1176,7 @@ mergeThem:
 				/ cfp->dev->dev_cap);
 		    else
 		        m = esFMult[cfp->esFMIndex] +
-				(((float)fp->l  * (float)fp->w)
-				/ ((float)cfp->l * (float)cfp->w));
+				((fp->l  * fp->w) / (cfp->l * cfp->w));
 		    break;
 	    }
 	    setDevMult(fp->esFMIndex, DEV_KILLED); 

@@ -3002,7 +3002,7 @@ int printSubcktDict()
  */
 
 devMerge *mkDevMerge(l, w, g, s, d, b, hn, dev)
-    int     l, w;
+    float   l, w;
     EFNode *g, *s, *d, *b;
     HierName *hn;
     Dev    *dev;
@@ -3223,8 +3223,8 @@ devMergeVisit(dev, hierName, scale, trans)
     /* Get length and width of the device */
     EFGetLengthAndWidth(dev, &l, &w);
 
-    fp = mkDevMerge(l * scale, w * scale, gnode, snode, 
-			dnode, subnode, hierName, dev);
+    fp = mkDevMerge((float)((float)l * scale), (float)((float)w * scale),
+			gnode, snode, dnode, subnode, hierName, dev);
     hS = extHierSDAttr(source);
     hD = extHierSDAttr(drain);
 
@@ -3288,7 +3288,7 @@ mergeThem:
 		case DEV_MOSFET:
 		case DEV_ASYMMETRIC:
 		case DEV_FET:
-		    m = esFMult[cfp->esFMIndex] + ((float)fp->w / (float)cfp->w);
+		    m = esFMult[cfp->esFMIndex] + (fp->w / cfp->w);
 		    break;
 		case DEV_RSUBCKT:
 		case DEV_RES:
@@ -3296,7 +3296,7 @@ mergeThem:
 		        m = esFMult[cfp->esFMIndex] + (fp->dev->dev_res
 				/ cfp->dev->dev_res);
 		    else
-		        m = esFMult[cfp->esFMIndex] + ((float)fp->l / (float)cfp->l);
+		        m = esFMult[cfp->esFMIndex] + (fp->l / cfp->l);
 		    break;
 		case DEV_CAP:
 		    if (fp->dev->dev_type == esNoModelType)
@@ -3304,8 +3304,7 @@ mergeThem:
 				/ cfp->dev->dev_cap);
 		    else
 		        m = esFMult[cfp->esFMIndex] +
-				(((float)fp->l  * (float)fp->w)
-				/ ((float)cfp->l * (float)cfp->w));
+				((fp->l  * fp->w) / (cfp->l * cfp->w));
 		    break;
 	    }
 	    setDevMult(fp->esFMIndex, DEV_KILLED); 

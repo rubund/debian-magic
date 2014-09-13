@@ -8,7 +8,7 @@
 
 /* cache list used to find parallel devs */
 typedef struct _devMerge {
-	int     l, w;
+	float  l, w;
 	EFNode *g, *s, *d, *b;
 	Dev * dev;
 	int	  esFMIndex;
