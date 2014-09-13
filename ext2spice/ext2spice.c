@@ -3057,6 +3057,7 @@ parallelDevs(f1, f2)
     /* Class-dependent action */
     switch(f1->dev->dev_class)
     {
+	case DEV_MSUBCKT:
 	case DEV_MOSFET:
 	case DEV_FET:
 
@@ -3120,7 +3121,6 @@ parallelDevs(f1, f2)
 
 	case DEV_SUBCKT:
 	case DEV_RSUBCKT:
-	case DEV_MSUBCKT:
 	    break;
     }
     return NOT_PARALLEL;
@@ -3284,11 +3284,13 @@ devMergeVisit(dev, hierName, scale, trans)
 mergeThem:
 	    switch(dev->dev_class)
 	    {
+		case DEV_MSUBCKT:
 		case DEV_MOSFET:
 		case DEV_ASYMMETRIC:
 		case DEV_FET:
 		    m = esFMult[cfp->esFMIndex] + ((float)fp->w / (float)cfp->w);
 		    break;
+		case DEV_RSUBCKT:
 		case DEV_RES:
 		    if (fp->dev->dev_type == esNoModelType)
 		        m = esFMult[cfp->esFMIndex] + (fp->dev->dev_res

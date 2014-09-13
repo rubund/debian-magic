@@ -871,10 +871,12 @@ spcdevHierMergeVisit(hc, dev, scale)
 	    switch(dev->dev_class)
 	    {
 		case DEV_MOSFET:
+		case DEV_MSUBCKT:
 		case DEV_ASYMMETRIC:
 		case DEV_FET:
 		    m = esFMult[cfp->esFMIndex] + ((float)fp->w / (float)cfp->w);
 		    break;
+		case DEV_RSUBCKT:
 		case DEV_RES:
 		    if (fp->dev->dev_type == esNoModelType)
 			m = esFMult[cfp->esFMIndex] + (fp->dev->dev_res
@@ -1157,9 +1159,11 @@ mergeThem:
 	    {
 		case DEV_MOSFET:
 		case DEV_ASYMMETRIC:
+		case DEV_MSUBCKT:
 		case DEV_FET:
 		    m = esFMult[cfp->esFMIndex] + ((float)fp->w / (float)cfp->w);
 		    break;
+		case DEV_RSUBCKT:
 		case DEV_RES:
 		    if (fp->dev->dev_type == esNoModelType)
 		        m = esFMult[cfp->esFMIndex] + (fp->dev->dev_res
