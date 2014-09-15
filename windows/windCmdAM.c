@@ -49,6 +49,7 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
 #include "database/database.h"
 #include "dbwind/dbwind.h"
 #include "utils/utils.h"
+#include "cif/cif.h"
 
 /* Forward declarations */
 void windDoMacro();
@@ -440,7 +441,7 @@ windCursorCmd(w, cmd)
 {
     Point p_in, p_out;
     int  resulttype = DBW_SNAP_INTERNAL;
-    double cursx, cursy;
+    double cursx, cursy, oscale;
     DBWclientRec *crec;
 
 #ifdef MAGIC_WRAPPER
@@ -463,10 +464,14 @@ windCursorCmd(w, cmd)
 	{
 	    resulttype = DBW_SNAP_USER;
 	}
+	else if (*cmd->tx_argv[1] ==  'm')
+	{
+	    resulttype = DBW_SNAP_MICRONS;
+	}
 	else if (*cmd->tx_argv[1] !=  'i')
 	{
 	    TxError("Usage: cursor glyphnum\n");
-	    TxError(" (or): cursor [internal | lambda | user]\n");
+	    TxError(" (or): cursor [internal | lambda | microns | user]\n");
 	    return;
 	}
     }
@@ -490,6 +495,11 @@ windCursorCmd(w, cmd)
 	case DBW_SNAP_LAMBDA:
 	    cursx = (double)(p_out.p_x * DBLambda[0]) / (double)DBLambda[1];
 	    cursy = (double)(p_out.p_y * DBLambda[0]) / (double)DBLambda[1];
+	    break;
+	case DBW_SNAP_MICRONS:
+	    oscale = (double)CIFGetOutputScale(1000);
+	    cursx = (double)(p_out.p_x * oscale);
+	    cursy = (double)(p_out.p_y * oscale);
 	    break;
 	case DBW_SNAP_USER:
 	    crec = (DBWclientRec *)w->w_clientData;

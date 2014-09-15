@@ -164,6 +164,7 @@ extern void DBWBoxHandler();
 #define DBW_SNAP_INTERNAL	0	/* internal units (fine grid)	*/
 #define DBW_SNAP_LAMBDA		1	/* lambda units (coarse grid)	*/
 #define DBW_SNAP_USER		2	/* user grid units (user grid)	*/
+#define DBW_SNAP_MICRONS	3	/* micron units			*/
 
 /* The following window mask can be used to select all database windows
  * for things like the mask parameter to DBWAreaChanged.

@@ -412,6 +412,19 @@ MacroKey(str, verbose)
 		kmod |= ShiftMask;
 		vis += 6;
 	    }
+	    else if (*vis == '\'')
+	    {
+		// If single quotes are used to protect the integrity
+		// of the macro character, strip them now.
+
+		char *aptr = strrchr(vis, '\'');
+		if (aptr != NULL && aptr != vis)
+		{
+		   vis++;
+		   *aptr = '\0';
+		}
+		else break;	// Don't hang on an unmatched quote
+	    }
 	    else break;
 	}
 	if (!strncmp(vis, "XK_", 3)) vis += 3;

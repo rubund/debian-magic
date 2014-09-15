@@ -1082,7 +1082,7 @@ txGetFileCommand(f, queue)
 		current++;
 		spaceleft--;
 	    }
-	    if ((*(current-1) != '\n') || (*(current-1) != '\\')) goto gotline;
+	    if ((*(current-1) != '\n') || (*(current-2) != '\\')) goto gotline;
 	    current--;
 	    spaceleft++;
 	}

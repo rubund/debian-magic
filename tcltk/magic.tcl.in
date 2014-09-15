@@ -144,6 +144,12 @@ proc netgen { args } {
    }
 }
 
+# Add the "echo" command
+
+proc echo {args} {
+   puts stdout $args  
+}
+
 # Parse argument list for "-c[onsole]" and "-now[rapper]".
 
 set cellname ""
