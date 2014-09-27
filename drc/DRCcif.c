@@ -503,9 +503,9 @@ drcCifCheck(arg)
 	    for (drcCifCur = drcCifRules[i][j]; 
 	       		drcCifCur; drcCifCur = drcCifCur->drcc_next)
             {
-     	        Plane *plane = CIFPlanes[i];
 	  	TileTypeBitMask	*mask;
 	  
+		arg->dCD_plane = i;
 	        DBSrPaintArea((Tile *) NULL, CIFPlanes[i], &cifrect,
 			(j == DRC_CIF_SOLID) ? &DBSpaceBits : &CIFSolidBits,
 	  		drcCifTile, arg);
