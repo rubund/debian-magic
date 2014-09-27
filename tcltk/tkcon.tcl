@@ -4187,6 +4187,11 @@ proc ::tkcon::Bindings {} {
     ## We really didn't want the newline insertion
     bind TkConsole <Control-Key-o> {}
 
+    ## in 8.6b3, the virtual events <<NextLine>> and <<PrevLine>>
+    #  mess up our history feature
+    bind TkConsole <<NextLine>> {}
+    bind TkConsole <<PrevLine>> {}
+
     ## Now make all our virtual event bindings
     foreach {ev key} [subst -nocommand -noback {
 	<<TkCon_Exit>>		<Control-q>

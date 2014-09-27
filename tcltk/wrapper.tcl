@@ -557,7 +557,7 @@ proc magic::cursorview {win} {
    set lambda [${win} tech lambda]
    if {[llength $lambda] != 2} {return}
    set lr [expr {(0.0 + [lindex $lambda 0]) / [lindex $lambda 1]}]
-   set olst [${win} cursor microns]
+   set olst [${win} cursor lambda]
    set olstx [lindex $olst 0]
    set olsty [lindex $olst 1]
 
@@ -573,7 +573,7 @@ proc magic::cursorview {win} {
       if {[expr {$dy == int($dy)}]} {set dy [expr {int($dy)}]}
       if {$dx >= 0} {set dx "+$dx"}
       if {$dy >= 0} {set dy "+$dy"}
-      set titletext [format "(%g %g) %g %g microns" $olstx $olsty $dx $dy]
+      set titletext [format "(%g %g) %g %g lambda" $olstx $olsty $dx $dy]
       ${framename}.titlebar.pos configure -text $titletext
    } else {
       set titletext [format "(%g %g) lambda" $olstx $olsty]
