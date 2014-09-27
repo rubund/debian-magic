@@ -778,6 +778,7 @@ drcTile (tile, arg)
 		    arg->dCD_cptr = cptr;
 		    arg->dCD_entries = 0;
 		    TTMaskCom2(&tmpMask, &cptr->drcc_mask);
+		    TTMaskClearType(&tmpMask, TT_ERROR_S);
 		    DBSrPaintArea((Tile *) NULL,
 				arg->dCD_celldef->cd_planes[cptr->drcc_plane],
 				&errRect, &tmpMask, areaCheck, (ClientData) arg);
@@ -1082,6 +1083,7 @@ checkbottom:
 		    arg->dCD_cptr = cptr;
 		    arg->dCD_entries = 0;
 		    TTMaskCom2(&tmpMask, &cptr->drcc_mask);
+		    TTMaskClearType(&tmpMask, TT_ERROR_S);
 		    DBSrPaintArea((Tile *) NULL,
 				arg->dCD_celldef->cd_planes[cptr->drcc_plane],
 				&errRect, &tmpMask, areaCheck, (ClientData) arg);
