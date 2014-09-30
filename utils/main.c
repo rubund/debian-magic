@@ -212,8 +212,7 @@ mainDoArgs(argc, argv)
 
     RCFileName = StrDup((char **) NULL, ".magicrc");
 
-    argc--;
-    while (argc-- > 0)
+    while (--argc > 0)
     {
 	argv++;
 	if (**argv == '-')
