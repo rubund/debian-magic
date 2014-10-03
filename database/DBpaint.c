@@ -1502,6 +1502,22 @@ DBNMPaintPlane0(plane, exacttype, area, resultTbl, undo, mark)
 		start.p_y = area->r_ytop - 1;
 		tile = plane->pl_hint;
 		GOTOPOINT(tile, &start);
+
+		/* Ignore tiles that don't interact.  This has	*/
+		/* to match the same check done in		*/
+		/* DBFracturePlane				*/
+
+		oldType = TiGetLeftType(tile);
+		if (resultTbl[oldType] == oldType)
+		{
+		    oldType = TiGetRightType(tile);
+		    if (resultTbl[oldType] == oldType)
+		    {
+			freeMagic((char *) lr);
+			return;
+		    }
+		}
+
 		oldType = TiGetTypeExact(tile);
 		newType = DBDiagonalProc(oldType, &dinfo);
 
