@@ -369,7 +369,7 @@ GrTOGLFlush ()
  *---------------------------------------------------------
  */
 
-static GLXPixmap glpmap;
+static GLXPixmap glpmap = None;
 
 #define glTransYs(n) (DisplayHeight(grXdpy, grXscrn)-(n))
 
@@ -385,6 +385,7 @@ toglSetProjection(llx, lly, width, height)
 {
     if (toglCurrent.mw->w_flags & WIND_OFFSCREEN)
     {
+	if (glpmap != None) glXDestroyGLXPixmap(grXdpy, glpmap);
 	glpmap = glXCreateGLXPixmap(grXdpy, grVisualInfo,
 			(Pixmap)toglCurrent.windowid);
 	glXMakeCurrent(grXdpy, (GLXDrawable)glpmap, grXcontext);
@@ -1314,11 +1315,6 @@ GrTOGLUnlock(w)
 {
     /* GR_TOGL_FLUSH_BATCH(); */
     GrTOGLFlush();	/* (?) Adds glFlush and glFinish to the above. */
-
-    if (w != GR_LOCK_SCREEN)
-	if (w->w_flags & WIND_OFFSCREEN)
-	    glXDestroyGLXPixmap(grXdpy, glpmap);
-
     grSimpleUnlock(w);
 }
 

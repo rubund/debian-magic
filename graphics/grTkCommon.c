@@ -994,8 +994,6 @@ ImgLayerConfigureInstance(instancePtr)
     }
 
     if (instancePtr->pixmap != None) {
-	Tk_FreePixmap(grXdpy, instancePtr->pixmap);
-	instancePtr->pixmap = None;
 	mw = WindSearchData((ClientData)instancePtr->pixmap);
 	if (mw != NULL)
 	{
@@ -1003,6 +1001,8 @@ ImgLayerConfigureInstance(instancePtr)
 	    windReClip();
 	    windFree(mw);
 	}
+	Tk_FreePixmap(grXdpy, instancePtr->pixmap);
+	instancePtr->pixmap = None;
     }
 
     if (masterPtr->layerString != NULL) {
@@ -1380,7 +1380,6 @@ ImgLayerFree(clientData, display)
 
     if (instancePtr->pixmap != None) {
 	MagWindow *mw;
-	Tk_FreePixmap(display, instancePtr->pixmap);
 	mw = WindSearchData((ClientData)instancePtr->pixmap);
 	if (mw != NULL)
 	{
@@ -1388,6 +1387,7 @@ ImgLayerFree(clientData, display)
 	    windReClip();
 	    windFree(mw);
 	}
+	Tk_FreePixmap(display, instancePtr->pixmap);
     }
     if (instancePtr->masterPtr->instancePtr == instancePtr) {
 	instancePtr->masterPtr->instancePtr = instancePtr->nextPtr;
