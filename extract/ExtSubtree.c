@@ -391,7 +391,8 @@ extSubtreeInteraction(ha)
 	 * refer to nodes in the parent.
 	 */
 	ha->ha_cumFlat.et_nodes = extFindNodes(cumDef, &ha->ha_clipArea);
-	ExtLabelRegions(cumDef, ExtCurStyle->exts_nodeConn, &(ha->ha_cumFlat.et_nodes));
+	ExtLabelRegions(cumDef, ExtCurStyle->exts_nodeConn,
+			 &(ha->ha_cumFlat.et_nodes), &ha->ha_clipArea);
 	if (ExtOptions & EXT_DOCOUPLING)
 	{
 	    HashInit(&ha->ha_cumFlat.et_coupleHash, 32,
@@ -617,7 +618,8 @@ extSubtreeFunc(scx, ha)
      */
     oneDef = oneFlat->et_use->cu_def;
     oneFlat->et_nodes = extFindNodes(oneDef, &ha->ha_clipArea),
-    ExtLabelRegions(oneDef, ExtCurStyle->exts_nodeConn, &(oneFlat->et_nodes));
+    ExtLabelRegions(oneDef, ExtCurStyle->exts_nodeConn,
+		&(oneFlat->et_nodes), &ha->ha_clipArea);
     if ((ExtOptions & (EXT_DOCOUPLING|EXT_DOADJUST))
 		   == (EXT_DOCOUPLING|EXT_DOADJUST))
 	extFindCoupling(oneDef, &oneFlat->et_coupleHash, &ha->ha_clipArea);
@@ -672,7 +674,7 @@ extSubtreeFunc(scx, ha)
 				&DBAllButSpaceBits, ExtCurStyle->exts_nodeConn, extUnInit,
 				extHierLabFirst, (int (*)()) NULL);
 	ExtLabelRegions(cumUse->cu_def, ExtCurStyle->exts_nodeConn,
-			&(ha->ha_cumFlat.et_nodes));
+			&(ha->ha_cumFlat.et_nodes), &TiPlaneRect);
     }
 
     /* Process connections; this updates ha->ha_connHash */

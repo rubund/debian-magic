@@ -210,7 +210,7 @@ extBasic(def, outFile)
 
     /* Assign the labels to their associated regions */
     if (!SigInterruptPending)
-	ExtLabelRegions(def, ExtCurStyle->exts_nodeConn, &nodeList);
+	ExtLabelRegions(def, ExtCurStyle->exts_nodeConn, &nodeList, &TiPlaneRect);
 
     /*
      * Make sure all geometry with the same label is part of the

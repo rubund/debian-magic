@@ -194,10 +194,11 @@ extRegionAreaFunc(tile, arg)
  */
 
 void
-ExtLabelRegions(def, connTo, nodeList)
+ExtLabelRegions(def, connTo, nodeList, clipArea)
     CellDef *def;		/* Cell definition being labelled */
     TileTypeBitMask *connTo;	/* Connectivity table (see above) */
-    NodeRegion **nodeList;
+    NodeRegion **nodeList;	/* Node list to add to (or NULL)  */
+    Rect *clipArea;		/* Area to search for sticky labels */
 {
     static Point offsets[] = { { 0, 0 }, { 0, -1 }, { -1, -1 }, { -1, 0 } };
     LabelList *ll;
@@ -249,7 +250,8 @@ ExtLabelRegions(def, connTo, nodeList)
 	    // If it is not connected to TT_SPACE, then create a new
 	    // node region for it.
 
-	    if (lab->lab_type != TT_SPACE)
+	    if (GEO_LABEL_IN_AREA(clipArea, &lab->lab_rect) &&
+				(lab->lab_type != TT_SPACE))
 	    {
 		NodeRegion *newNode;
 		int n;
