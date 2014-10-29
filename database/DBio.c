@@ -23,7 +23,7 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef __STDC__
+#ifdef STDC
 #include <unistd.h>
 #endif
 #include <ctype.h>
@@ -2628,20 +2628,29 @@ DBCellWrite(cellDef, fileName)
 	}
     }
 
-    /* Everything worked. */
+    /* Everything worked so far. */
+
     (void) StrDup(&cellDef->cd_file, expandname);
     result = TRUE;
     {
-    	 struct stat thestat;
-	 realf = fopen(expandname,"r");
-	 fstat(fileno(realf),&thestat);
-	 if (thestat.st_size != DBFileOffset)
-	 {
-              cellDef->cd_flags |= CDMODIFIED;
-	      TxError("Warning: I/O error in writing file\n");
-	 }
-	 fclose(realf);
-	 realf = NULL;
+	struct stat thestat;
+	realf = fopen(expandname,"r");
+	if (realf == NULL)
+	{
+	    cellDef->cd_flags |= CDMODIFIED;
+	    TxError("Warning: Cannot open file for writing!\n");
+	}
+	else
+	{
+	    fstat(fileno(realf),&thestat);
+	    if (thestat.st_size != DBFileOffset)
+	    {
+		cellDef->cd_flags |= CDMODIFIED;
+		TxError("Warning: I/O error in writing file\n");
+	    }
+	    fclose(realf);
+	}
+	realf = NULL;
     }
 
 cleanup:
