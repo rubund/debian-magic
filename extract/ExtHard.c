@@ -413,9 +413,13 @@ extHardGenerateLabel(scx, reg, arg)
     // a random place.  It also allows the low-probability
     // but possible conflict between this node and another with
     // the same name in the parent cell.
-
-    GeoTransPoint(&scx->scx_trans, &reg->treg_ll, &r.r_ll);
-    extMakeNodeNumPrint(gen, reg->treg_pnum, r.r_ll);
+    //
+    // Reverted 10/30/2014, not the right solution, causes
+    // worse problems.
+    //
+    // GeoTransPoint(&scx->scx_trans, &reg->treg_ll, &r.r_ll);
+    // extMakeNodeNumPrint(gen, reg->treg_pnum, r.r_ll);
+    extMakeNodeNumPrint(gen, reg->treg_pnum, reg->treg_ll);
 
     prefixlen = tpath->tp_next - tpath->tp_first;
     len = strlen(gen) + prefixlen;
