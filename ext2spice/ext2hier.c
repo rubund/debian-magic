@@ -1364,22 +1364,25 @@ esHierVisit(hc, cdata)
     /* already absorbed into their parents.  Use this		*/
     /* opportunity to remove all ports.				*/
 
-    if (def->def_devs == NULL && def->def_uses == NULL)
+    if (def != topdef)
     {
-	for (snode = (EFNode *) def->def_firstn.efnode_next;
-		snode != &def->def_firstn;
-		snode = (EFNode *) snode->efnode_next)
-	    snode->efnode_flags &= ~(EF_PORT | EF_SUBS_PORT);
-	return 0;
+	if (def->def_devs == NULL && def->def_uses == NULL)
+	{
+	    for (snode = (EFNode *) def->def_firstn.efnode_next;
+			snode != &def->def_firstn;
+			snode = (EFNode *) snode->efnode_next)
+		snode->efnode_flags &= ~(EF_PORT | EF_SUBS_PORT);
+	    return 0;
+	}
     } 
 
     /* Flatten this definition only */
     hcf = EFFlatBuildOneLevel(hc->hc_use->use_def);
 
     /* If definition has been marked as having no devices, then this	*/
-    /* def is not to be output.						*/
+    /* def is not to be output unless it is the top level.		*/
 
-    if (hc->hc_use->use_def->def_flags & DEF_NODEVICES)
+    if ((def != topdef) && (hc->hc_use->use_def->def_flags & DEF_NODEVICES))
     {
 	EFFlatDone();
 	return 0;
