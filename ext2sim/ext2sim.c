@@ -1008,6 +1008,12 @@ simdevVisit(dev, hierName, scale, trans)
     if (dev->dev_nterm < 1)
 	return 0;
 
+    /* If only one terminal, can't do much of anything either 	     */
+    /* (may want to provide eventual support for subcircuit devices) */
+
+    if (dev->dev_nterm < 2)
+	return 0;
+
     /* Merged devices */
     if ((esMergeDevsA || esMergeDevsC) && devIsKilled(esFMIndex++))
 	return 0;
