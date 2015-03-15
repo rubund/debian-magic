@@ -1547,72 +1547,6 @@ dbTileScaleFunc(tile, scvals)
 /*
  * ----------------------------------------------------------------------------
  *
- * DBSrCellUses --
- *
- *   Do function "func" for each cell use in cellDef, passing "arg" as
- *   client data.  Unlike DBEnumCell, this routine first collects a linked
- *   list of cell uses, then performs the function on the list, so that
- *   the search cannot be corrupted by, removing or reallocating the use
- *   structure from the cell def.  Function "func" takes 2 arguments:
- *
- *	int func(Celluse *use, ClientData arg) {}
- *
- * Results:
- *	0 one successful completion of the search, 1 on error.
- *
- * Side Effects:
- *	Whatever "func" does.
- *
- * ----------------------------------------------------------------------------
- */
-
-int
-DBSrCellUses(cellDef, func, arg)
-    CellDef *cellDef;	/* Pointer to CellDef to search for uses. */
-    int (*func)();	/* Function to apply for each cell use.	  */
-    ClientData arg;	/* data to be passed to function func().  */
-{
-    int dbCellUseEnumFunc();
-    int retval;
-    CellUse *use;
-    LinkedCellUse *luhead, *lu;
-
-    /* DBCellEnum() attempts to read unavailable celldefs.  We don't	*/
-    /* want to do that here, so check CDAVAILABLE flag first.	  	*/
-
-    if ((cellDef->cd_flags & CDAVAILABLE) == 0) return 0;
-
-    /* Enumerate all unique cell uses, and scale their position,	*/
-    /* transform, and array information.				*/
-
-    luhead = NULL;
-
-    retval = DBCellEnum(cellDef, dbCellUseEnumFunc, (ClientData) &luhead);
-
-    lu = luhead;
-    while (lu != NULL)
-    {
-	use = lu->cellUse;
-	if ((*func)(use, arg)) {
-	   retval = 1;
-	   break;
-	}
-	lu = lu->cu_next;
-    }
-
-    /* Free this linked cellUse structure */
-    lu = luhead;
-    while (lu != NULL)
-    {
-	freeMagic((char *)lu);
-	lu = lu->cu_next;
-    }
-    return retval;
-}
-
-/*
- * ----------------------------------------------------------------------------
- *
  * dbScaleCell --
  *
  *   Scaling procedure called on each cell encountered in the search.
@@ -1627,12 +1561,14 @@ dbScaleCell(cellDef, scalen, scaled)
 			 */
     int scalen, scaled; /* scale numerator and denominator. */
 {
-    int dbCellTileEnumFunc(), dbCellUseEnumFunc();
+    int dbCellTileEnumFunc();
     Label *lab;
     int pNum;
     LinkedTile *lhead, *lt;
-    LinkedCellUse *luhead, *lu;
     Plane *newplane;
+
+    HashSearch hs;
+    HashEntry *entry;
 
     /* DBCellEnum() attempts to read unavailable celldefs.  We don't	*/
     /* want to do that here, so check CDAVAILABLE flag first.	  	*/
@@ -1645,46 +1581,35 @@ dbScaleCell(cellDef, scalen, scaled)
     /* Enumerate all unique cell uses, and scale their position,	*/
     /* transform, and array information.				*/
 
-    luhead = NULL;
-
-    (void) DBCellEnum(cellDef, dbCellUseEnumFunc, (ClientData) &luhead);
-
-    lu = luhead;
-    while (lu != NULL)
+    HashStartSearch(&hs);
+    while ((entry = HashNext(&cellDef->cd_idHash, &hs)) != NULL)
     {
 	CellUse *use;
 	Rect *bbox;
 
-	use = lu->cellUse;
-	bbox = &use->cu_bbox;
+	use = (CellUse *)HashGetValue(entry);
+	if (use != (CellUse *)NULL)
+	{
+	    bbox = &use->cu_bbox;
 
-	/* TxPrintf("CellUse: BBox is ll (%d, %d), transform [%d %d %d %d %d %d]\n",
+	    /* TxPrintf("CellUse: BBox is ll (%d, %d), transform [%d %d %d %d %d %d]\n",
 		bbox->r_xbot, bbox->r_ybot,
 		use->cu_transform.t_a, use->cu_transform.t_b, use->cu_transform.t_c,
 		use->cu_transform.t_d, use->cu_transform.t_e, use->cu_transform.t_f); */
 
-	DBScalePoint(&bbox->r_ll, scalen, scaled);
-	DBScalePoint(&bbox->r_ur, scalen, scaled);
+	    DBScalePoint(&bbox->r_ll, scalen, scaled);
+	    DBScalePoint(&bbox->r_ur, scalen, scaled);
 
-	bbox = &use->cu_extended;
-	DBScalePoint(&bbox->r_ll, scalen, scaled);
-	DBScalePoint(&bbox->r_ur, scalen, scaled);
+	    bbox = &use->cu_extended;
+	    DBScalePoint(&bbox->r_ll, scalen, scaled);
+	    DBScalePoint(&bbox->r_ur, scalen, scaled);
 
-	DBScaleValue(&use->cu_transform.t_c, scalen, scaled);
-	DBScaleValue(&use->cu_transform.t_f, scalen, scaled);
+	    DBScaleValue(&use->cu_transform.t_c, scalen, scaled);
+	    DBScaleValue(&use->cu_transform.t_f, scalen, scaled);
 
-	DBScaleValue(&use->cu_array.ar_xsep, scalen, scaled);
-	DBScaleValue(&use->cu_array.ar_ysep, scalen, scaled);
-
-	lu = lu->cu_next;
-    }
-
-    /* Free this linked cellUse structure */
-    lu = luhead;
-    while (lu != NULL)
-    {
-	freeMagic((char *)lu);
-	lu = lu->cu_next;
+	    DBScaleValue(&use->cu_array.ar_xsep, scalen, scaled);
+    	    DBScaleValue(&use->cu_array.ar_ysep, scalen, scaled);
+	}
     }
 
     /* Scale the position of all subcell uses.  Count all of the tiles in the	*/
@@ -1809,29 +1734,3 @@ dbCellDefEnumFunc(cellDef, arg)
     return 0;
 }
 
-/*
- * ----------------------------------------------------------------------------
- *
- * dbCellUseEnumFunc --
- *
- *   Enumeration procedure called on each CellDef encountered in the search of
- *   cells in the hierarchy.  Adds the CellDef to a linked list of celldefs.
- *
- * ----------------------------------------------------------------------------
- */
-
-int
-dbCellUseEnumFunc(cellUse, arg)
-    CellUse *cellUse;
-    LinkedCellUse **arg;
-{
-    LinkedCellUse *lcu;
-
-    lcu = (LinkedCellUse *) mallocMagic(sizeof(LinkedCellUse));
-
-    lcu->cellUse = cellUse;
-    lcu->cu_next = (*arg);
-    (*arg) = lcu;
- 
-    return 0;
-}
