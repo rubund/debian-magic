@@ -1198,7 +1198,13 @@ cifUnconnectFunc(tile, clientData)
     Tile *tile;
     ClientData clientData;	/* unused */
 {
-    return 1;
+    TileType t;
+    t = TiGetTypeExact(tile);
+
+    if (t == TT_SPACE) return 1;
+    else if (t & TT_DIAGONAL) return 1;
+    else if (tile->ti_client != (ClientData)CIF_PROCESSED) return 1;
+    return 0;
 }
 
 /*
@@ -1600,7 +1606,7 @@ cifSquaresFillArea(op, cellDef, plane)
 		    /* check for unconnected regions.			*/
 
 		    if (simple || DBSrPaintArea((Tile *)tile, plane, &square,
-				&DBSpaceBits, cifUnconnectFunc,
+				&DBAllTypeBits, cifUnconnectFunc,
 				(ClientData)NULL) == 0)
 		    {
 			DBPaintPlane(cifPlane, &cut, CIFPaintTable,
@@ -1964,7 +1970,7 @@ cifSlotsFillArea(op, cellDef, plane)
 		    /* check for unconnected regions.			*/
 
 		    if (simple || DBSrPaintArea((Tile *)tile, plane, &square,
-				&DBSpaceBits, cifUnconnectFunc,
+				&DBAllTypeBits, cifUnconnectFunc,
 				(ClientData)NULL) == 0)
 		    {
 			DBPaintPlane(cifPlane, &cut, CIFPaintTable,
