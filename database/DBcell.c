@@ -141,8 +141,8 @@ DBPlaceCell (celluse, targetcell)
     ASSERT(celluse != (CellUse *) NULL, "DBPlaceCell");
     celluse->cu_parent = targetcell;
     plane = targetcell->cd_planes[PL_CELL];                   /* assign plane */
-    /* rect = celluse->cu_bbox; */
-    rect = celluse->cu_extended;
+    rect = celluse->cu_bbox;
+    /* rect = celluse->cu_extended; */
     arg.rect = &rect;
     arg.celluse = celluse;
     arg.plane = plane;
