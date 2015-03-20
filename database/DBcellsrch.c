@@ -1742,6 +1742,18 @@ dbScaleCell(cellDef, scalen, scaled)
 	{
 	    DBScalePoint(&lab->lab_rect.r_ll, scalen, scaled);
 	    DBScalePoint(&lab->lab_rect.r_ur, scalen, scaled);
+
+	    if (lab->lab_font >= 0)
+	    {
+		DBScalePoint(&lab->lab_offset, scalen, scaled);
+		DBScaleValue(&lab->lab_size, scalen, scaled);
+
+		DBScalePoint(&lab->lab_bbox.r_ll, scalen, scaled);
+		DBScalePoint(&lab->lab_bbox.r_ur, scalen, scaled);
+
+		for (i = 0; i < 4; i++)
+                    DBScalePoint(&lab->lab_corners[i], scalen, scaled);
+	    }
 	}
     }
 
