@@ -960,7 +960,7 @@ ExtTechSimplePerimCap(argc, argv)
     /* Part 1: Perimeter cap */
 
     for (s = TT_TECHDEPBASE; s < DBNumTypes; s++)
-	for (t = TT_TECHDEPBASE; t < DBNumTypes; t++)
+	for (t = 0; t < DBNumTypes; t++)
 	    if (TTMaskHasType(&types, s) && TTMaskHasType(&nottypes, t))
 	    {
 		ExtCurStyle->exts_perimCap[s][t] = capVal;
