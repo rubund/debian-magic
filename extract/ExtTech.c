@@ -2759,7 +2759,7 @@ zinit:
 		style->exts_overlapCap[r][s] *= sqfac;
 		for (ec = style->exts_sideOverlapCap[r][s]; ec != NULL;
 				ec = ec->ec_next)
-		    ec->ec_cap *= sqfac;
+		    ec->ec_cap *= scalefac;
 
 		// Sidewall capacitance is referred to distance,
 		// so cap value does not scale.
@@ -2855,8 +2855,8 @@ ExtTechScale(scalen, scaled)
 	    for (ec = style->exts_sideOverlapCap[i][j]; ec != NULL;
 				ec = ec->ec_next)
 	    {
-		ec->ec_cap *= sqn;
-		ec->ec_cap /= sqd;
+		ec->ec_cap *= scalen;
+		ec->ec_cap /= scaled;
 	    }
 	}
     }
