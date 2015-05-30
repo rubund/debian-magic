@@ -1,0 +1,27 @@
+CMWmain.o: CMWmain.c ../utils/magic.h ../utils/geometry.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../utils/main.h ../windows/windows.h \
+  ../database/database.h ../commands/commands.h ../windows/windows.h \
+  ../database/database.h ../cmwind/cmwind.h ../windows/windows.h \
+  ../graphics/graphicsInt.h ../windows/windows.h ../graphics/graphics.h \
+  ../utils/magic.h ../utils/geometry.h ../textio/textio.h \
+  ../utils/magic.h ../utils/utils.h ../utils/magic.h ../utils/styles.h \
+  ../graphics/glyphs.h ../utils/malloc.h
+CMWcmmnds.o: CMWcmmnds.c ../tcltk/tclmagic.h ../utils/magic.h \
+  ../utils/geometry.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../database/database.h \
+  ../dbwind/dbwind.h ../database/database.h ../windows/windows.h \
+  ../utils/main.h ../windows/windows.h ../database/database.h \
+  ../commands/commands.h ../windows/windows.h ../database/database.h \
+  ../cmwind/cmwind.h ../windows/windows.h ../graphics/graphics.h \
+  ../utils/magic.h ../utils/geometry.h ../textio/textio.h \
+  ../utils/magic.h ../utils/utils.h ../utils/magic.h ../utils/styles.h \
+  ../textio/txcommands.h ../utils/geometry.h ../utils/undo.h
+CMWundo.o: CMWundo.c ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../cmwind/cmwind.h ../windows/windows.h ../utils/undo.h \
+  ../utils/magic.h
+CMWrgbhsv.o: CMWrgbhsv.c ../utils/magic.h

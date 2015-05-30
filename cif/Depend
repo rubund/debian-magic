@@ -1,0 +1,73 @@
+CIFgen.o: CIFgen.c ../utils/magic.h ../utils/geometry.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../cif/CIFint.h ../database/database.h \
+  ../calma/calma.h ../utils/magic.h ../utils/stack.h ../utils/magic.h
+CIFhier.o: CIFhier.c ../utils/magic.h ../utils/geometry.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../cif/CIFint.h ../database/database.h \
+  ../cif/cif.h ../drc/drc.h ../database/database.h ../textio/textio.h \
+  ../utils/magic.h ../utils/undo.h ../utils/magic.h ../utils/malloc.h \
+  ../utils/signals.h
+CIFmain.o: CIFmain.c ../tcltk/tclmagic.h ../utils/magic.h \
+  ../utils/geometry.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../database/database.h \
+  ../cif/CIFint.h ../database/database.h ../textio/textio.h \
+  ../utils/magic.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../utils/styles.h
+CIFrdcl.o: CIFrdcl.c ../utils/magic.h ../utils/malloc.h \
+  ../utils/geometry.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../utils/undo.h ../utils/magic.h \
+  ../database/database.h ../cif/CIFint.h ../database/database.h \
+  ../cif/CIFread.h ../cif/CIFint.h ../utils/utils.h ../windows/windows.h \
+  ../utils/magic.h ../utils/geometry.h ../dbwind/dbwind.h \
+  ../database/database.h ../windows/windows.h ../utils/main.h \
+  ../windows/windows.h ../database/database.h ../drc/drc.h \
+  ../database/database.h
+CIFrdpt.o: CIFrdpt.c ../utils/magic.h ../utils/geometry.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/hash.h ../utils/malloc.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/main.h ../windows/windows.h \
+  ../database/database.h ../cif/CIFint.h ../database/database.h \
+  ../cif/CIFread.h ../cif/CIFint.h
+CIFrdpoly.o: CIFrdpoly.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../cif/CIFint.h ../database/database.h \
+  ../cif/CIFread.h ../cif/CIFint.h ../utils/malloc.h
+CIFrdtech.o: CIFrdtech.c ../tcltk/tclmagic.h ../utils/magic.h \
+  ../utils/geometry.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../database/database.h \
+  ../utils/tech.h ../utils/magic.h ../textio/textio.h ../utils/magic.h \
+  ../utils/utils.h ../cif/CIFint.h ../database/database.h \
+  ../cif/CIFread.h ../cif/CIFint.h ../calma/calmaInt.h ../utils/magic.h \
+  ../database/database.h ../utils/malloc.h
+CIFrdutils.o: CIFrdutils.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../cif/CIFint.h ../database/database.h \
+  ../cif/CIFread.h ../cif/CIFint.h ../cif/cif.h ../textio/textio.h \
+  ../utils/magic.h ../utils/signals.h ../utils/magic.h ../utils/undo.h \
+  ../utils/malloc.h
+CIFsee.o: CIFsee.c ../utils/magic.h ../utils/geometry.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphics.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../utils/styles.h ../cif/CIFint.h \
+  ../database/database.h ../textio/textio.h ../utils/magic.h \
+  ../utils/undo.h ../utils/magic.h
+CIFtech.o: CIFtech.c ../utils/magic.h ../utils/geometry.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../utils/tech.h ../utils/magic.h \
+  ../utils/utils.h ../utils/styles.h ../cif/CIFint.h \
+  ../database/database.h ../calma/calmaInt.h ../utils/magic.h \
+  ../database/database.h ../textio/textio.h ../utils/magic.h \
+  ../utils/malloc.h ../cif/cif.h
+CIFwrite.o: CIFwrite.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/utils.h \
+  ../utils/magic.h ../utils/hash.h ../database/database.h \
+  ../database/databaseInt.h ../database/database.h ../utils/tech.h \
+  ../utils/stack.h ../utils/undo.h ../cif/cif.h ../database/database.h \
+  ../cif/CIFint.h ../utils/signals.h ../windows/windows.h \
+  ../utils/magic.h ../utils/geometry.h ../dbwind/dbwind.h \
+  ../database/database.h ../windows/windows.h ../utils/styles.h \
+  ../textio/textio.h ../utils/magic.h

@@ -1,0 +1,87 @@
+gaChannel.o: gaChannel.c ../utils/magic.h ../utils/geometry.h \
+  ../utils/hash.h ../utils/heap.h ../utils/geometry.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../database/database.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../utils/main.h ../windows/windows.h ../database/database.h \
+  ../dbwind/dbwind.h ../database/database.h ../windows/windows.h \
+  ../utils/signals.h ../utils/magic.h ../netmenu/netmenu.h \
+  ../utils/magic.h ../gcr/gcr.h ../utils/magic.h ../router/router.h \
+  ../database/database.h ../utils/geometry.h ../grouter/grouter.h \
+  ../router/router.h ../gcr/gcr.h ../grouter/grouteDebug.h \
+  ../garouter/garouter.h ../grouter/grouter.h ../garouter/gaDebug.h \
+  ../utils/netlist.h ../textio/textio.h ../utils/magic.h \
+  ../utils/styles.h ../debug/debug.h ../utils/magic.h
+gaMain.o: gaMain.c ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../utils/heap.h ../utils/geometry.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../database/database.h ../windows/windows.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/main.h \
+  ../windows/windows.h ../database/database.h ../dbwind/dbwind.h \
+  ../database/database.h ../windows/windows.h ../utils/signals.h \
+  ../utils/magic.h ../netmenu/netmenu.h ../utils/magic.h ../gcr/gcr.h \
+  ../utils/magic.h ../router/router.h ../database/database.h \
+  ../utils/geometry.h ../grouter/grouter.h ../router/router.h \
+  ../gcr/gcr.h ../grouter/grouteDebug.h ../garouter/garouter.h \
+  ../grouter/grouter.h ../garouter/gaDebug.h ../utils/netlist.h \
+  ../textio/textio.h ../utils/magic.h ../debug/debug.h ../utils/magic.h \
+  ../drc/drc.h ../database/database.h
+gaMaze.o: gaMaze.c ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../utils/heap.h ../utils/geometry.h ../utils/undo.h ../utils/magic.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/main.h ../windows/windows.h \
+  ../database/database.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../utils/signals.h ../netmenu/netmenu.h \
+  ../utils/magic.h ../gcr/gcr.h ../utils/magic.h ../router/router.h \
+  ../database/database.h ../utils/geometry.h ../grouter/grouter.h \
+  ../router/router.h ../gcr/gcr.h ../grouter/grouteDebug.h \
+  ../garouter/garouter.h ../grouter/grouter.h ../garouter/gaDebug.h \
+  gaInternal.h ../utils/netlist.h ../textio/textio.h ../utils/magic.h \
+  ../utils/styles.h ../utils/malloc.h ../drc/drc.h ../database/database.h \
+  ../debug/debug.h ../utils/magic.h ../utils/list.h \
+  ../mzrouter/mzrouter.h ../database/database.h ../utils/geometry.h \
+  ../utils/list.h
+gaSimple.o: gaSimple.c ../utils/magic.h ../utils/geometry.h \
+  ../utils/geofast.h ../utils/hash.h ../utils/heap.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/main.h ../windows/windows.h \
+  ../database/database.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../utils/signals.h ../utils/magic.h \
+  ../netmenu/netmenu.h ../utils/magic.h ../gcr/gcr.h ../utils/magic.h \
+  ../router/router.h ../database/database.h ../utils/geometry.h \
+  ../grouter/grouter.h ../router/router.h ../gcr/gcr.h \
+  ../grouter/grouteDebug.h ../garouter/garouter.h ../grouter/grouter.h \
+  ../garouter/gaDebug.h ../utils/netlist.h ../textio/textio.h \
+  ../utils/magic.h ../utils/styles.h ../utils/malloc.h ../drc/drc.h \
+  ../database/database.h ../debug/debug.h ../utils/magic.h \
+  ../extract/extract.h ../utils/magic.h ../extract/extractInt.h \
+  ../database/database.h ../extract/extDebugInt.h
+gaStem.o: gaStem.c ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../utils/heap.h ../utils/geometry.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../database/database.h ../windows/windows.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/main.h \
+  ../windows/windows.h ../database/database.h ../dbwind/dbwind.h \
+  ../database/database.h ../windows/windows.h ../utils/signals.h \
+  ../utils/magic.h ../netmenu/netmenu.h ../utils/magic.h ../gcr/gcr.h \
+  ../utils/magic.h ../router/router.h ../database/database.h \
+  ../utils/geometry.h ../grouter/grouter.h ../router/router.h \
+  ../gcr/gcr.h ../grouter/grouteDebug.h ../garouter/garouter.h \
+  ../grouter/grouter.h ../garouter/gaDebug.h gaInternal.h \
+  ../utils/netlist.h ../textio/textio.h ../utils/magic.h \
+  ../utils/styles.h ../utils/malloc.h ../drc/drc.h ../database/database.h \
+  ../debug/debug.h ../utils/magic.h
+gaTest.o: gaTest.c ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../utils/heap.h ../utils/geometry.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../database/database.h ../utils/signals.h \
+  ../utils/magic.h ../textio/textio.h ../utils/magic.h ../debug/debug.h \
+  ../utils/magic.h ../gcr/gcr.h ../utils/magic.h ../router/router.h \
+  ../database/database.h ../utils/geometry.h ../grouter/grouter.h \
+  ../router/router.h ../gcr/gcr.h ../grouter/grouteDebug.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../garouter/garouter.h ../grouter/grouter.h ../garouter/gaDebug.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../dbwind/dbwind.h ../database/database.h ../windows/windows.h \
+  ../textio/txcommands.h ../utils/geometry.h ../utils/main.h \
+  ../windows/windows.h ../database/database.h ../utils/utils.h \
+  ../commands/commands.h ../windows/windows.h ../database/database.h \
+  ../utils/styles.h

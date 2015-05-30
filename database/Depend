@@ -1,0 +1,141 @@
+DBbound.o: DBbound.c ../utils/magic.h ../utils/geometry.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h
+DBcell.o: DBcell.c ../utils/magic.h ../utils/malloc.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../database/databaseInt.h ../database/database.h \
+  ../utils/undo.h ../utils/magic.h ../utils/signals.h
+DBcellbox.o: DBcellbox.c ../utils/magic.h ../utils/geometry.h \
+  ../utils/geofast.h ../tiles/tile.h ../utils/magic.h ../utils/geometry.h \
+  ../utils/hash.h ../database/database.h ../database/databaseInt.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../utils/undo.h ../utils/magic.h
+DBcellcopy.o: DBcellcopy.c ../utils/magic.h ../utils/geometry.h \
+  ../utils/geofast.h ../utils/malloc.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../database/database.h \
+  ../database/databaseInt.h ../database/database.h ../textio/textio.h \
+  ../utils/magic.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../commands/commands.h ../windows/windows.h \
+  ../database/database.h
+DBcellname.o: DBcellname.c ../tcltk/tclmagic.h ../utils/magic.h \
+  ../utils/hash.h ../utils/utils.h ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h \
+  ../database/database.h ../database/databaseInt.h ../database/database.h \
+  ../select/select.h ../utils/magic.h ../database/database.h \
+  ../utils/signals.h ../utils/undo.h ../utils/malloc.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../textio/textio.h ../utils/magic.h ../dbwind/dbwind.h \
+  ../database/database.h ../windows/windows.h ../utils/main.h \
+  ../windows/windows.h ../database/database.h ../drc/drc.h \
+  ../database/database.h
+DBcellsrch.o: DBcellsrch.c ../utils/magic.h ../utils/malloc.h \
+  ../utils/geometry.h ../utils/geofast.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../database/database.h \
+  ../database/databaseInt.h ../database/database.h ../textio/textio.h \
+  ../utils/magic.h ../utils/signals.h ../utils/magic.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../utils/main.h ../windows/windows.h ../database/database.h
+DBcellsel.o: DBcellsel.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../database/databaseInt.h ../database/database.h \
+  ../utils/utils.h ../utils/magic.h
+DBcellsubr.o: DBcellsubr.c ../utils/magic.h ../utils/malloc.h \
+  ../utils/hash.h ../utils/utils.h ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h \
+  ../database/database.h ../database/databaseInt.h ../database/database.h \
+  ../utils/signals.h
+DBconnect.o: DBconnect.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../database/databaseInt.h ../database/database.h \
+  ../utils/signals.h ../utils/magic.h ../utils/malloc.h
+DBcount.o: DBcount.c ../utils/magic.h ../utils/hash.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h \
+  ../database/database.h ../database/databaseInt.h ../database/database.h
+DBexpand.o: DBexpand.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../database/databaseInt.h ../database/database.h \
+  ../textio/textio.h ../utils/magic.h ../utils/utils.h ../utils/magic.h \
+  ../utils/stack.h
+DBio.o: DBio.c ../utils/magic.h ../utils/geometry.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/utils.h ../utils/magic.h \
+  ../utils/hash.h ../database/database.h ../database/databaseInt.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../utils/tech.h ../textio/textio.h \
+  ../utils/magic.h ../drc/drc.h ../database/database.h ../utils/undo.h \
+  ../utils/malloc.h ../utils/signals.h
+DBlabel.o: DBlabel.c ../utils/magic.h ../utils/malloc.h \
+  ../utils/geometry.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../database/database.h \
+  ../database/databaseInt.h ../database/database.h ../windows/windows.h \
+  ../utils/magic.h ../utils/geometry.h ../dbwind/dbwind.h \
+  ../database/database.h ../windows/windows.h ../commands/commands.h \
+  ../windows/windows.h ../database/database.h ../textio/textio.h \
+  ../utils/magic.h
+DBlabel2.o: DBlabel2.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../database/databaseInt.h ../database/database.h \
+  ../utils/malloc.h
+DBpaint2.o: DBpaint2.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../database/databaseInt.h ../database/database.h
+DBpaint.o: DBpaint.c ../utils/magic.h ../utils/malloc.h \
+  ../utils/geometry.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../database/database.h \
+  ../database/databaseInt.h ../database/database.h ../windows/windows.h \
+  ../utils/magic.h ../utils/geometry.h ../graphics/graphics.h \
+  ../utils/magic.h ../utils/geometry.h ../dbwind/dbwind.h \
+  ../database/database.h ../windows/windows.h ../utils/signals.h \
+  ../utils/magic.h ../textio/textio.h ../utils/magic.h ../utils/undo.h
+DBprop.o: DBprop.c ../utils/magic.h ../utils/geometry.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../utils/malloc.h
+DBtech.o: DBtech.c ../utils/magic.h ../utils/geometry.h ../utils/utils.h \
+  ../utils/magic.h ../tiles/tile.h ../utils/magic.h ../utils/geometry.h \
+  ../utils/hash.h ../database/database.h ../database/databaseInt.h \
+  ../database/database.h ../utils/tech.h ../textio/textio.h \
+  ../utils/magic.h ../utils/malloc.h
+DBtcontact.o: DBtcontact.c ../utils/magic.h ../utils/geometry.h \
+  ../utils/utils.h ../utils/magic.h ../utils/malloc.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../database/databaseInt.h ../database/database.h \
+  ../utils/tech.h ../textio/textio.h ../utils/magic.h
+DBtechname.o: DBtechname.c ../tcltk/tclmagic.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/utils.h ../utils/magic.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../database/databaseInt.h ../database/database.h \
+  ../utils/tech.h ../textio/textio.h ../utils/magic.h ../utils/malloc.h
+DBtpaint.o: DBtpaint.c ../utils/magic.h ../utils/geometry.h \
+  ../utils/utils.h ../utils/magic.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../database/database.h \
+  ../database/databaseInt.h ../database/database.h ../utils/tech.h \
+  ../textio/textio.h ../utils/magic.h
+DBtpaint2.o: DBtpaint2.c ../utils/magic.h ../utils/geometry.h \
+  ../utils/utils.h ../utils/magic.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../database/database.h \
+  ../database/databaseInt.h ../database/database.h ../utils/tech.h \
+  ../textio/textio.h ../utils/magic.h
+DBtechtype.o: DBtechtype.c ../utils/magic.h ../utils/geometry.h \
+  ../utils/utils.h ../utils/magic.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../database/database.h \
+  ../database/databaseInt.h ../database/database.h ../utils/tech.h \
+  ../textio/textio.h ../utils/magic.h ../utils/malloc.h
+DBtiles.o: DBtiles.c ../utils/magic.h ../utils/geometry.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/signals.h \
+  ../utils/magic.h ../utils/hash.h ../database/database.h \
+  ../database/databaseInt.h ../database/database.h ../utils/malloc.h
+DBtimestmp.o: DBtimestmp.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../database/databaseInt.h ../database/database.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../textio/textio.h ../utils/magic.h ../drc/drc.h ../database/database.h \
+  ../utils/signals.h ../utils/magic.h ../utils/malloc.h
+DBundo.o: DBundo.c ../utils/magic.h ../utils/malloc.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../database/databaseInt.h ../database/database.h \
+  ../utils/undo.h ../utils/magic.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../utils/main.h ../windows/windows.h \
+  ../database/database.h ../utils/utils.h ../drc/drc.h \
+  ../database/database.h ../utils/signals.h

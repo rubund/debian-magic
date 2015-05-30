@@ -1,0 +1,47 @@
+DRCarray.o: DRCarray.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../drc/drc.h ../database/database.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../commands/commands.h ../windows/windows.h ../database/database.h
+DRCbasic.o: DRCbasic.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../drc/drc.h ../database/database.h \
+  ../utils/signals.h ../utils/magic.h
+DRCcontin.o: DRCcontin.c ../tcltk/tclmagic.h ../utils/magic.h \
+  ../textio/textio.h ../utils/magic.h ../utils/geometry.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../dbwind/dbwtech.h ../utils/main.h \
+  ../windows/windows.h ../database/database.h ../commands/commands.h \
+  ../windows/windows.h ../database/database.h ../drc/drc.h \
+  ../database/database.h ../utils/signals.h ../utils/magic.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../utils/undo.h ../utils/malloc.h
+DRCmain.o: DRCmain.c ../utils/magic.h ../textio/textio.h ../utils/magic.h \
+  ../utils/geometry.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../database/database.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../dbwind/dbwind.h ../database/database.h ../windows/windows.h \
+  ../drc/drc.h ../database/database.h ../utils/undo.h ../utils/magic.h
+DRCsubcell.o: DRCsubcell.c ../utils/magic.h ../textio/textio.h \
+  ../utils/magic.h ../utils/geometry.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../database/database.h ../drc/drc.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../commands/commands.h ../windows/windows.h \
+  ../database/database.h ../utils/undo.h ../utils/magic.h
+DRCtech.o: DRCtech.c ../tcltk/tclmagic.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/utils.h ../utils/magic.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../drc/drc.h ../database/database.h \
+  ../utils/tech.h ../textio/textio.h ../utils/magic.h ../utils/malloc.h
+DRCprint.o: DRCprint.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../drc/drc.h ../database/database.h
+DRCextend.o: DRCextend.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../dbwind/dbwtech.h ../drc/drc.h \
+  ../database/database.h ../utils/signals.h ../utils/magic.h \
+  ../utils/stack.h

@@ -1,0 +1,7 @@
+debugFlags.o: debugFlags.c ../utils/magic.h ../debug/debug.h \
+  ../utils/magic.h ../textio/textio.h ../utils/magic.h ../utils/malloc.h \
+  ../utils/utils.h ../utils/magic.h
+hist.o: hist.c ../utils/magic.h ../utils/geometry.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/utils.h ../utils/magic.h \
+  ../textio/textio.h ../utils/magic.h ../debug/debug.h ../utils/magic.h \
+  ../utils/malloc.h

@@ -1,0 +1,55 @@
+CalmaRead.o: CalmaRead.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/utils.h \
+  ../utils/magic.h ../utils/hash.h ../database/database.h \
+  ../database/databaseInt.h ../database/database.h ../utils/malloc.h \
+  ../utils/tech.h ../cif/cif.h ../database/database.h ../cif/CIFint.h \
+  ../cif/CIFread.h ../cif/CIFint.h ../utils/signals.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../dbwind/dbwind.h ../database/database.h ../windows/windows.h \
+  ../utils/styles.h ../textio/textio.h ../utils/magic.h \
+  ../calma/calmaInt.h ../utils/magic.h ../database/database.h \
+  ../commands/commands.h ../windows/windows.h ../database/database.h \
+  ../utils/undo.h
+CalmaRdcl.o: CalmaRdcl.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/utils.h \
+  ../utils/magic.h ../utils/hash.h ../database/database.h \
+  ../database/databaseInt.h ../database/database.h ../utils/malloc.h \
+  ../utils/tech.h ../cif/cif.h ../database/database.h ../cif/CIFint.h \
+  ../cif/CIFread.h ../cif/CIFint.h ../utils/signals.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../dbwind/dbwind.h ../database/database.h ../windows/windows.h \
+  ../utils/styles.h ../textio/textio.h ../utils/magic.h \
+  ../calma/calmaInt.h ../utils/magic.h ../database/database.h \
+  ../calma/calma.h
+CalmaRdio.o: CalmaRdio.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/utils.h \
+  ../utils/magic.h ../utils/hash.h ../database/database.h \
+  ../database/databaseInt.h ../database/database.h ../utils/malloc.h \
+  ../utils/tech.h ../cif/cif.h ../database/database.h ../cif/CIFint.h \
+  ../cif/CIFread.h ../cif/CIFint.h ../utils/signals.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../dbwind/dbwind.h ../database/database.h ../windows/windows.h \
+  ../utils/styles.h ../textio/textio.h ../utils/magic.h \
+  ../calma/calmaInt.h ../utils/magic.h ../database/database.h
+CalmaRdpt.o: CalmaRdpt.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/utils.h \
+  ../utils/magic.h ../utils/hash.h ../database/database.h \
+  ../database/databaseInt.h ../database/database.h ../utils/malloc.h \
+  ../utils/tech.h ../cif/cif.h ../database/database.h ../cif/CIFint.h \
+  ../cif/CIFread.h ../cif/CIFint.h ../utils/signals.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../dbwind/dbwind.h ../database/database.h ../windows/windows.h \
+  ../utils/styles.h ../textio/textio.h ../utils/magic.h \
+  ../calma/calmaInt.h ../utils/magic.h ../database/database.h \
+  ../calma/calma.h
+CalmaWrite.o: CalmaWrite.c ../utils/magic.h ../utils/malloc.h \
+  ../utils/geometry.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/utils.h ../utils/magic.h ../utils/hash.h \
+  ../database/database.h ../database/databaseInt.h ../database/database.h \
+  ../utils/tech.h ../cif/cif.h ../database/database.h ../cif/CIFint.h \
+  ../utils/signals.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../utils/styles.h ../textio/textio.h \
+  ../utils/magic.h ../calma/calmaInt.h ../utils/magic.h \
+  ../database/database.h ../utils/main.h ../windows/windows.h \
+  ../database/database.h

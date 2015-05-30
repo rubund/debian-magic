@@ -1,0 +1,44 @@
+gcrChannel.o: gcrChannel.c ../utils/magic.h ../utils/geometry.h \
+  ../gcr/gcr.h ../utils/magic.h ../utils/malloc.h
+gcrColl.o: gcrColl.c ../utils/magic.h ../utils/geometry.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../gcr/gcr.h ../utils/magic.h \
+  ../utils/malloc.h
+gcrDebug.o: gcrDebug.c ../utils/magic.h ../utils/geometry.h \
+  ../textio/textio.h ../utils/magic.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../database/database.h ../gcr/gcr.h \
+  ../utils/magic.h ../utils/heap.h ../utils/geometry.h ../router/router.h \
+  ../database/database.h ../utils/geometry.h ../utils/malloc.h
+gcrEdge.o: gcrEdge.c ../utils/magic.h ../utils/geometry.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../gcr/gcr.h ../utils/magic.h
+gcrFeas.o: gcrFeas.c ../utils/magic.h ../utils/geometry.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../gcr/gcr.h ../utils/magic.h \
+  ../utils/hash.h ../database/database.h ../router/router.h \
+  ../database/database.h ../utils/geometry.h
+gcrFlags.o: gcrFlags.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../gcr/gcr.h \
+  ../utils/magic.h
+gcrInit.o: gcrInit.c ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../utils/heap.h ../utils/geometry.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../database/database.h ../router/router.h \
+  ../database/database.h ../utils/geometry.h ../gcr/gcr.h \
+  ../utils/magic.h ../utils/malloc.h
+gcrLib.o: gcrLib.c ../utils/magic.h ../utils/geometry.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../gcr/gcr.h ../utils/magic.h \
+  ../utils/malloc.h
+gcrRiver.o: gcrRiver.c ../utils/magic.h ../utils/geometry.h ../gcr/gcr.h \
+  ../utils/magic.h ../textio/textio.h ../utils/magic.h ../utils/malloc.h
+gcrRoute.o: gcrRoute.c ../utils/magic.h ../utils/geometry.h ../gcr/gcr.h \
+  ../utils/magic.h ../utils/signals.h ../utils/magic.h ../utils/malloc.h \
+  ../utils/styles.h
+gcrShwFlgs.o: gcrShwFlgs.c ../utils/magic.h ../utils/geometry.h \
+  ../utils/hash.h ../tiles/tile.h ../utils/magic.h ../utils/geometry.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../gcr/gcr.h ../utils/magic.h ../utils/heap.h \
+  ../utils/geometry.h ../router/router.h ../database/database.h \
+  ../utils/geometry.h ../utils/main.h ../windows/windows.h \
+  ../database/database.h ../utils/styles.h ../textio/textio.h \
+  ../utils/magic.h
+gcrUnsplit.o: gcrUnsplit.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../gcr/gcr.h \
+  ../utils/magic.h ../utils/malloc.h
