@@ -1,0 +1,28 @@
+Description: Various #! script adjustments for Tcl scripts
+ This patch adjusts some Tcl scripts to Debian file locations
+Author: Roland Stigge <stigge@antcom.de>
+
+--- magic-7.5.213.orig/tcltk/console.tcl
++++ magic-7.5.213/tcltk/console.tcl
+@@ -1,3 +1,5 @@
++#!/usr/bin/tclsh
++#
+ # console.tcl:
+ #
+ #  Defines Procedures which should be defined within the console
+--- magic-7.5.213.orig/tcltk/strip_reflibs.tcl
++++ magic-7.5.213/tcltk/strip_reflibs.tcl
+@@ -1,4 +1,4 @@
+-#!/usr/local/bin/tclsh
++#!/usr/bin/tclsh
+ #
+ # Strip GDS cell references from magic files.
+ #
+--- magic-7.5.213.orig/ext2spice/spice2sim
++++ magic-7.5.213/ext2spice/spice2sim
+@@ -1,4 +1,4 @@
+-#!/bin/awk -f
++#!/usr/bin/awk -f
+ # convert an ext2spice produced file to a .sim file for debugging
+ #
+ BEGIN {

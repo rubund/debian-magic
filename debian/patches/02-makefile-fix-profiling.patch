@@ -1,0 +1,16 @@
+Description: Makefile fix for profiling
+ This patch removes a profiling option from a Makefile's gcc build rule to
+ prevent profiling code to end up in Debian runtime executables
+Author: Roland Stigge <stigge@antcom.de>
+
+--- magic-7.5.231.orig/tcltk/Makefile
++++ magic-7.5.231/tcltk/Makefile
+@@ -41,7 +41,7 @@ install-tcl: magicexec magicdnull ${BIN_
+ 	(cd $(DESTDIR)${TCLDIR}; chmod 0755 tkcon.tcl tkshell.tcl)
+ 
+ magicexec: magicexec.c
+-	${CC} ${CFLAGS} -pg ${CPPFLAGS} ${DFLAGS} ${LDFLAGS} magicexec.c \
++	${CC} ${CFLAGS} ${CPPFLAGS} ${DFLAGS} ${LDFLAGS} magicexec.c \
+ 		-o magicexec ${LD_RUN_PATH} ${LIBS} ${LIB_SPECS}
+ 
+ magicdnull: magicdnull.c
