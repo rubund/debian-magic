@@ -1,0 +1,68 @@
+plotCmd.o: plotCmd.c ../tcltk/tclmagic.h ../utils/magic.h \
+  ../utils/geometry.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../utils/utils.h ../utils/magic.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../utils/main.h ../windows/windows.h \
+  ../database/database.h ../textio/txcommands.h ../utils/magic.h \
+  ../utils/geometry.h ../plow/plow.h ../utils/magic.h ../select/select.h \
+  ../utils/magic.h ../database/database.h ../commands/commands.h \
+  ../windows/windows.h ../database/database.h
+plotGremln.o: plotGremln.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../utils/tech.h ../utils/magic.h \
+  ../utils/malloc.h ../utils/utils.h ../windows/windows.h \
+  ../utils/magic.h ../utils/geometry.h ../commands/commands.h \
+  ../windows/windows.h ../database/database.h ../dbwind/dbwind.h \
+  ../database/database.h ../windows/windows.h ../textio/textio.h \
+  ../utils/magic.h
+plotPS.o: plotPS.c ../utils/magic.h ../utils/geometry.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../utils/tech.h ../utils/magic.h \
+  ../utils/malloc.h ../utils/utils.h ../windows/windows.h \
+  ../utils/magic.h ../utils/geometry.h ../commands/commands.h \
+  ../windows/windows.h ../database/database.h ../dbwind/dbwind.h \
+  ../database/database.h ../windows/windows.h ../textio/textio.h \
+  ../utils/magic.h
+plotMain.o: plotMain.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../utils/tech.h ../utils/magic.h \
+  ../utils/malloc.h ../plot/plotInt.h ../utils/magic.h \
+  ../utils/geometry.h ../textio/textio.h ../utils/magic.h \
+  ../utils/utils.h
+plotRutils.o: plotRutils.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../utils/malloc.h ../plot/plotInt.h \
+  ../utils/magic.h ../utils/geometry.h ../textio/textio.h \
+  ../utils/magic.h ../utils/utils.h ../utils/magic.h
+plotVers.o: plotVers.c ../utils/magic.h ../utils/geometry.h \
+  ../utils/geofast.h ../tiles/tile.h ../utils/magic.h ../utils/geometry.h \
+  ../utils/hash.h ../database/database.h ../utils/malloc.h \
+  ../plot/plotInt.h ../utils/magic.h ../utils/geometry.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../commands/commands.h ../windows/windows.h ../database/database.h \
+  ../textio/textio.h ../utils/magic.h ../utils/utils.h ../utils/magic.h \
+  ../utils/tech.h ../utils/signals.h ../dbwind/dbwind.h \
+  ../database/database.h ../windows/windows.h
+plotPixels.o: plotPixels.c ../utils/magic.h ../utils/geometry.h \
+  ../utils/geofast.h ../tiles/tile.h ../utils/magic.h ../utils/geometry.h \
+  ../utils/hash.h ../database/database.h ../dbwind/dbwtech.h \
+  ../utils/malloc.h ../plot/plotInt.h ../utils/magic.h \
+  ../utils/geometry.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../commands/commands.h ../windows/windows.h \
+  ../database/database.h ../textio/textio.h ../utils/magic.h \
+  ../utils/utils.h ../utils/magic.h ../utils/tech.h ../utils/signals.h \
+  ../utils/styles.h ../graphics/graphics.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h
+plotPNM.o: plotPNM.c ../utils/magic.h ../utils/geometry.h \
+  ../utils/geofast.h ../tiles/tile.h ../utils/magic.h ../utils/geometry.h \
+  ../utils/hash.h ../database/database.h ../utils/tech.h ../utils/magic.h \
+  ../utils/malloc.h ../utils/utils.h ../utils/styles.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../dbwind/dbwtech.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../utils/main.h ../windows/windows.h \
+  ../database/database.h ../commands/commands.h ../windows/windows.h \
+  ../database/database.h ../textio/textio.h ../utils/magic.h \
+  ../utils/signals.h

@@ -1,0 +1,20 @@
+wireOps.o: wireOps.c ../utils/magic.h ../utils/geometry.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../select/select.h ../utils/magic.h \
+  ../database/database.h ../textio/textio.h ../utils/magic.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../dbwind/dbwind.h ../database/database.h ../windows/windows.h \
+  ../drc/drc.h ../database/database.h ../utils/main.h \
+  ../windows/windows.h ../database/database.h ../wiring/wiring.h \
+  ../utils/magic.h ../database/database.h ../wiring/wireInt.h \
+  ../textio/txcommands.h ../utils/geometry.h ../utils/styles.h
+wireTech.o: wireTech.c ../utils/magic.h ../utils/utils.h ../utils/magic.h \
+  ../utils/geometry.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../database/database.h \
+  ../utils/tech.h ../wiring/wiring.h ../utils/magic.h \
+  ../database/database.h ../utils/malloc.h
+wireUndo.o: wireUndo.c ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../utils/tech.h ../utils/magic.h \
+  ../wiring/wiring.h ../utils/magic.h ../database/database.h \
+  ../wiring/wireInt.h ../textio/textio.h ../utils/magic.h ../utils/undo.h

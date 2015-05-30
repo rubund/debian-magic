@@ -1,0 +1,223 @@
+grMain.o: grMain.c ../utils/magic.h ../utils/magsgtty.h \
+  ../textio/textio.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphicsInt.h ../windows/windows.h
+grLock.o: grLock.c ../utils/magic.h ../utils/geometry.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../textio/textio.h ../utils/magic.h
+grDStyle.o: grDStyle.c ../utils/magic.h ../utils/malloc.h \
+  ../utils/styles.h ../utils/utils.h ../utils/magic.h ../textio/textio.h \
+  ../utils/magic.h ../utils/geometry.h ../graphics/glyphs.h \
+  ../utils/geometry.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphics.h ../utils/magic.h \
+  ../graphics/graphicsInt.h ../windows/windows.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h
+grText.o: grText.c ../utils/magic.h ../textio/textio.h ../utils/magic.h \
+  ../utils/geometry.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphics.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphicsInt.h ../windows/windows.h \
+  ../utils/utils.h ../utils/magic.h
+grCMap.o: grCMap.c ../utils/magic.h ../utils/malloc.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphics.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphicsInt.h ../windows/windows.h \
+  ../utils/utils.h ../utils/magic.h ../textio/textio.h ../utils/magic.h
+grClip.o: grClip.c ../utils/magic.h ../textio/textio.h ../utils/magic.h \
+  ../utils/geometry.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../database/database.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphicsInt.h ../windows/windows.h ../utils/malloc.h
+grGlyphs.o: grGlyphs.c ../utils/magic.h ../utils/geometry.h \
+  ../utils/utils.h ../utils/magic.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphics.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphicsInt.h ../windows/windows.h \
+  ../graphics/glyphs.h ../textio/textio.h ../utils/magic.h \
+  ../utils/malloc.h
+grNull.o: grNull.c ../utils/magsgtty.h ../utils/magic.h \
+  ../utils/geometry.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphics.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphicsInt.h ../windows/windows.h \
+  ../textio/textio.h ../utils/magic.h ../textio/txcommands.h \
+  ../utils/geometry.h ../utils/signals.h ../utils/magic.h
+W3Dmain.o: W3Dmain.c \
+  ../tcltk/tclmagic.h ../utils/magic.h ../utils/geometry.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../utils/undo.h ../utils/magic.h ../database/database.h ../utils/main.h \
+  ../windows/windows.h ../database/database.h ../commands/commands.h \
+  ../windows/windows.h ../database/database.h ../graphics/wind3d.h \
+  ../windows/windows.h ../graphics/graphicsInt.h ../graphics/graphics.h \
+  ../utils/magic.h ../utils/geometry.h grTOGLInt.h ../textio/textio.h \
+  ../utils/magic.h ../textio/txcommands.h ../utils/geometry.h \
+  ../utils/utils.h ../utils/styles.h ../dbwind/dbwtech.h \
+  ../dbwind/dbwind.h ../database/database.h ../windows/windows.h \
+  ../extract/extract.h ../utils/magic.h ../graphics/glyphs.h \
+  ../utils/malloc.h ../windows/windInt.h ../windows/windows.h \
+  ../graphics/glyphs.h ../cif/cif.h ../database/database.h \
+  ../cif/CIFint.h
+grX11su1.o: grX11su1.c \
+  ../utils/magic.h ../utils/magsgtty.h ../textio/textio.h \
+  ../utils/magic.h ../utils/geometry.h ../textio/txcommands.h \
+  ../utils/geometry.h ../utils/signals.h ../utils/magic.h \
+  ../graphics/glyphs.h ../utils/geometry.h ../graphics/graphics.h \
+  ../utils/magic.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphicsInt.h ../windows/windows.h \
+  ../utils/utils.h ../utils/hash.h grX11Int.h ../utils/paths.h
+grX11su2.o: grX11su2.c \
+  ../utils/magic.h ../textio/textio.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphics.h ../utils/magic.h \
+  ../utils/geometry.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphicsInt.h ../windows/windows.h \
+  grX11Int.h
+grX11su3.o: grX11su3.c \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphicsInt.h ../windows/windows.h ../textio/textio.h \
+  ../utils/magic.h ../utils/signals.h ../utils/magic.h ../utils/utils.h \
+  ../utils/hash.h ../dbwind/dbwind.h ../database/database.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h \
+  ../windows/windows.h grX11Int.h
+grX11su4.o: grX11su4.c \
+  ../textio/textio.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphicsInt.h ../windows/windows.h ../textio/txcommands.h \
+  ../utils/geometry.h grX11Int.h
+grX11su5.o: grX11su5.c \
+  ../utils/hash.h ../textio/textio.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/glyphs.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphicsInt.h ../windows/windows.h \
+  grX11Int.h
+grTk1.o: grTk1.c \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../database/database.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../utils/magic.h ../utils/malloc.h \
+  ../utils/magsgtty.h ../utils/geometry.h ../windows/windows.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphicsInt.h ../windows/windows.h ../textio/textio.h \
+  ../utils/magic.h ../textio/txcommands.h ../utils/geometry.h \
+  ../utils/signals.h ../utils/magic.h ../tiles/tile.h ../utils/utils.h \
+  ../utils/hash.h ../database/database.h ../drc/drc.h \
+  ../database/database.h ../utils/macros.h ../utils/hash.h grTkInt.h \
+  ../utils/paths.h ../graphics/grTkCommon.h
+grTk2.o: grTk2.c \
+  ../textio/textio.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/glyphs.h ../utils/geometry.h ../windows/windows.h \
+  ../utils/magic.h ../utils/geometry.h ../graphics/graphics.h \
+  ../utils/magic.h ../graphics/graphicsInt.h ../windows/windows.h \
+  grTkInt.h
+grTk3.o: grTk3.c \
+  ../tcltk/tclmagic.h ../utils/magic.h ../utils/geometry.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphicsInt.h ../windows/windows.h ../textio/textio.h \
+  ../utils/magic.h ../utils/signals.h ../utils/magic.h ../utils/utils.h \
+  ../utils/hash.h ../graphics/grTkInt.h ../graphics/grTkCommon.h
+grTk4.o: grTk4.c \
+  ../tcltk/tclmagic.h ../utils/magic.h ../utils/magsgtty.h \
+  ../textio/textio.h ../utils/magic.h ../utils/geometry.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphicsInt.h ../windows/windows.h ../textio/txcommands.h \
+  ../utils/geometry.h grTkInt.h grTkCommon.h
+grTk5.o: grTk5.c \
+  ../tcltk/tclmagic.h ../utils/magic.h ../utils/styles.h ../utils/hash.h \
+  ../textio/textio.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/glyphs.h ../utils/geometry.h ../windows/windows.h \
+  ../utils/magic.h ../utils/geometry.h ../graphics/graphics.h \
+  ../utils/magic.h ../graphics/graphicsInt.h ../windows/windows.h \
+  grTkCommon.h grTkInt.h
+grTOGL1.o: grTOGL1.c \
+  ../tcltk/tclmagic.h ../utils/main.h ../windows/windows.h \
+  ../utils/magic.h ../utils/geometry.h ../database/database.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../utils/magic.h ../utils/malloc.h ../utils/magsgtty.h \
+  ../utils/geometry.h ../windows/windows.h ../graphics/graphics.h \
+  ../utils/magic.h ../utils/geometry.h ../graphics/graphicsInt.h \
+  ../windows/windows.h ../textio/textio.h ../utils/magic.h \
+  ../textio/txcommands.h ../utils/geometry.h ../utils/signals.h \
+  ../utils/magic.h ../utils/utils.h ../tiles/tile.h ../utils/hash.h \
+  ../database/database.h ../drc/drc.h ../database/database.h \
+  ../utils/macros.h ../utils/hash.h ../graphics/grTOGLInt.h \
+  ../utils/paths.h ../graphics/grTkCommon.h
+grTOGL2.o: grTOGL2.c ../tcltk/tclmagic.h ../utils/magic.h \
+  ../textio/textio.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/glyphs.h ../utils/geometry.h ../windows/windows.h \
+  ../utils/magic.h ../utils/geometry.h ../graphics/graphics.h \
+  ../utils/magic.h ../graphics/graphicsInt.h ../windows/windows.h \
+  grTOGLInt.h
+grTOGL3.o: grTOGL3.c ../tcltk/tclmagic.h ../utils/magic.h \
+  ../utils/geometry.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphics.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphicsInt.h ../windows/windows.h \
+  ../textio/textio.h ../utils/magic.h ../utils/signals.h ../utils/magic.h \
+  ../utils/utils.h ../utils/hash.h ../graphics/grTOGLInt.h \
+  ../graphics/grTkCommon.h
+grTOGL4.o: grTOGL4.c \
+  ../utils/magsgtty.h ../textio/textio.h ../utils/magic.h \
+  ../utils/geometry.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphics.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphicsInt.h ../windows/windows.h \
+  ../graphics/grTkCommon.h ../textio/txcommands.h ../utils/geometry.h \
+  grTOGLInt.h
+grTOGL5.o: grTOGL5.c \
+  ../utils/styles.h ../utils/hash.h ../textio/textio.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/glyphs.h ../utils/geometry.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphics.h ../utils/magic.h ../graphics/graphicsInt.h \
+  ../windows/windows.h grTkCommon.h grTOGLInt.h
+grTkCommon.o: grTkCommon.c \
+  ../tcltk/tclmagic.h ../utils/magic.h ../utils/styles.h \
+  ../utils/geometry.h ../utils/hash.h ../utils/malloc.h ../utils/utils.h \
+  ../utils/magic.h ../tiles/tile.h ../utils/magic.h ../utils/geometry.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwtech.h ../graphics/graphics.h \
+  ../utils/magic.h ../utils/geometry.h ../graphics/graphicsInt.h \
+  ../windows/windows.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../graphics/grTkCommon.h ../graphics/glyphs.h
+grOGL1.o: grOGL1.c ../utils/magic.h ../utils/magsgtty.h \
+  ../utils/geometry.h ../graphics/graphics.h ../utils/magic.h \
+  ../utils/geometry.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphicsInt.h ../windows/windows.h \
+  ../textio/textio.h ../utils/magic.h ../textio/txcommands.h \
+  ../utils/geometry.h ../utils/signals.h ../utils/magic.h \
+  ../utils/utils.h ../utils/hash.h grOGLInt.h ../utils/paths.h
+grOGL2.o: grOGL2.c ../utils/magic.h ../textio/textio.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/glyphs.h ../utils/geometry.h \
+  ../graphics/graphics.h ../utils/magic.h ../windows/windows.h \
+  ../utils/magic.h ../utils/geometry.h ../graphics/graphicsInt.h \
+  ../windows/windows.h grOGLInt.h
+grOGL3.o: grOGL3.c ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphicsInt.h ../windows/windows.h ../textio/textio.h \
+  ../utils/magic.h ../utils/signals.h ../utils/magic.h ../utils/utils.h \
+  ../utils/hash.h ../dbwind/dbwind.h ../database/database.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h \
+  ../windows/windows.h grOGLInt.h
+grOGL4.o: grOGL4.c \
+  ../textio/textio.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphicsInt.h ../windows/windows.h ../textio/txcommands.h \
+  ../utils/geometry.h grOGLInt.h
+grOGL5.o: grOGL5.c ../utils/magic.h ../utils/styles.h ../utils/hash.h \
+  ../textio/textio.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../graphics/glyphs.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphicsInt.h ../windows/windows.h \
+  grOGLInt.h
+X11Helper.o: X11Helper.c \
+ 
+grX11thread.o: grX11thread.c \
+  ../utils/magic.h ../utils/geometry.h ../graphics/graphics.h \
+  ../utils/magic.h ../utils/geometry.h ../windows/windows.h \
+  ../utils/magic.h ../utils/geometry.h ../graphics/graphicsInt.h \
+  ../windows/windows.h grX11Int.h

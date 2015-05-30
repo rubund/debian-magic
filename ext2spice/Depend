@@ -1,0 +1,10 @@
+ext2spice.o: ext2spice.c ../tcltk/tclmagic.h ../utils/magic.h \
+  ../utils/malloc.h ../utils/geometry.h ../utils/hash.h ../utils/dqueue.h \
+  ../utils/magic.h ../utils/utils.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../database/database.h ../windows/windows.h \
+  ../utils/magic.h ../utils/geometry.h ../textio/textio.h \
+  ../utils/magic.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../commands/commands.h ../windows/windows.h \
+  ../database/database.h ../textio/txcommands.h ../utils/geometry.h \
+  ../extflat/extflat.h ../utils/magic.h ../extflat/EFint.h \
+  ../extract/extract.h ../utils/magic.h ../utils/runstats.h

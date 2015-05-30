@@ -1,0 +1,121 @@
+CmdSubrs.o: CmdSubrs.c ../utils/magic.h ../utils/geometry.h \
+  ../utils/utils.h ../utils/magic.h ../tiles/tile.h ../utils/magic.h \
+  ../utils/geometry.h ../utils/hash.h ../database/database.h \
+  ../windows/windows.h ../utils/magic.h ../utils/geometry.h \
+  ../dbwind/dbwind.h ../database/database.h ../windows/windows.h \
+  ../utils/main.h ../windows/windows.h ../database/database.h \
+  ../commands/commands.h ../windows/windows.h ../database/database.h \
+  ../textio/textio.h ../utils/magic.h ../cif/cif.h ../database/database.h \
+  ../drc/drc.h ../database/database.h ../textio/txcommands.h \
+  ../utils/geometry.h ../utils/undo.h ../utils/macros.h ../utils/hash.h \
+  ../sim/sim.h ../utils/magic.h ../select/select.h ../utils/magic.h \
+  ../database/database.h
+CmdAB.o: CmdAB.c ../tcltk/tclmagic.h ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../utils/main.h ../windows/windows.h \
+  ../database/database.h ../commands/commands.h ../windows/windows.h \
+  ../database/database.h ../utils/utils.h ../utils/magic.h \
+  ../textio/textio.h ../utils/magic.h ../drc/drc.h ../database/database.h \
+  ../cif/cif.h ../database/database.h ../graphics/graphics.h \
+  ../utils/magic.h ../utils/geometry.h ../textio/txcommands.h \
+  ../utils/geometry.h ../utils/malloc.h ../utils/netlist.h \
+  ../utils/geometry.h ../select/select.h ../utils/magic.h \
+  ../database/database.h
+CmdCD.o: CmdCD.c ../tcltk/tclmagic.h ../utils/magic.h ../utils/geometry.h \
+  ../tiles/tile.h ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../utils/main.h ../windows/windows.h \
+  ../database/database.h ../commands/commands.h ../windows/windows.h \
+  ../database/database.h ../utils/utils.h ../utils/magic.h \
+  ../textio/textio.h ../utils/magic.h ../drc/drc.h ../database/database.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../textio/txcommands.h ../utils/geometry.h ../cif/cif.h \
+  ../database/database.h ../calma/calma.h ../utils/magic.h \
+  ../utils/styles.h ../router/rtrDcmpose.h ../select/select.h \
+  ../utils/magic.h ../database/database.h ../utils/signals.h \
+  ../utils/malloc.h ../cif/CIFint.h ../cif/CIFread.h ../cif/CIFint.h
+CmdE.o: CmdE.c ../tcltk/tclmagic.h ../utils/magic.h ../utils/styles.h \
+  ../utils/geometry.h ../utils/utils.h ../utils/magic.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../graphics/graphics.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../utils/main.h ../windows/windows.h \
+  ../database/database.h ../commands/commands.h ../windows/windows.h \
+  ../database/database.h ../textio/textio.h ../utils/magic.h \
+  ../utils/macros.h ../utils/hash.h ../drc/drc.h ../database/database.h \
+  ../textio/txcommands.h ../utils/geometry.h ../extract/extract.h \
+  ../utils/magic.h ../select/select.h ../utils/magic.h \
+  ../database/database.h
+CmdFI.o: CmdFI.c ../tcltk/tclmagic.h ../utils/magic.h ../utils/geometry.h \
+  ../utils/utils.h ../utils/magic.h ../utils/undo.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../utils/main.h ../windows/windows.h \
+  ../database/database.h ../commands/commands.h ../windows/windows.h \
+  ../database/database.h ../textio/textio.h ../utils/magic.h \
+  ../utils/macros.h ../utils/hash.h ../drc/drc.h ../database/database.h \
+  ../textio/txcommands.h ../utils/geometry.h ../utils/styles.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../extract/extract.h ../utils/magic.h ../utils/malloc.h \
+  ../select/select.h ../utils/magic.h ../database/database.h ../sim/sim.h \
+  ../utils/magic.h ../gcr/gcr.h ../utils/magic.h
+CmdLQ.o: CmdLQ.c ../tcltk/tclmagic.h ../utils/magic.h ../utils/malloc.h \
+  ../utils/geometry.h ../utils/utils.h ../utils/magic.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../utils/main.h ../windows/windows.h \
+  ../database/database.h ../commands/commands.h ../windows/windows.h \
+  ../database/database.h ../textio/textio.h ../utils/magic.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../drc/drc.h ../database/database.h ../textio/txcommands.h \
+  ../utils/geometry.h ../utils/undo.h ../select/select.h ../utils/magic.h \
+  ../database/database.h ../netmenu/netmenu.h ../utils/magic.h
+CmdRS.o: CmdRS.c ../tcltk/tclmagic.h ../utils/magic.h ../utils/stack.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/utils.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../utils/main.h ../windows/windows.h \
+  ../database/database.h ../commands/commands.h ../windows/windows.h \
+  ../database/database.h ../textio/textio.h ../utils/magic.h \
+  ../graphics/graphics.h ../utils/magic.h ../utils/geometry.h \
+  ../utils/tech.h ../drc/drc.h ../database/database.h \
+  ../textio/txcommands.h ../utils/geometry.h ../utils/malloc.h \
+  ../utils/netlist.h ../utils/geometry.h ../netmenu/netmenu.h \
+  ../utils/magic.h ../select/select.h ../utils/magic.h \
+  ../database/database.h ../utils/signals.h ../sim/sim.h ../utils/magic.h
+CmdTZ.o: CmdTZ.c ../tcltk/tclmagic.h ../utils/magic.h ../utils/malloc.h \
+  ../utils/geometry.h ../utils/utils.h ../utils/magic.h ../tiles/tile.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/hash.h \
+  ../database/database.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../dbwind/dbwind.h ../database/database.h \
+  ../windows/windows.h ../utils/main.h ../windows/windows.h \
+  ../database/database.h ../commands/commands.h ../windows/windows.h \
+  ../database/database.h ../textio/textio.h ../utils/magic.h \
+  ../textio/txcommands.h ../utils/geometry.h ../utils/signals.h \
+  ../utils/undo.h ../select/select.h ../utils/magic.h \
+  ../database/database.h ../utils/styles.h ../wiring/wiring.h \
+  ../utils/magic.h ../database/database.h ../utils/netlist.h \
+  ../utils/geometry.h ../netmenu/netmenu.h ../utils/magic.h \
+  ../utils/tech.h ../drc/drc.h ../database/database.h
+CmdWizard.o: CmdWizard.c ../utils/magic.h ../utils/geometry.h \
+  ../utils/malloc.h ../tiles/tile.h ../utils/magic.h ../utils/geometry.h \
+  ../utils/hash.h ../database/database.h ../windows/windows.h \
+  ../utils/magic.h ../utils/geometry.h ../dbwind/dbwind.h \
+  ../database/database.h ../windows/windows.h ../utils/main.h \
+  ../windows/windows.h ../database/database.h ../commands/commands.h \
+  ../windows/windows.h ../database/database.h ../utils/runstats.h \
+  ../textio/textio.h ../utils/magic.h ../graphics/graphics.h \
+  ../utils/magic.h ../utils/geometry.h ../utils/signals.h \
+  ../utils/magic.h ../utils/utils.h ../textio/txcommands.h \
+  ../utils/geometry.h
+CmdAuto.o: CmdAuto.c ../tcltk/tclmagic.h ../utils/magic.h \
+  ../utils/geometry.h ../windows/windows.h ../utils/magic.h \
+  ../utils/geometry.h ../textio/txcommands.h ../utils/magic.h \
+  ../utils/geometry.h
