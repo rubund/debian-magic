@@ -1,0 +1,11 @@
+--- magic-8.0.210.orig/tcltk/Makefile
++++ magic-8.0.210/tcltk/Makefile
+@@ -8,7 +8,7 @@ SRCS = tclmagic.c
+ 
+ include ${MAGICDIR}/defs.mak
+ 
+-DFLAGS += -DMAGIC_DATE="\"`date`\""
++DFLAGS += -DMAGIC_DATE="\"`dpkg-parsechangelog -l../debian/changelog --show-field Date`\""
+ CLEANS += magic.sh magic.tcl magicexec magicdnull
+ 
+ TCL_FILES = \

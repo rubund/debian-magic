@@ -1,0 +1,7 @@
+--- magic-8.0.210.orig/tcltk/drc.tcl
++++ magic-8.0.210/tcltk/drc.tcl
+@@ -1,4 +1,3 @@
+-#!/bin/tclsh
+ #----------------------------------------------
+ # Dump a file of DRC errors from magic
+ #----------------------------------------------
