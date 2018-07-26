@@ -1,7 +1,8 @@
 Source: magic
 Section: electronics
 Priority: optional
-Maintainer: Roland Stigge <stigge@antcom.de>
+Maintainer: Debian Science Maintainers <debian-science-maintainers@lists.alioth.debian.org>
+Uploaders: Ruben Undheim <ruben.undheim@gmail.com>
 Build-Depends: debhelper (>= 9),
                mesa-common-dev,
                tcl-dev,
@@ -26,4 +27,4 @@ Description: VLSI layout tool
  technology. However, it is the well thought-out core algorithms which lend to
  magic the greatest part of its popularity. Magic is widely cited as being the
  easiest tool to use for circuit layout, even for people who ultimately rely on
- commercial tools for their product design flow. 
+ commercial tools for their product design flow.

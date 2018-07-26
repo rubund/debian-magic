@@ -1,0 +1,4 @@
+# Not actually a spelling error
+magic binary: spelling-error-in-binary usr/lib/x86_64-linux-gnu/magic/tcl/tclmagic.so Thier Their
+# Present in upstream html documentation and kept even though they have not been changed
+magic binary: duplicate-files
