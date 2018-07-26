@@ -11,7 +11,7 @@ magic (8.1.214-1) unstable; urgency=low
     - Fix whitespace error
   * debian/copyright:
     - Format field uses https
-    - Updaed some copyright years.
+    - Updated some copyright years.
     - Added myself to listing for debian/*
   * debian/lintian-overrides
     - Override some wrongly detected lintian errors
@@ -25,7 +25,7 @@ magic (8.1.214-1) unstable; urgency=low
     - Use autoreconf instead of autools_dev
     - Added a workaround for autoconf files being placed in a subdir
   * debian/watch:
-    - Updaed watch file so that it looks for all versions in the 8.1.x range.
+    - Updated watch file so that it looks for all versions in the 8.1.x range.
       Earlier it was watching only 7.x versions.
 
  -- Ruben Undheim <ruben.undheim@gmail.com>  Thu, 26 Jul 2018 18:16:56 +0000
