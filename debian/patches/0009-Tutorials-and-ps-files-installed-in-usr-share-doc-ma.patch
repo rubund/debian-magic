@@ -1,0 +1,35 @@
+From: Ruben Undheim <ruben.undheim@gmail.com>
+Date: Thu, 26 Jul 2018 19:51:05 +0000
+Subject: Tutorials and ps files installed in /usr/share/doc/magic
+
+---
+ doc/latexfiles/Makefile | 2 +-
+ doc/tutcells/Makefile   | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/doc/latexfiles/Makefile b/doc/latexfiles/Makefile
+index 5b0ba47..2cc3fb6 100644
+--- a/doc/latexfiles/Makefile
++++ b/doc/latexfiles/Makefile
+@@ -3,7 +3,7 @@ MAGICDIR = ../..
+ include $(MAGICDIR)/defs.mak
+ 
+ PS_SRCDIR=../psfiles
+-PS_INSTDIR=$(LIBDIR)/magic/doc
++PS_INSTDIR=/usr/share/doc/magic/ps
+ 
+ .SUFFIXES: .dvi .tex .ps
+ 
+diff --git a/doc/tutcells/Makefile b/doc/tutcells/Makefile
+index 7edc8cb..1e504e2 100644
+--- a/doc/tutcells/Makefile
++++ b/doc/tutcells/Makefile
+@@ -6,7 +6,7 @@ MAGICDIR = ../..
+ 
+ include ${MAGICDIR}/defs.mak
+ 
+-TUTDIR = ${LIBDIR}/magic/tutorial
++TUTDIR = /usr/share/doc/magic/tutorial
+ 
+ TUTFILES= m3a.mag maint2a.mag tut1.mag \
+     tut2a.mag tut2b.mag tut2c.mag tut2d.mag \

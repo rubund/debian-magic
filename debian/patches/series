@@ -6,3 +6,4 @@
 07-fix-tcltk-interpreter-dir.patch
 08-reproducible-build.patch
 0008-Some-spelling-errors-fixed.patch
+0009-Tutorials-and-ps-files-installed-in-usr-share-doc-ma.patch
