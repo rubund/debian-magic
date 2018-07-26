@@ -1,28 +1,41 @@
-Description: Various #! script adjustments for Tcl scripts
- This patch adjusts some Tcl scripts to Debian file locations
-Author: Roland Stigge <stigge@antcom.de>
+From: Roland Stigge <stigge@antcom.de>
+Date: Thu, 26 Jul 2018 18:14:03 +0000
+Subject: Various #! script adjustments for Tcl scripts
 
---- magic-7.5.213.orig/tcltk/console.tcl
-+++ magic-7.5.213/tcltk/console.tcl
-@@ -1,3 +1,5 @@
-+#!/usr/bin/tclsh
-+#
- # console.tcl:
- #
- #  Defines Procedures which should be defined within the console
---- magic-7.5.213.orig/tcltk/strip_reflibs.tcl
-+++ magic-7.5.213/tcltk/strip_reflibs.tcl
-@@ -1,4 +1,4 @@
--#!/usr/local/bin/tclsh
-+#!/usr/bin/tclsh
- #
- # Strip GDS cell references from magic files.
- #
---- magic-7.5.213.orig/ext2spice/spice2sim
-+++ magic-7.5.213/ext2spice/spice2sim
+This patch adjusts some Tcl scripts to Debian file locations
+---
+ ext2spice/spice2sim     | 2 +-
+ tcltk/console.tcl       | 2 ++
+ tcltk/strip_reflibs.tcl | 2 +-
+ 3 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/ext2spice/spice2sim b/ext2spice/spice2sim
+index 2ea85f7..c9a9e6f 100755
+--- a/ext2spice/spice2sim
++++ b/ext2spice/spice2sim
 @@ -1,4 +1,4 @@
 -#!/bin/awk -f
 +#!/usr/bin/awk -f
  # convert an ext2spice produced file to a .sim file for debugging
  #
  BEGIN {
+diff --git a/tcltk/console.tcl b/tcltk/console.tcl
+index 40c80c5..0419996 100755
+--- a/tcltk/console.tcl
++++ b/tcltk/console.tcl
+@@ -1,3 +1,5 @@
++#!/usr/bin/tclsh
++#
+ # console.tcl:
+ #
+ #  Defines Procedures which should be defined within the console
+diff --git a/tcltk/strip_reflibs.tcl b/tcltk/strip_reflibs.tcl
+index 516f4ea..ee58ddb 100755
+--- a/tcltk/strip_reflibs.tcl
++++ b/tcltk/strip_reflibs.tcl
+@@ -1,4 +1,4 @@
+-#!/usr/local/bin/tclsh
++#!/usr/bin/tclsh
+ #
+ # Strip GDS cell references from magic files.
+ #

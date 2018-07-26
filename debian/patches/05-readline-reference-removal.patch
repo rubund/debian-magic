@@ -1,10 +1,17 @@
-Description: Readline removal
- This patch removes remaining references to readline
-Author: Roland Stigge <stigge@antcom.de>
+From: Roland Stigge <stigge@antcom.de>
+Date: Thu, 26 Jul 2018 18:14:03 +0000
+Subject: Readline removal
 
---- magic-7.5.213.orig/commands/Makefile
-+++ magic-7.5.213/commands/Makefile
-@@ -10,12 +10,7 @@ SRCS      = CmdSubrs.c CmdAB.c CmdCD.c C
+This patch removes remaining references to readline
+---
+ commands/Makefile | 7 +------
+ 1 file changed, 1 insertion(+), 6 deletions(-)
+
+diff --git a/commands/Makefile b/commands/Makefile
+index 94e987c..e934dae 100644
+--- a/commands/Makefile
++++ b/commands/Makefile
+@@ -10,12 +10,7 @@ SRCS      = CmdSubrs.c CmdAB.c CmdCD.c CmdE.c CmdFI.c \
  # Force the module to regenerate the symbolic link in the readline
  # directory, as it may be needed by CmdFI.c (in the non-Tcl compile)
  

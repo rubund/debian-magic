@@ -1,5 +1,15 @@
---- magic-8.0.210.orig/tcltk/Makefile
-+++ magic-8.0.210/tcltk/Makefile
+From: Roland Stigge <stigge@antcom.de>
+Date: Thu, 26 Jul 2018 18:14:03 +0000
+Subject: reproducible-build
+
+---
+ tcltk/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tcltk/Makefile b/tcltk/Makefile
+index ac45c27..871c62e 100644
+--- a/tcltk/Makefile
++++ b/tcltk/Makefile
 @@ -8,7 +8,7 @@ SRCS = tclmagic.c
  
  include ${MAGICDIR}/defs.mak

@@ -1,12 +1,44 @@
-Description: Move images to an FHS conformant directory
- This patch moves some XBM images to an FHS conformant directory in /usr/share
-Author: Roland Stigge <stigge@antcom.de>
+From: Roland Stigge <stigge@antcom.de>
+Date: Thu, 26 Jul 2018 18:14:03 +0000
+Subject: Move images to an FHS conformant directory
 
-Index: magic/tcltk/wrapper.tcl
-===================================================================
---- magic.orig/tcltk/wrapper.tcl
-+++ magic/tcltk/wrapper.tcl
-@@ -25,19 +25,19 @@ if {[lsearch [namespace children] ::tksh
+This patch moves some XBM images to an FHS conformant directory in /usr/share
+---
+ magic/Makefile    |  8 ++++----
+ tcltk/wrapper.tcl | 10 +++++-----
+ 2 files changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/magic/Makefile b/magic/Makefile
+index 0de376c..175435b 100644
+--- a/magic/Makefile
++++ b/magic/Makefile
+@@ -20,7 +20,7 @@ EXTRA_LIBS = ${MAGICDIR}/cmwind/libcmwind.o ${MAGICDIR}/commands/libcommands.o \
+ 	    ${MAIN_EXTRA_LIBS}
+ 
+ BITMAPS = up.xbm down.xbm left.xbm right.xbm zoom.xbm lock.xbm
+-DEST_XBM = $(BITMAPS:%=$(DESTDIR)${TCLDIR}/bitmaps/%)
++DEST_XBM = $(BITMAPS:%=$(DESTDIR)/usr/share/magic/bitmaps/%)
+ 
+ DFLAGS += -DMAGIC_DATE="\"`date`\""
+ LIBS   += ${GR_LIBS} ${READLINE_LIBS} -lm ${LD_EXTRA_LIBS} \
+@@ -52,9 +52,9 @@ $(DESTDIR)${TCLDIR}/tclmagic${SHDLIB_EXT}: tclmagic${SHDLIB_EXT}
+ 	${RM} $(DESTDIR)${TCLDIR}/tclmagic${SHDLIB_EXT}
+ 	${CP} tclmagic${SHDLIB_EXT} $(DESTDIR)${TCLDIR}/tclmagic${SHDLIB_EXT}
+ 
+-$(DESTDIR)${TCLDIR}/bitmaps/%: bitmaps/%
+-	${RM} $(DESTDIR)${TCLDIR}/bitmaps/$*
+-	${CP} bitmaps/$* $(DESTDIR)${TCLDIR}/bitmaps/$*
++$(DESTDIR)/usr/share/magic/bitmaps/%: bitmaps/%
++	${RM} $(DESTDIR)/usr/share/magic/bitmaps/$*
++	${CP} bitmaps/$* $(DESTDIR)/usr/share/magic/bitmaps/$*
+ 
+ $(DESTDIR)${SYSDIR}/.magicrc: proto.magicrc
+ 	${RM} $(DESTDIR)${SYSDIR}/.magicrc
+diff --git a/tcltk/wrapper.tcl b/tcltk/wrapper.tcl
+index 41a1ce5..f0467f7 100644
+--- a/tcltk/wrapper.tcl
++++ b/tcltk/wrapper.tcl
+@@ -25,19 +25,19 @@ if {[lsearch [namespace children] ::tkshell] < 0} {
  # Button images
  
  set Glyph(up) [image create bitmap \
@@ -31,29 +63,3 @@ Index: magic/tcltk/wrapper.tcl
  	-background gray -foreground steelblue]
  set Glyph(lock) [image create bitmap \
  	-file ${CAD_ROOT}/magic/tcl/bitmaps/lock.xbm \
-Index: magic/magic/Makefile
-===================================================================
---- magic.orig/magic/Makefile
-+++ magic/magic/Makefile
-@@ -20,7 +20,7 @@ EXTRA_LIBS = ${MAGICDIR}/cmwind/libcmwin
- 	    ${MAIN_EXTRA_LIBS}
- 
- BITMAPS = up.xbm down.xbm left.xbm right.xbm zoom.xbm lock.xbm
--DEST_XBM = $(BITMAPS:%=$(DESTDIR)${TCLDIR}/bitmaps/%)
-+DEST_XBM = $(BITMAPS:%=$(DESTDIR)/usr/share/magic/bitmaps/%)
- 
- DFLAGS += -DMAGIC_DATE="\"`date`\""
- LIBS   += ${GR_LIBS} ${READLINE_LIBS} -lm ${LD_EXTRA_LIBS} \
-@@ -52,9 +52,9 @@ $(DESTDIR)${TCLDIR}/tclmagic${SHDLIB_EXT
- 	${RM} $(DESTDIR)${TCLDIR}/tclmagic${SHDLIB_EXT}
- 	${CP} tclmagic${SHDLIB_EXT} $(DESTDIR)${TCLDIR}/tclmagic${SHDLIB_EXT}
- 
--$(DESTDIR)${TCLDIR}/bitmaps/%: bitmaps/%
--	${RM} $(DESTDIR)${TCLDIR}/bitmaps/$*
--	${CP} bitmaps/$* $(DESTDIR)${TCLDIR}/bitmaps/$*
-+$(DESTDIR)/usr/share/magic/bitmaps/%: bitmaps/%
-+	${RM} $(DESTDIR)/usr/share/magic/bitmaps/$*
-+	${CP} bitmaps/$* $(DESTDIR)/usr/share/magic/bitmaps/$*
- 
- $(DESTDIR)${SYSDIR}/.magicrc: proto.magicrc
- 	${RM} $(DESTDIR)${SYSDIR}/.magicrc

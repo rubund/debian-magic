@@ -1,5 +1,15 @@
---- magic-8.0.210.orig/tcltk/drc.tcl
-+++ magic-8.0.210/tcltk/drc.tcl
+From: Roland Stigge <stigge@antcom.de>
+Date: Thu, 26 Jul 2018 18:14:03 +0000
+Subject: fix-tcltk-interpreter-dir
+
+---
+ tcltk/drc.tcl | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/tcltk/drc.tcl b/tcltk/drc.tcl
+index 3820b92..423e245 100644
+--- a/tcltk/drc.tcl
++++ b/tcltk/drc.tcl
 @@ -1,4 +1,3 @@
 -#!/bin/tclsh
  #----------------------------------------------

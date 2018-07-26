@@ -1,9 +1,16 @@
-Description: Makefile adjustment
- This patch adjusts the Makefile to exit on errors
-Author: Roland Stigge <stigge@antcom.de>
+From: Roland Stigge <stigge@antcom.de>
+Date: Thu, 26 Jul 2018 18:14:03 +0000
+Subject: Makefile adjustment
 
---- magic-7.5.213.orig/Makefile
-+++ magic-7.5.213/Makefile
+This patch adjusts the Makefile to exit on errors
+---
+ Makefile | 26 ++++++++++++--------------
+ 1 file changed, 12 insertions(+), 14 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 2e48388..74c3988 100644
+--- a/Makefile
++++ b/Makefile
 @@ -18,12 +18,10 @@ include defs.mak
  all:	$(ALL_TARGET)
  
@@ -34,7 +41,7 @@ Author: Roland Stigge <stigge@antcom.de>
  
  database/database.h: database/database.h.in
  	@echo --- making header file database/database.h
-@@ -50,30 +48,30 @@ database/database.h: database/database.h
+@@ -50,30 +48,30 @@ database/database.h: database/database.h.in
  modules:
  	@echo --- making modules
  	for dir in ${MODULES} ${PROGRAMS}; do \
