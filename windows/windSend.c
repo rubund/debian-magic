@@ -72,17 +72,21 @@ extern void windHelp();
  *	used.
  *
  * Results:
- *	TRUE if the command was able to be processed.
+ *	 0 if the command was able to be processed.
+ *	-1 on an ambiguous command error.
+ *	-2 on an unknown command error.
+ *	-3 on other error.
  *
  * Side effects:
  *	Whatever the window wishes to do with the command.
  * ----------------------------------------------------------------------------
  */
 
-bool
-WindSendCommand(w, cmd)
+int
+WindSendCommand(w, cmd, quiet)
     MagWindow *w;
     TxCommand *cmd;	/* A pointer to a command */
+    bool quiet;		/* Don't print error/warning messages if this is set */
 {
     int windCmdNum, clientCmdNum;
     clientRec *rc;
@@ -108,7 +112,7 @@ WindSendCommand(w, cmd)
     /* ignore no-op commands */
     if ( (cmd->tx_button == TX_NO_BUTTON) && (cmd->tx_argc == 0) )
     {
-	return TRUE;
+	return 0;
     }
 
     inside = FALSE;
@@ -118,7 +122,7 @@ WindSendCommand(w, cmd)
     WindOldButtons = WindNewButtons;
     if (cmd->tx_button == TX_NO_BUTTON)
     {
-	if (windClient == (clientRec *)NULL) return FALSE;
+	if (windClient == (clientRec *)NULL) return -2;
 
 	/* If window commands are disallowed by the client (set by */
 	/* the client's WIND_COMMANDS flag), report no command.	   */
@@ -187,33 +191,41 @@ WindSendCommand(w, cmd)
 
 	if ((clientCmdNum == -1) || (windCmdNum == -1))
 	{
-	    TxError("That command abbreviation is ambiguous.\n");
-	    return FALSE;
+	    if (quiet == FALSE)
+		TxError("That command abbreviation is ambiguous.\n");
+	    return -1;
 	}
 	if ((windCmdNum == -2) && (clientCmdNum == -2))
 	{
 	    /* Not a valid command.  Help the user out by telling him
 	     * what might be wrong. And also print out the command!
 	     */
-	    TxError("Unknown command:");
-	    windPrintCommand(cmd);
-	    if (WindNewButtons != 0) 
+	    if (quiet == FALSE)
 	    {
-		char *bname = "unknown";
-		if (WindNewButtons & TX_LEFT_BUTTON) bname = "left";
-		else if (WindNewButtons & TX_RIGHT_BUTTON) bname = "right";
-		else if (WindNewButtons & TX_MIDDLE_BUTTON) bname = "middle";
+		TxError("Unknown command:");
+		windPrintCommand(cmd);
+		if (WindNewButtons != 0) 
+		{
+		    char *bname = "unknown";
+		    if (WindNewButtons & TX_LEFT_BUTTON) bname = "left";
+		    else if (WindNewButtons & TX_RIGHT_BUTTON) bname = "right";
+		    else if (WindNewButtons & TX_MIDDLE_BUTTON) bname = "middle";
 		 
-		TxError( "'%s' window is waiting for %s button to be released.\n",
-		    rc->w_clientName, bname);
+		    TxError( "'%s' window is waiting for %s button to be released.\n",
+		    		rc->w_clientName, bname);
+		}
+		return -3;
 	    }
 	    else if (windGrabber != (WindClient) NULL)
 	    {
-		TxError( "'%s' window is grabbing all input.\n", rc->w_clientName);
+		if (quiet == FALSE)
+		    TxError( "'%s' window is grabbing all input.\n", rc->w_clientName);
+		return -3;
 	    }
-	    else
+
+	    if (quiet == FALSE)
 		TxError("Did you point to the correct window?\n");
-	    return FALSE;
+	    return -2;
 	}
 
 	/* intercept 'help' */
@@ -226,7 +238,7 @@ WindSendCommand(w, cmd)
 	    if (rc != windClient)
 		windHelp(cmd, rc->w_clientName, rc->w_commandTable);
 	    TxStopMore();
-	    return TRUE;
+	    return 0;
 	}
 
 	/* If both command tables point to window commands,	*/
@@ -263,8 +275,9 @@ WindSendCommand(w, cmd)
 	    ASSERT(ownCmdNum != -2, "WindSendCommand");
 	    if (ownCmdNum == -1)
 	    {
-		TxError("That command abbreviation is ambiguous\n");
-		return FALSE;
+		if (quiet == FALSE)
+		    TxError("That command abbreviation is ambiguous\n");
+		return -1;
 	    }
 	    if (ownCmdNum == 0)
 		(*(rc->w_command))(w, cmd);
@@ -298,7 +311,7 @@ WindSendCommand(w, cmd)
     if ((WindNewButtons == 0) && (windGrabber != (WindClient) NULL))
 	WindReleaseInput((WindClient) rc);
 
-    return TRUE;
+    return 0;
 }
 
 

@@ -51,6 +51,7 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
  */
 ClientData extUnInit = (ClientData) CLIENTDEFAULT;
 
+
 /* ------------------------ Data local to this file ------------------- */
 
 /* Forward declarations */
@@ -161,15 +162,17 @@ extFileOpen(def, file, mode, prealfile)
 			 * a string holding the name of the .ext file.
 			 */
 {
-    char namebuf[512], *name, *endp;
+    char namebuf[512], *name, *endp, *ends;
     int len;
-    FILE *rfile;
+    FILE *rfile, *testf;
 
     if (file) name = file;
     else if (def->cd_file)
     {
 	name = def->cd_file;
-	if (endp = rindex(def->cd_file, '.'))
+	ends = strrchr(def->cd_file, '/');
+	if (ends == NULL) ends = def->cd_file;
+	if (endp = strrchr(ends + 1, '.'))
 	{
 	    name = namebuf;
 	    len = endp - def->cd_file;
@@ -186,9 +189,28 @@ extFileOpen(def, file, mode, prealfile)
     if ((rfile = PaOpen(name, mode, ".ext", Path, CellLibPath, prealfile)) != NULL)
 	return rfile;
 
-    if (name == def->cd_name) return NULL;
-    name = def->cd_name;
-    return (PaOpen(name, mode, ".ext", Path, CellLibPath, prealfile));
+    if (!strcmp(mode, "r")) return NULL;	/* Not even readable */
+
+    /* Try writing to the cwd IF there is no .mag file by the	*/
+    /* same name in the cwd that would conflict.		*/
+
+    name = strrchr(def->cd_name, '/');
+    if (name != NULL)
+	name++;
+    else
+	name = def->cd_name;
+
+    ends = strrchr(def->cd_file, '/');
+    if (ends != NULL)
+    {
+	testf = PaOpen(ends + 1, "r", ".mag", ".", ".", NULL);
+	if (testf)
+	{
+	    fclose(testf);
+	    return NULL;
+	}
+    }
+    return (PaOpen(name, mode, ".ext", ".", ".", prealfile));
 }
 
 /*
@@ -222,6 +244,7 @@ extCellFile(def, f, doLength)
 			 */
 {
     NodeRegion *reg;
+
     UndoDisable();
 
     /* Output the header: timestamp, technology, calls on cell uses */
@@ -233,7 +256,7 @@ extCellFile(def, f, doLength)
 
     /* Do hierarchical extraction */
     extParentUse->cu_def = def;
-    if (!SigInterruptPending) extSubtree(extParentUse, f);
+    if (!SigInterruptPending) extSubtree(extParentUse, reg, f);
     if (!SigInterruptPending) extArray(extParentUse, f);
 
     /* Clean up from basic extraction */
@@ -276,6 +299,8 @@ extHeader(def, f)
     FILE *f;		/* Write to this file */
 {
     int n;
+    bool propfound;
+    char *propvalue;
 
     /* Output a timestamp (should be first) */
     fprintf(f, "timestamp %d\n", def->cd_timestamp);
@@ -306,6 +331,19 @@ extHeader(def, f)
     for (n = 0; n < ExtCurStyle->exts_numResistClasses; n++)
 	fprintf(f, " %d", ExtCurStyle->exts_resistByResistClass[n]);
     fprintf(f, "\n");
+
+    /* Output any parameters defined for this cell that	*/
+    /* are to be passed to instances of the cell	*/
+    /* (created by defining property "parameter")	*/
+
+    propvalue = (char *)DBPropGet(def, "parameter", &propfound);
+    if (propfound)
+    {
+	// Use device parameter table to store the cell def parameters,
+	// but preface name with ":" to avoid any conflict with device
+	// names.
+	fprintf(f, "parameters :%s %s\n", def->cd_name, propvalue);
+    }
 
     /* Output all calls on subcells */
     (void) DBCellEnum(def, extOutputUsesFunc, (ClientData) f);

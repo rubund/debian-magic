@@ -10,7 +10,11 @@ global Opts
 # If we called magic via the non-console script, then we want to reset
 # the environment variable HOME to its original value.
    
-load TCL_DIR/tclmagicSHDLIB_EXT
+if {${tcl_version} >= 8.6} {
+   load -lazy TCL_DIR/tclmagicSHDLIB_EXT
+} else {
+   load TCL_DIR/tclmagicSHDLIB_EXT
+}
 
 # It is important to make sure no magic commands overlap with Tcl built-in
 # commands, because otherwise the namespace import will fail.
@@ -152,7 +156,7 @@ proc echo {args} {
 
 # Parse argument list for "-c[onsole]" and "-now[rapper]".
 
-set cellname ""
+set celllist {}
 set do_wrapper true
 set do_recover false
 set argafter {magic::initialize}
@@ -196,12 +200,20 @@ for {set i 0} {$i < $argc} {incr i 1} {
          incr i 1
          lappend argafter [lindex $argv $i]
       }
+      ^--version {
+	 puts stdout "MAGIC_VERSION.MAGIC_REVISION"
+	 exit 0
+      }
+      ^--prefix {
+	 puts stdout $CAD_ROOT
+	 exit 0
+      }
       ^-D -
       ^-n* {
          lappend argafter $x
       }
       default {
-         set cellname $x
+         lappend celllist $x
          lappend argafter $x
       }
    }
@@ -212,7 +224,9 @@ if {$do_wrapper} {
   lappend argafter "-nowindow" ;# Set no-initial-window option in magic.
 }
 unset x i do_wrapper
-eval $argafter 			;# magic::initialize ${argv}
+if {[catch {eval $argafter}]}  {		;# magic::initialize ${argv}
+   exit 1
+}
 
 #----------------------------------------------------------------------
 # Check for presence of padlist manager script and include it
@@ -240,6 +254,9 @@ if {[file exists ${CAD_ROOT}/magic/tcl/mazeroute.tcl]} {
 
 #----------------------------------------------------------------------
 # Check for presence of the toolkit script and include it
+# NOTE:  This supercedes the older toolkit which is now
+# named toolkit_rev0.tcl, and the intermediate bsitools.tcl,
+# which are folded into the newer toolkit.tcl.
 
 if {[file exists ${CAD_ROOT}/magic/tcl/toolkit.tcl]} {
    source ${CAD_ROOT}/magic/tcl/toolkit.tcl
@@ -324,21 +341,52 @@ drc off
 
 # Initial window for wrapper, if defined.
 # empty string is equivalent to passing NULL cell name.
+#
+# If a startup file has created a window, then don't make another one.
 
-if {![catch {set winname [magic::openwrapper $cellname]}]} {
-   magic::techmanager initall
-   magic::scrollupdate $winname
+if {[info commands magic::openwrapper] != {}} {
+   if {[windownames layout] == {}} {
+      set winname [magic::openwrapper]
+      magic::techmanager initall
+      magic::scrollupdate $winname
+
+      foreach cellname $celllist {
+	 set fext [file extension $cellname]
+         puts stdout "handling file entry $cellname extension $fext"
+	 switch $fext {
+	     .lef -
+	     .LEF {lef read $cellname}
+	     .def -
+	     .DEF {def read $cellname}
+	     .gds -
+	     .GDS -
+	     .gds2 -
+	     .GDS2 -
+	     .gdsii -
+	     .GDSII {gds read $cellname}
+	     .cif -
+	     .CIF {cif read $cellname}
+	     .tcl {source $cellname}
+	     .mag -
+	     "" {magic::load $cellname}
+	     default {puts stderr "don't know how to load file $cellname"}
+	 }
+      }
+   }
 } else {
    # Initial geometry handler for the default window, non-wrapper version
    catch {wm geometry .magic1 ${Opts(geometry)}}
 }
+
+# Print the technology name and description
+puts stdout "Using technology \"[tech name]\", version [lindex [tech version] 0]"
 
 # Set a box, and set the view; if no cell has been loaded, choose a default
 # view.
 if {![box exists]} {
    box 0 0 1 1		;# create a unit box
 }
-if {[llength $cellname] > 0} {
+if {[llength $celllist] > 0} {
    view
 } else {
    view -9 -9 10 10
@@ -350,7 +398,7 @@ if {[llength $cellname] > 0} {
 if {$do_recover} {crash recover}
 
 # Unset global TCL variables so they don't conflict with magic nodes.
-unset cellname nlist do_recover
+unset celllist nlist do_recover
 
 if {$drcstate == 1} {
    drc on

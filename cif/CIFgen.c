@@ -1198,9 +1198,7 @@ cifUnconnectFunc(tile, clientData)
     Tile *tile;
     ClientData clientData;	/* unused */
 {
-    TileType t;
-    t = TiGetTypeExact(tile);
-
+    TileType t = TiGetTypeExact(tile);
     if (t == TT_SPACE) return 1;
     else if (t & TT_DIAGONAL) return 1;
     else if (tile->ti_client != (ClientData)CIF_PROCESSED) return 1;

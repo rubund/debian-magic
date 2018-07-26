@@ -25,6 +25,7 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
 #include <stdarg.h>
 #include <ctype.h>
 
+#include "database/database.h"
 #include "utils/magic.h"
 #include "utils/geometry.h"
 #include "utils/utils.h"
@@ -33,7 +34,6 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
 #include "windows/windows.h"
 #include "utils/malloc.h"
 
-global char *TechDefault = NULL;
 global int  TechFormatVersion;
 global bool TechOverridesDefault;
 
@@ -228,7 +228,58 @@ TechAddAlias(primaryName, alias)
     }
 }
 
-
+/*
+ * ----------------------------------------------------------------------------
+ *
+ * changePlanesFunc() ---
+ *
+ * This function hacks the existing layout database in case a tech file
+ * is loaded which contains more or fewer planes than the exisiting
+ * technology.  This is doing nothing fancy; it is simply making sure
+ * that all memory allocation is accounted for.
+ *
+ * As a note for future implementation, it would be helpful to keep the
+ * old plane name definitions around and try to match up the old and new
+ * planes, so that it is possible to load a technology file which matches
+ * the existing technology except for the addition or subtraction of one
+ * or more planes (e.g., extra metal layer option) without completely
+ * invalidating an existing layout.
+ *
+ * As written, this function is inherently dangerous.  It is intended for
+ * use when loading a new tech file when there is no layout, just empty
+ * tile planes.
+ * ----------------------------------------------------------------------------
+ */
+
+int
+changePlanesFunc(cellDef, arg)
+    CellDef *cellDef;
+    int *arg;
+{
+    int oldnumplanes = *arg;
+    int pNum;
+
+    if (oldnumplanes < DBNumPlanes)
+    {
+	/* New planes to be added */
+	for (pNum = oldnumplanes; pNum < DBNumPlanes; pNum++)
+	{
+	    cellDef->cd_planes[pNum] = DBNewPlane((ClientData) TT_SPACE);
+	}
+    }
+    else
+    {
+	/* Old planes to be subtracted */
+	for (pNum = DBNumPlanes; pNum < oldnumplanes; pNum++)
+	{
+	    DBFreePaintPlane(cellDef->cd_planes[pNum]);
+	    TiFreePlane(cellDef->cd_planes[pNum]);
+	    cellDef->cd_planes[pNum] = (Plane *) NULL;
+	}
+    }
+    return 0;
+}
+
 /*
  * ----------------------------------------------------------------------------
  *
@@ -360,6 +411,10 @@ TechLoad(filename, initmask)
     fstack = NULL;
     techLineNumber = 0;
     badMask = (SectionID) 0;
+    int saveNumPlanes;
+
+    int changePlanesFunc();	/* forward declaration */
+    int checkForPaintFunc();	/* forward declaration */
 
     if (initmask == -1)
     {
@@ -370,7 +425,7 @@ TechLoad(filename, initmask)
     /* If NULL is passed to argument "filename", this is a reload and	*/
     /* we should read TechFileName verbatim.				*/
 
-    if (filename == NULL)
+    if ((filename == NULL) && (TechFileName != NULL))
     {
 	tf = PaOpen(TechFileName, "r", (char *)NULL, ".", SysLibPath, &realname);
 	if (tf == (FILE *) NULL)
@@ -383,6 +438,8 @@ TechLoad(filename, initmask)
     }
     else
     {
+	char *sptr, *dptr;
+
 	/* TECH_VERSION in the filename is deprecated as of magic version	*/
 	/* 7.2.27;  TECH_VERSION is no longer defined in the utils/Makefile.	*/
 	/* It has been changed to TECH_FORMAT_VERSION, left at version 27,	*/
@@ -390,6 +447,20 @@ TechLoad(filename, initmask)
 	/* compatibility with *.tech27 files, of which there are many.	*/
 
 	(void) sprintf(suffix, ".tech");
+
+	/* Added 1/20/2015 to correspond to change to PaLockOpen();	*/
+	/* Always strip suffix from filename when suffix is specified.	*/
+
+	sptr = strrchr(filename, '/');
+	if (sptr == NULL)
+	    sptr = filename;
+	else
+	    sptr++;
+
+	dptr = strrchr(sptr, '.');
+	if ((dptr != NULL) && !strncmp(dptr, suffix, strlen(suffix)))
+	    *dptr = '\0';
+
 	tf = PaOpen(filename, "r", suffix, ".", SysLibPath, &realname);
 	if (tf == (FILE *) NULL)
 	{
@@ -407,11 +478,29 @@ TechLoad(filename, initmask)
 		return (FALSE);
 	    }
 	}
-	(void) StrDup(&TechFileName, realname);
+	StrDup(&TechFileName, realname);
+
+	// In case filename is not a temporary string, put it back the
+	// way it was.
+	if (dptr != NULL) *dptr = '.';
     }
+
     topfile.file = tf;
     topfile.next = NULL;
     fstack = &topfile;
+
+    // If TechLoad is called with initmask == -2, test that the file
+    // exists and is readable, and that the first non-comment line
+    // is the keyword "tech".
+
+    if (initmask == -2)
+    {
+	argc = techGetTokens(line, sizeof line, &fstack, argv);
+	fclose(tf);
+	if (argc != 1) return (FALSE);
+	if (strcmp(argv[0], "tech")) return (FALSE);
+	return (TRUE);
+    }
 
     /*
      * Mark all sections as being unread.
@@ -420,6 +509,31 @@ TechLoad(filename, initmask)
     for (tsp = techSectionTable; tsp < techSectionFree; tsp++)
     {
 	tsp->ts_read = FALSE;
+    }
+
+    /*
+     * Run section initializations if this is not a reload.
+     * CIF istyle, CIF ostyle, and extract sections need calls
+     * to the init functions which clean up memory devoted to
+     * remembering all the styles.
+     */
+
+    if (filename != NULL)
+    {
+#ifdef CIF_MODULE
+	CIFTechInit();
+	CIFReadTechInit();
+#endif
+	ExtTechInit();
+	DRCTechInit();
+	MZTechInit();	
+	
+            /* Changing number of planes requires handling on every     */
+            /* celldef.  So we need to save the original number of      */
+            /* planes to see if it shrinks or expands.                  */
+
+
+	saveNumPlanes = DBNumPlanes;
     }
 
     /*
@@ -583,8 +697,69 @@ skipsection:
 	freeMagic(fstack);
 	fstack = fstack->next;
     }
-
     if (fstack) fclose(fstack->file);
+
+    /* Note:  If filename is NULL, then individual sections are	*/
+    /* being reloaded, and it is the responsibility of the	*/
+    /* calling routine to invoke any exit function specific to	*/
+    /* that section (e.g., DRCTechScale() when loading a new	*/
+    /* DRC style).						*/
+
+    if ((filename != NULL) && (retval == TRUE))
+    {
+	/* If internal scalefactor is not the default 1:1, then we  */
+	/* need to scale the techfile numbers accordingly.          */
+
+	if ((DBLambda[0] != 1) || (DBLambda[1] != 1))
+	{
+	    int d = DBLambda[0];
+	    int n = DBLambda[1];
+
+	    CIFTechInputScale(d, n, TRUE);
+	    CIFTechOutputScale(d, n);
+	    DRCTechScale(d, n);
+	    ExtTechScale(d, n);
+	    WireTechScale(d, n);
+#ifdef LEF_MODULE
+	    LefTechScale(d, n);
+#endif
+#ifdef ROUTE_MODULE
+	    RtrTechScale(d, n);
+#endif
+	    TxPrintf("Scaled tech values by %d / %d to"
+			" match internal grid scaling\n", n, d);
+
+	    /* Check if we're below the scale set by cifoutput gridlimit */
+	    if (CIFTechLimitScale(1, 1))
+		TxError("WARNING:  Current grid scale is smaller"
+		" than the minimum for the process!\n");
+	}
+
+	/* Post-technology reading routines */
+
+#ifdef ROUTE_MODULE
+	MZAfterTech();
+	IRAfterTech();
+	GAMazeInitParms();
+#endif
+	PlowAfterTech();
+
+	if (DBCellSrDefs(0, checkForPaintFunc, (ClientData)&saveNumPlanes))
+	{
+	    if (saveNumPlanes != DBNumPlanes)
+		TxError("Warning:  Number of planes has changed.  ");
+	    TxError("Existing layout may be invalid.\n");
+	}
+	if (saveNumPlanes != DBNumPlanes)
+	    DBCellSrDefs(0, changePlanesFunc, (ClientData) &saveNumPlanes);
+    }
+    else if (retval == FALSE)
+    {
+	/* On error, remove any existing technology file name */
+	freeMagic(TechFileName);
+	TechFileName = NULL;
+    }
+
     return (retval);
 }
 

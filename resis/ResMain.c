@@ -27,7 +27,7 @@ CellUse 		*ResUse=NULL;		/* Our use and def */
 CellDef 		*ResDef=NULL;
 TileTypeBitMask 	ResConnectWithSD[NT];	/* A mask that goes from  */
 						/* SD's to transistors.   */
-TileTypeBitMask 	ResCopyMask[NT];	/* Inidicates which tiles */
+TileTypeBitMask 	ResCopyMask[NT];	/* Indicates which tiles */
 						/* are to be copied.      */
 resResistor 		*ResResList=NULL;	/* Resistor list	  */
 resNode     		*ResNodeList=NULL;	/* Processed Nodes 	  */
@@ -41,8 +41,10 @@ extern Region 			*ResFirst();
 extern Tile		*FindStartTile();
 extern int			ResEachTile();
 extern int			ResLaplaceTile();
+extern ResSimNode	*ResInitializeNode();
 
 extern HashTable	ResNodeTable;
+
 
 
 /*
@@ -188,6 +190,8 @@ ResDissolveContacts(contacts)
  *  ensures that connected nodes that stretch between two ports will
  *  not be assumed to be "hanging" nodes.
  *
+ *  Do the same thing for labels.
+ *
  *----------------------------------------------------------------------------
  */
 void
@@ -215,6 +219,51 @@ ResMakePortBreakpoints(def)
 	    (void) DBSrPaintArea((Tile *) NULL, plane, rect, &mask,
 			ResAddBreakpointFunc, (ClientData)node);
 	}
+    }
+}
+
+/*
+ *---------------------------------------------------------------------------
+ *
+ *  ResMakeLabelBreakpoints --
+ *
+ *  Search for labels that are part of a node, and force them to be
+ *  breakpoints in the "tileJunk" field of their respective tiles in
+ *  ResUse.  This ensures (among other things) that pins of a top level
+ *  cell will be retained and become the endpoint of a net.
+ *  
+ *----------------------------------------------------------------------------
+ */
+void
+ResMakeLabelBreakpoints(def)
+    CellDef *def;
+{
+    Plane	*plane;
+    Rect	*rect;
+    TileTypeBitMask mask;
+    HashEntry   *entry;
+    ResSimNode  *node;
+    Label	*slab;
+    int ResAddBreakpointFunc();	/* Forward Declaration */
+
+    for (slab = def->cd_labels; slab != NULL; slab = slab->lab_next)
+    {
+	entry = HashFind(&ResNodeTable, slab->lab_text);
+	node = ResInitializeNode(entry);
+
+        node->drivepoint = slab->lab_rect.r_ll;
+        node->rs_bbox = slab->lab_rect;
+        node->location = slab->lab_rect.r_ll;
+        node->rs_ttype = slab->lab_type;
+        node->type = slab->lab_type;
+
+	plane = def->cd_planes[DBPlane(slab->lab_type)];
+	rect  = &(node->rs_bbox);
+
+	TTMaskSetOnlyType(&mask, slab->lab_type);
+	(void) DBSrPaintArea((Tile *) NULL, plane, rect, &mask,
+			ResAddBreakpointFunc, (ClientData)node);
+	
     }
 }
 
@@ -651,6 +700,7 @@ ResExtractNet(startlist,goodies,cellname)
     /* Finish preprocessing.		*/
     
     ResMakePortBreakpoints(ResUse->cu_def);
+    ResMakeLabelBreakpoints(ResUse->cu_def);
     ResFindNewContactTiles(ResContactList);
     ResPreProcessTransistors(TranTiles, ResTransList, ResUse->cu_def);
 

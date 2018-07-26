@@ -21,40 +21,13 @@
 #ifndef _MAGIC_H
 #define	_MAGIC_H
 
-/*
- * Note:  System files, such as "stdio.h" and "sys/types.h", should be
- * included before this magic.h file.  This is done automatically below
- * based on the _STDIO_H and _SYS_TYPES_H standard definitions.
- */
-
-#ifndef _STDIO_H
-#include <stdio.h>
-#endif
-#ifndef _SYS_TYPES_H
-#include <sys/types.h>
-#endif
-
-/* Below is deprecated---magic from 7.2 rev. 56 is 64-bit clean! */
-#ifdef ALPHA32BIT
-/* must be before any declarations with pointers in them! */
-#pragma pointer_size(short)
-#ifndef ALPHA
-#define	ALPHA
-#endif
-#endif
+#include <errno.h>
+#include <limits.h>
+#include <stdint.h>
 
 /* ------------------- Universal pointer typecast --------------------- */
 
 /* Set default value for backwards compatibility with non-autoconf make */
-#ifndef SIZEOF_UNSIGNED_INT
-#define SIZEOF_UNSIGNED_INT 4
-#endif
-#ifndef SIZEOF_UNSIGNED_LONG
-#define SIZEOF_UNSIGNED_LONG 4
-#endif
-#ifndef SIZEOF_UNSIGNED_LONG_LONG
-#define SIZEOF_UNSIGNED_LONG_LONG 8
-#endif
 #ifndef SIZEOF_VOID_P
 #define SIZEOF_VOID_P SIZEOF_UNSIGNED_INT
 #endif
@@ -69,63 +42,10 @@ typedef signed long spointertype;
 ERROR: Cannot compile without knowing the size of a pointer.  See utils/magic.h
 #endif
 
-/*-------------------------------------------------------------------
- * Define a double integer.  This replaces the horrible mess that
- * used to be the "DoubleInt" module.  Use of dlong should
- * improve the portability of magic.
- *
- * This defines "dlong" to be an 8-byte double-precision integer.
- *-------------------------------------------------------------------
- */
-
-#ifdef HAVE_LIMITS_H
-#include <limits.h>
-#else
-  #ifdef HAVE_SYS_PARAM_H
-  #include <sys/param.h>
-  #endif
-#endif
-
-#if defined(LONG_MAX) && defined(INT_MAX) 
-  #if LONG_MAX == INT_MAX
-  typedef long long dlong;
-  #define DLONG_PREFIX "ll"
-  #else
-  typedef long dlong;
-  #define DLONG_PREFIX "l"
-  #endif
-#else
-typedef long long dlong;
+typedef int64_t dlong;
+#define DLONG_MAX INT64_MAX
+#define DLONG_MIN INT64_MIN
 #define DLONG_PREFIX "ll"
-#endif
-
-/* Modified by NP & Tim 7/04 */
-// MAX vaule of dlong = 9223372036854775807LL [2^63]
-#ifndef DLONG_MAX
-  /* Note:  Linux defines LLONG_MAX but not LONG_LONG_MAX */
-  #ifdef LLONG_MAX
-  #define DLONG_MAX LLONG_MAX
-  #else
-    #ifdef LONG_LONG_MAX
-    #define DLONG_MAX LONG_LONG_MAX
-    #else
-    #define DLONG_MAX 0x7FFFFFFFFFFFFFFFLL
-    #endif
-  #endif
-#endif
-
-#ifndef DLONG_MIN
-  /* Note:  Linux defines LLONG_MIN but not LONG_LONG_MIN */
-  #ifdef LLONG_MIN
-  #define DLONG_MIN LLONG_MIN
-  #else
-    #ifdef LONG_LONG_MIN
-    #define DLONG_MIN LONG_LONG_MIN
-    #else
-    #define DLONG_MIN 0x8000000000000000LL
-    #endif
-  #endif
-#endif
 
 /* --------------------- Universal pointer type ----------------------- */
 
@@ -142,18 +62,6 @@ typedef unsigned char bool;
 #endif
 #ifndef FALSE
 #define	FALSE	((bool)0)
-#endif
-
-/* --------------------------- Infinities ------------------------------ */
-
-/* maximum representable positive integer */
-/* (special case vaxes to avoid compiler bug in ultrix) */
-#ifdef vax
-#define MAXINT 0x7fffffff
-#else
-#ifndef MAXINT
-#define MAXINT (((unsigned int) ~0) >> 1)
-#endif
 #endif
 
 /* ----------------------- Simple functions --------------------------- */
@@ -184,14 +92,6 @@ typedef unsigned char bool;
 #ifndef HAVE_ROUNDF
 #define roundf(x) ((float)((int)((float)(x) + ((x < 0) ? -0.5 : 0.5))))
 #endif
-
-/* ------------ Function headers of globally used functions ----------- */
-
-#ifndef __STDC__
-extern char *strcpy(), *strncpy(), *index(), *rindex();
-extern char *strcat(), *strncat();
-#endif
-
 
 /* -------------------------- Search paths ---------------------------- */
 
@@ -236,9 +136,6 @@ extern char AbortMessage[];
 
 /* System V is missing some BSDisms. */
 #ifdef SYSV
-# ifndef index
-#  define index(x,y)		strchr((x),(int)(y))
-# endif
 # ifndef bcopy
 #  define bcopy(a, b, c)	memcpy(b, a, c)
 # endif
@@ -247,9 +144,6 @@ extern char AbortMessage[];
 # endif
 # ifndef bcmp
 #  define bcmp(a, b, c)		memcmp(b, a, c)
-# endif
-# ifndef rindex
-#  define rindex(x,y)  strrchr((x),(int)(y))
 # endif
 #endif
 
@@ -265,41 +159,6 @@ extern char AbortMessage[];
 
 #if 	(defined(MIPSEB) && defined(SYSTYPE_BSD43)) || ibm032
 # define	SIG_RETURNS_INT
-#endif
-
-/* We have this really fancy abort procedure in utils/niceabort.c.  However,
- * these days only vax's appear to have all the things neccessary to make it
- * work (i.e. /usr/ucb/gcore).
- */
-
-#ifdef	vax
-# define	FANCY_ABORT
-#endif
-
-
-/*
- * errno and sys_errlist
- */
-#ifdef CYGWIN
-#include <errno.h>
-#define sys_errlist _sys_errlist
-#elif !defined(__FreeBSD__) && !defined(__NetBSD__) && !defined(__DragonFly__) && !defined(__APPLE__)
-extern int errno;
-/* extern char *sys_errlist[]; */
-#elif defined(__APPLE__)
-extern int errno;
-#endif
-
-/* 
- * Sprintf is a "char *" under BSD, and an "int" under System V. 
- */
-
-#ifndef  __STDC__
-#ifndef	SYSV
-#if !defined(ALPHA) && !defined(__APPLE__)
-    extern char* sprintf();
-#endif
-#endif
 #endif
 
 /*
@@ -322,8 +181,9 @@ extern int errno;
  * Select system call
  *
  * 	Note:  Errors here may be caused by not including <sys/types.h> 
- *	before "magic.h"
+ *	before "magic.h" (deprecated; more modern usage is <sys/select.h>
  */
+#include <sys/select.h>
 #ifndef FD_SET
 #define fd_set int
 #define FD_SET(n, p)    ((*(p)) |= (1 << (n)))

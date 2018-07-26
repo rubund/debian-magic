@@ -200,7 +200,7 @@ extern int DRCTechHalo;		/* Current halo being used */
 extern int DRCStepSize;		/* Current step size being used */
 extern DRCPendingCookie * DRCPendingRoot;
 
-extern u_char DRCBackGround;	/* global flag to enable/disable
+extern unsigned char DRCBackGround;	/* global flag to enable/disable
 				 * continuous DRC
 			     	 */
 extern bool DRCEuclidean;	/* global flag to enable/disable

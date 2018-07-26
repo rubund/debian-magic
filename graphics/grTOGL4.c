@@ -95,3 +95,39 @@ grtoglGetCursorPos (mw, p)
 
     return TRUE;
 }
+
+/*
+ * ----------------------------------------------------------------------------
+ * grtoglGetCursorRootPos:
+ * 	Read the cursor position in sreen root coordinates.
+ *
+ * Results:
+ *	TRUE is returned if the coordinates were succesfully read, FALSE
+ *	otherwise.
+ *
+ * Side effects:
+ *	The parameter is filled in with the cursor position, in the form of
+ *	a point in screen coordinates.
+ * ----------------------------------------------------------------------------
+ */
+
+bool
+grtoglGetCursorRootPos (mw, p)
+    MagWindow *mw;	/* window for which result is given */
+    Point *p;		/* point to be filled in with screen coordinates */
+{
+    int x, y, x1, y1;
+    unsigned int buttons;
+    Window win1, win2;
+
+    if (mw == (MagWindow *)NULL) mw = toglCurrent.mw;
+    
+    XQueryPointer(grXdpy, Tk_WindowId((Tk_Window)(mw->w_grdata)),
+		  &win1, &win2, &x1, &y1,
+		  &x, &y, &buttons);
+
+    p->p_x = x1;
+    p->p_y = y1;
+
+    return TRUE;
+}

@@ -64,6 +64,8 @@ GrTkDrawGlyph (gl, p)
     }
     if(grDisplay.depth <= 8) {
       XSetPlaneMask(grXdpy, grGCGlyph, grPlanes[127]); }
+
+    XSetFillStyle(grXdpy, grGCGlyph, FillSolid);
     if ((!anyObscure) && (GEO_SURROUND(&grCurClip, &bBox)) ) {
 	int *pixelp, x, y;
 
@@ -75,10 +77,13 @@ GrTkDrawGlyph (gl, p)
 	    y1 = grMagicToX(bBox.r_ybot + y);
 	    for (x = 0; x < gl->gr_xsize; x++) {
 		int color;
-	        color = GrStyleTable[*pixelp++].color;
-		x1 = bBox.r_xbot + x;
-		XSetForeground(grXdpy, grGCGlyph, grPixels[color]);
-		XDrawPoint(grXdpy, grCurrent.windowid, grGCGlyph, x1, y1);
+		if (*pixelp != 0) {
+		    color = GrStyleTable[*pixelp].color;
+		    x1 = bBox.r_xbot + x;
+		    XSetForeground(grXdpy, grGCGlyph, grPixels[color]);
+		    XDrawPoint(grXdpy, grCurrent.windowid, grGCGlyph, x1, y1);
+		}
+		pixelp++;
 	    }
 	}
     } else {
@@ -120,10 +125,13 @@ GrTkDrawGlyph (gl, p)
 			    (startx - bBox.r_xbot)]);
 		    for ( ; startx <= endx; startx++) {
 			int color;
-			color = GrStyleTable[*pixelp++].color;
-			XSetForeground(grXdpy, grGCGlyph, grPixels[color]);
-			XDrawPoint(grXdpy, grCurrent.windowid, grGCGlyph,
-				  startx, grMagicToX(yloc));
+			if (*pixelp != 0) {
+			    color = GrStyleTable[*pixelp].color;
+			    XSetForeground(grXdpy, grGCGlyph, grPixels[color]);
+			    XDrawPoint(grXdpy, grCurrent.windowid, grGCGlyph,
+					startx, grMagicToX(yloc));
+			}
+			pixelp++;
 		    }
 		    startx = endx + 1;
 		}

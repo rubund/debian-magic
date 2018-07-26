@@ -456,7 +456,7 @@ extArrayPrimaryFunc(use, trans, x, y, ha)
      * labels from primDef's label list.
      */
     primDef = extArrayPrimary->et_use->cu_def;
-    extArrayPrimary->et_nodes = extFindNodes(primDef, &ha->ha_clipArea);
+    extArrayPrimary->et_nodes = extFindNodes(primDef, &ha->ha_clipArea, FALSE);
     ExtLabelRegions(primDef, ExtCurStyle->exts_nodeConn,
 		&extArrayPrimary->et_nodes, &ha->ha_clipArea);
     if ((ExtOptions & (EXT_DOADJUST|EXT_DOCOUPLING))
@@ -595,7 +595,7 @@ extArrayInterFunc(use, trans, x, y, ha)
      * hard way.
      */
     oneDef = oneFlat->et_use->cu_def;
-    oneFlat->et_nodes = extFindNodes(oneDef, &ha->ha_clipArea),
+    oneFlat->et_nodes = extFindNodes(oneDef, &ha->ha_clipArea, FALSE);
     ExtLabelRegions(oneDef, ExtCurStyle->exts_nodeConn, &oneFlat->et_nodes,
 		&ha->ha_clipArea);
     if ((ExtOptions & (EXT_DOADJUST|EXT_DOCOUPLING))
@@ -604,6 +604,9 @@ extArrayInterFunc(use, trans, x, y, ha)
 
     /* Process connections */
     extHierConnections(ha, extArrayPrimary, oneFlat);
+
+    /* Process substrate connection */
+    extHierSubstrate(ha, use, x, y);
 
     ha->ha_cumFlat.et_nodes = (NodeRegion *) NULL;
     if (ExtOptions & EXT_DOADJUST)
@@ -625,7 +628,7 @@ extArrayInterFunc(use, trans, x, y, ha)
 	 */
 	HashInit(&ha->ha_cumFlat.et_coupleHash, 32,
 			HashSize(sizeof (CoupleKey)));
-	ha->ha_cumFlat.et_nodes = extFindNodes(cumDef, &ha->ha_clipArea);
+	ha->ha_cumFlat.et_nodes = extFindNodes(cumDef, &ha->ha_clipArea, FALSE);
 	if (ExtOptions & EXT_DOCOUPLING)
 	    extFindCoupling(cumDef, &ha->ha_cumFlat.et_coupleHash,
 			&ha->ha_clipArea);

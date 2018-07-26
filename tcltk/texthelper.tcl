@@ -1,7 +1,17 @@
 # Text helper window
 
+set textdefaults [dict create \
+	text "" \
+	font "FreeSans" \
+	size "1" \
+	just "center" \
+	rotate "0" \
+	offset "0 0" \
+	port "0" \
+]
+	
 proc magic::make_texthelper { mgrpath } {
-   global typedflt typesticky
+   global typedflt typesticky typeport
    toplevel ${mgrpath}
    wm withdraw ${mgrpath}
 
@@ -13,6 +23,7 @@ proc magic::make_texthelper { mgrpath } {
    frame ${mgrpath}.rotate
    frame ${mgrpath}.offset
    frame ${mgrpath}.layer
+   frame ${mgrpath}.port
 
    frame ${mgrpath}.buttonbar
 
@@ -20,32 +31,43 @@ proc magic::make_texthelper { mgrpath } {
 
    label ${mgrpath}.text.tlab -text "Text string: "
    label ${mgrpath}.font.tlab -text "Font: "
-   label ${mgrpath}.size.tlab -text "Size: "
+   label ${mgrpath}.size.tlab -text "Size (um): "
    label ${mgrpath}.just.tlab -text "Justification: "
    label ${mgrpath}.rotate.tlab -text "Rotation: "
    label ${mgrpath}.offset.tlab -text "Offset from reference: "
    label ${mgrpath}.layer.tlab -text "Attach to layer: "
+   label ${mgrpath}.port.tlab -text "Port: "
 
    entry ${mgrpath}.text.tent -background white
    entry ${mgrpath}.size.tent -background white
    entry ${mgrpath}.rotate.tent -background white
    entry ${mgrpath}.offset.tent -background white
    entry ${mgrpath}.layer.tent -background white
+   entry ${mgrpath}.port.tent -background white
 
    set typedflt 1
    set typesticky 0
+   set typeport 0
    checkbutton ${mgrpath}.layer.btn1 -text "default" -variable typedflt \
 	-command [subst {if {\$typedflt} {pack forget ${mgrpath}.layer.tent \
 		} else {pack forget ${mgrpath}.layer.btn2; \
 		pack ${mgrpath}.layer.tent -side left -fill x -expand true; \
 		pack ${mgrpath}.layer.btn2 -side left}}]
    checkbutton ${mgrpath}.layer.btn2 -text "sticky" -variable typesticky
+   checkbutton ${mgrpath}.port.btn -text "enable" -variable typeport \
+	-command [subst {if {\$typeport} {
+		${mgrpath}.port.tent delete 0 end; \
+		${mgrpath}.port.tent insert 0 \[expr {\[port last\] + 1}\]; \
+		pack ${mgrpath}.port.tent \
+		-side left -fill x -expand true } else { pack forget \
+		${mgrpath}.port.tent }}]
 
    menubutton ${mgrpath}.just.btn -text "default" -menu ${mgrpath}.just.btn.menu
    menubutton ${mgrpath}.font.btn -text "default" -menu ${mgrpath}.font.btn.menu
    
    button ${mgrpath}.buttonbar.cancel -text "Cancel" -command "wm withdraw ${mgrpath}"
    button ${mgrpath}.buttonbar.apply -text "Apply"
+   button ${mgrpath}.buttonbar.okay -text "Okay"
 
    pack ${mgrpath}.title.tlab
    pack ${mgrpath}.text.tlab -side left
@@ -63,7 +85,11 @@ proc magic::make_texthelper { mgrpath } {
    pack ${mgrpath}.layer.tlab -side left
    pack ${mgrpath}.layer.btn1 -side left
    pack ${mgrpath}.layer.btn2 -side left
+   pack ${mgrpath}.port.tlab -side left
+   pack ${mgrpath}.port.btn -side left
+
    pack ${mgrpath}.buttonbar.apply -side left
+   pack ${mgrpath}.buttonbar.okay -side left
    pack ${mgrpath}.buttonbar.cancel -side right
 
    pack ${mgrpath}.title -side top
@@ -74,6 +100,7 @@ proc magic::make_texthelper { mgrpath } {
    pack ${mgrpath}.rotate -side top -anchor w -expand true
    pack ${mgrpath}.offset -side top -anchor w -expand true
    pack ${mgrpath}.layer -side top -anchor w -expand true
+   pack ${mgrpath}.port -side top -anchor w -expand true
    pack ${mgrpath}.buttonbar -side bottom -fill x -expand true
 
    # Create menus for Font and Justification records
@@ -115,55 +142,84 @@ proc magic::make_texthelper { mgrpath } {
    magic::tag select "[magic::tag select]; magic::update_texthelper"
 }
 
+# For all editable selected labels, fill in entries in the
+# texthelper window
+
 proc magic::analyze_labels {} {
-   global typedflt typesticky
-   set tlist [lsort -uniq [setlabel text]]
-   set jlist [lsort -uniq [setlabel justify]]
-   set flist [lsort -uniq [setlabel font]]
-   set slist [lsort -uniq [setlabel size]]
-   set rlist [lsort -uniq [setlabel rotate]]
-   set olist [lsort -uniq [setlabel offset]]
-   set llist [lsort -uniq [setlabel layer]]
-   set klist [lsort -uniq [setlabel sticky]]
+   global typedflt typesticky typeport
+
+   # Pick up values from the first entry returned
+
+   set tval [lindex [setlabel text] 0]
+   set jval [lindex [setlabel justify] 0]
+   set fval [lindex [setlabel font] 0]
+   set rval [lindex [setlabel rotate] 0]
+   set oval [lindex [setlabel offset] 0]
+   set lval [lindex [setlabel layer] 0]
+   set kval [lindex [setlabel sticky] 0]
+   set isport [lindex [port exists] 0]
+   if {$isport} {
+       set pval [lindex [port index] 0]
+   } else {
+       set pval -1
+   }
+
+   # Rescale internal units to microns
+   set sval [lindex [setlabel size] 0]
+   set sscale [cif scale out]
+   set tmp_pre $::tcl_precision
+   set ::tcl_precision 3
+   set sval [expr $sscale * $sval]
+   set ::tcl_precision $tmp_pre
 
    .texthelper.text.tent delete 0 end
-   if {[llength $tlist] == 1} {
-      .texthelper.text.tent insert 0 $tlist
-   }
-   if {[llength $jlist] == 1} {
-      set jbtn [string map {NORTH N WEST W SOUTH S EAST E CENTER center} $jlist]
-      .texthelper.just.btn.menu invoke $jbtn
-   } else {
-      .texthelper.just.btn config -text ""
-   }
-   if {[llength $flist] == 1} {
-      .texthelper.font.btn.menu invoke $flist
-   } else {
-      .texthelper.font.btn config -text ""
-   }
+   .texthelper.text.tent insert 0 $tval
+   set jbtn [string map {NORTH N WEST W SOUTH S EAST E CENTER center} $jval]
+   .texthelper.just.btn.menu invoke $jbtn
+   .texthelper.font.btn.menu invoke $fval
    .texthelper.size.tent delete 0 end
-   if {[llength $slist] == 1} {
-      .texthelper.size.tent insert 0 $slist
-   }
+   .texthelper.size.tent insert 0 $sval
    .texthelper.offset.tent delete 0 end
-   if {[llength $olist] == 1} {
-      .texthelper.offset.tent insert 0 [join $olist]
-   }
+   .texthelper.offset.tent insert 0 [join $oval]
    .texthelper.rotate.tent delete 0 end
-   if {[llength $rlist] == 1} {
-      .texthelper.rotate.tent insert 0 $rlist
-   }
+   .texthelper.rotate.tent insert 0 $rval
    .texthelper.layer.tent delete 0 end
-   if {[llength $llist] == 1} {
-      .texthelper.layer.tent insert 0 $llist
+   .texthelper.layer.tent insert 0 $lval
+   if {${pval} >= 0} {
+      set typeport 1
+      .texthelper.port.tent delete 0 end
+      .texthelper.port.tent insert 0 $pval
+      pack .texthelper.port.tent -side left -fill x -expand true
+   } else {
+      set typeport 0
+      .texthelper.port.tent delete 0 end
+      pack forget .texthelper.port.tent
    }
-   if {[llength $klist] == 1} {
-      set typesticky $klist
+
+   set typesticky $kval
+   if {$lval == ""} {
+       set typedflt 1
+       pack forget .texthelper.layer.tent
+   } else {
+       set typedflt 0
+       pack forget .texthelper.layer.btn2
+       pack .texthelper.layer.tent -side left -fill x -expand true
+       pack .texthelper.layer.btn2 -side left
    }
 }
 
+
 proc magic::change_label {} {
-   global typedflt typesticky
+   global typedflt typesticky typeport
+
+   # Check to see if there really was a selection, or if
+   # something got unselected
+
+   if {[setlabel text] == ""} {
+      magic::make_new_label
+      return
+   }
+
    set ltext [.texthelper.text.tent get]
    set lfont [.texthelper.font.btn cget -text]
    set lsize [.texthelper.size.tent get]
@@ -171,6 +227,7 @@ proc magic::change_label {} {
    set loff  [.texthelper.offset.tent get]
    set ljust [.texthelper.just.btn cget -text]
    set ltype [.texthelper.layer.tent get]
+   set lport [.texthelper.port.tent get]
 
    if {$ltext != ""} {
       setlabel text $ltext
@@ -190,7 +247,7 @@ proc magic::change_label {} {
       }
    }
    if {$lsize != ""} {
-      setlabel size ${lsize}i
+      setlabel size ${lsize}um
    }
    if {$loff != ""} {
       set oldsnap [snap list]
@@ -205,10 +262,23 @@ proc magic::change_label {} {
       setlabel layer $ltype
    }
    setlabel sticky $typesticky
+
+   if {$typeport == 1 && $lport != ""} {
+      if {[port exists] == 0} {
+	 port make $lport
+      } else {
+	 port index $lport
+      }
+   } else {
+      if {[port exists] == 1} {
+         port remove
+      }
+   }
 }
 
 proc magic::make_new_label {} {
-   global typedflt typesticky
+   global typedflt typesticky textdefaults typeport
+
    set ltext [.texthelper.text.tent get]
    set lfont [.texthelper.font.btn cget -text]
    set lsize [.texthelper.size.tent get]
@@ -216,6 +286,15 @@ proc magic::make_new_label {} {
    set loff  [.texthelper.offset.tent get]
    set ljust [.texthelper.just.btn cget -text]
    set ltype [.texthelper.layer.tent get]
+   set lport [.texthelper.port.tent get]
+
+   # Apply values back to window defaults
+   dict set textdefaults text $ltext
+   dict set textdefaults font $lfont
+   dict set textdefaults size $lsize
+   dict set textdefaults rotate $lrot
+   dict set textdefaults offset $loff
+   dict set textdefaults just $ljust
 
    if {$ltext == ""} return	;# don't generate null label strings!
 
@@ -230,17 +309,27 @@ proc magic::make_new_label {} {
 
    if {$typedflt == 1 || $ltype == ""} {
       if {$ljust == "default"} {
-         label $ltext $lfont $lsize $lrot [join $loff]
+         label $ltext $lfont ${lsize}um $lrot [join $loff]
       } else {
-         label $ltext $lfont $lsize $lrot [join $loff] $ljust
+         label $ltext $lfont ${lsize}um $lrot [join $loff] $ljust
       }
    } else {
       if {$typesticky == 1} {set ltype "-$ltype"}
       if {$ljust == "default"} {
-         label $ltext $lfont $lsize $lrot [join $loff] center $ltype
+         label $ltext $lfont ${lsize}um $lrot [join $loff] center $ltype
       } else {
-         label $ltext $lfont $lsize $lrot [join $loff] $ljust $ltype
+         label $ltext $lfont ${lsize}um $lrot [join $loff] $ljust $ltype
       }
+   }
+   if {$typeport == 1 && $lport != ""} {
+      port make $lport
+      # Auto-increment the value to the next available port.
+      set pval [port last]
+      incr pval
+      .texthelper.port.tent delete 0 end
+      .texthelper.port.tent insert 0 $pval
+   } else {
+      port remove
    }
 
    # puts stdout "label $ltext $lfont $lsize $lrot $loff $ljust"
@@ -252,28 +341,68 @@ proc magic::make_new_label {} {
 
 proc magic::update_texthelper {} {
    global CAD_ROOT
+   global textdefaults
 
-   if {[catch {wm state .texthelper}]} {
+   if {[info level] > 1} {
+      return
+   }
+   if {[catch {set tstate [wm state .texthelper]}]} {
       magic::make_texthelper .texthelper
+   } else {
+      if {$tstate == "withdrawn"} {return}
    }
 
    # Update:  Determine if a label has been selected or not.  If so,
    # analyze the label list to determine which properties are common
    # to all the selected labels
 
-   set slist [lindex [what -list] 1]
+   set splist [lindex [what -list] 1]
+
+   # Reduce list to what's editable
+   set slist []
+   foreach sitem $splist {
+      set scell [lindex $sitem 2] 
+      if {$scell == {}} {
+         lappend slist $sitem
+      }
+   }
+
    if {$slist == {}} {
       .texthelper.title.tlab configure -text "New label: "
       .texthelper.text.tent delete 0 end
-      .texthelper.font.btn.menu invoke 0
-      .texthelper.just.btn.menu invoke 0
+      .texthelper.text.tent insert 0 [dict get $textdefaults text]
+
+      set deffont [dict get $textdefaults font]
+      set found 0
+      for {set i 0} {$i <= [.texthelper.font.btn.menu index end]} {incr i} {
+	 set btnname [.texthelper.font.btn.menu entrycget $i -label]
+         if {$btnname == $deffont} {.texthelper.font.btn.menu invoke $i}
+         set found 1
+      }
+      if {$found == 0} {.texthelper.font.btn.menu invoke 0}
+
+      set defjust [dict get $textdefaults just]
+      set found 0
+      for {set i 0} {$i <= [.texthelper.just.btn.menu index end]} {incr i} {
+	 set btnname [.texthelper.just.btn.menu entrycget $i -label]
+         if {$btnname == $defjust} {.texthelper.just.btn.menu invoke $i}
+         set found 1
+      }
+      if {$found == 0} {.texthelper.just.btn.menu invoke 0}
+
       .texthelper.size.tent delete 0 end
-      .texthelper.size.tent insert 0 "1"
+      .texthelper.size.tent insert 0 [dict get $textdefaults size]
       .texthelper.rotate.tent delete 0 end
-      .texthelper.rotate.tent insert 0 "0"
+      .texthelper.rotate.tent insert 0 [dict get $textdefaults rotate]
       .texthelper.offset.tent delete 0 end
-      .texthelper.offset.tent insert 0 "0 1"
+      .texthelper.offset.tent insert 0 [dict get $textdefaults offset]
+      set pval [port last]
+      incr pval
+      .texthelper.port.tent delete 0 end
+      .texthelper.port.tent insert 0 $pval
       .texthelper.buttonbar.apply configure -command magic::make_new_label
+      .texthelper.buttonbar.okay configure -command \
+		"magic::make_new_label ; wm withdraw .texthelper"
    } else {
       if {[llength $slist] == 1} {
          .texthelper.title.tlab configure -text "Selected label: "
@@ -282,6 +411,8 @@ proc magic::update_texthelper {} {
       }
       magic::analyze_labels
       .texthelper.buttonbar.apply configure -command magic::change_label
+      .texthelper.buttonbar.okay configure -command \
+		"magic::change_label ; wm withdraw .texthelper"
    }
 }
 

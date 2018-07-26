@@ -128,7 +128,7 @@ typedef struct conn
     ConnName	 conn_1;	/* First node in connection */
     ConnName	 conn_2;	/* Second (optional) node in connection */
     union {
-	int	 conn_val_res;	/* Value of capacitance (attofarads) or */
+	float	 conn_val_res;	/* Value of capacitance (attofarads) or */
 	EFCapValue conn_val_cap;	/* resistance (milliohms). */
     } conn_value;
 
@@ -178,6 +178,7 @@ typedef struct def
 #define DEF_PROCESSED	0x04	/* This def processed in hierarchical output */
 #define DEF_NODEVICES	0x08	/* This def contains no devices */
 #define DEF_SUBSNODES	0x10	/* This def contains implicit substrate nodes */
+#define DEF_ABSTRACT	0x20	/* This def is an abstract view (e.g., LEF) */
 
 /*
  * Every Def has a NULL-terminated list of uses that correspond
@@ -290,7 +291,7 @@ extern char *efHNToStrFunc();
 
     /* Functions for hashing of HierNames */
 extern int efHNCompare();
-extern int efHNHash();
+extern int efHNHash(HierName *);
 
     /* Functions for hashing of Distances */
 extern bool efHNDistCompare();

@@ -90,7 +90,7 @@ extEnumTilePerim(tpIn, mask, pNum, func, cdata)
     Tile *tpOut;
     int perimCorrect;
     Boundary b;
-    u_char sides = 0;
+    unsigned char sides = 0;
 
     b.b_inside = tpIn;
     b.b_plane = pNum;

@@ -266,6 +266,8 @@ GrTOGLInit ()
     static int attributeList[] = { GLX_RGBA, None, None };
 #endif
 
+    if (Tk_InitStubs(magicinterp, "8.5", 0) == NULL) return FALSE;
+
     toglCurrent.window = Tk_MainWindow(magicinterp);
     if (toglCurrent.window == NULL)
     {
@@ -283,7 +285,7 @@ GrTOGLInit ()
 
     if (!grVisualInfo)
     {
-	/* Try for a double-buffered confguration */
+	/* Try for a double-buffered configuration */
 #ifdef THREE_D
 	attributeList[1] = None;
 #else
@@ -413,7 +415,11 @@ toglSetProjection(llx, lly, width, height)
 
     /* scale to fit window */
 
+#ifdef OGL_INVERT_Y
+    glScalef(1.0 / (float)(width >> 1), -1.0 / (float)(height >> 1), 1.0);
+#else
     glScalef(1.0 / (float)(width >> 1), 1.0 / (float)(height >> 1), 1.0);
+#endif
 
     /* magic origin maps to window center; move to window origin */
 
@@ -609,7 +615,7 @@ keys_and_buttons:
 				Tcl_SaveResult(magicinterp, &state);
 				Tcl_EvalEx(magicinterp, "history event 0", 15, 0);
 			        MacroDefine(mw->w_client, (int)'.',
-					Tcl_GetStringResult(magicinterp),
+					Tcl_GetStringResult(magicinterp), NULL,
 					FALSE);
 				Tcl_RestoreResult(magicinterp, &state);
 				break;
@@ -677,7 +683,7 @@ keys_and_buttons:
 			    *(TxBuffer + tl) = '\n';
 			    *(TxBuffer + tl + 1) = '\0';
 			    if (tl != 0) MacroDefine(mw->w_client,
-					XK_period, TxBuffer, FALSE);
+					XK_period, TxBuffer, NULL, FALSE);
 			    TxInputRedirect = TX_INPUT_NORMAL;
 			    TxSetPoint(KeyPressedEvent->x,
 					grXtransY(mw, KeyPressedEvent->y),
@@ -695,25 +701,28 @@ keys_and_buttons:
 			    TxFlushOut();
 			}
 		    }
-		    else if ((keywstate == (int)TX_LONG_CMD)
-				|| (keywstate == (int)TX_LONG_CMD2))
-		    {
-			/* Redirect input into the interpreter's terminal window */
-			TxInputRedirect = TX_INPUT_REDIRECTED;
-			if (TxTkConsole)
-			    TxSetPrompt(':');
-			else
-			{
-			    TxPrintf("\b\b: ");
-			    TxFlushOut();
-			}
-		    }
 		    else
 		    {
 			bool iMacro;
 			char *macroDef;
 
 			macroDef = MacroRetrieve(mw->w_client, keywstate, &iMacro);
+
+			/* Special handling:  An imacro beginning with ':'	*/
+			/* sets the prompt to ':' and moves to the next char.	*/
+
+			if (macroDef != NULL && *macroDef == ':' && iMacro)
+			{
+			    if (TxTkConsole)
+				TxSetPrompt(':');
+			    else
+			    {
+				TxPrintf("\b\b: ");
+				TxFlushOut();
+			    }
+			    memmove(macroDef, macroDef + 1, strlen(macroDef + 1) + 1);
+			}
+
 			macroDef = MacroSubstitute(macroDef, "%W", Tk_PathName(tkwind));
 
 			if (macroDef == NULL)
@@ -775,7 +784,7 @@ keys_and_buttons:
 		XConfigureEvent *ConfigureEvent = (XConfigureEvent*) xevent;
 		Rect	screenRect;
 		int width, height;
-		bool result;
+		bool result, need_resize;
 		    
 		width = ConfigureEvent->width;
 		height = ConfigureEvent->height;
@@ -788,11 +797,16 @@ keys_and_buttons:
             	screenRect.r_ytop = glTransYs(ConfigureEvent->y);
             	screenRect.r_ybot = glTransYs(ConfigureEvent->y + height);
 
+		need_resize = (screenRect.r_xbot != mw->w_screenArea.r_xbot ||
+			screenRect.r_xtop != mw->w_screenArea.r_xtop ||
+			screenRect.r_ybot != mw->w_screenArea.r_ybot ||
+			screenRect.r_ytop != mw->w_screenArea.r_ytop);
+
 		/* Redraw the window */
 
 		WindReframe(mw, &screenRect, FALSE, FALSE);
 		WindRedisplay(mw);
-
+		if (need_resize) (*GrCreateBackingStorePtr)(mw);
             }
             break;
 	case VisibilityNotify:
@@ -931,6 +945,7 @@ oglSetDisplay (dispType, outFileName, mouseFileName)
     GrWindowIdPtr = GrTOGLWindowId;
     GrWindowNamePtr = GrTkWindowName;		/* from grTkCommon.c */
     GrGetCursorPosPtr = grtoglGetCursorPos;
+    GrGetCursorRootPosPtr = grtoglGetCursorRootPos;
 
     /* local indirections */
     grSetSPatternPtr = grtoglSetSPattern;
@@ -1387,18 +1402,21 @@ GrTOGLIconUpdate(w,text)		/* See Blt code */
     class.res_class = "magic";
 
     XSetClassHint( grXdpy, wind, &class);
-    if (brack = index(text,'['))
+    if (text)
     {
-     	brack--;
-	*brack = 0;
-        XSetIconName(grXdpy,wind,text);
+	if (brack = strchr(text,'['))
+	{
+	    brack--;
+	    *brack = 0;
+            XSetIconName(grXdpy,wind,text);
+	    XStoreName(grXdpy,wind,text);
+     	    *brack = ' ';
+	    return;
+	}
+	if (brack = strrchr(text,' ')) text = brack+1;
+	XSetIconName(grXdpy,wind,text);
 	XStoreName(grXdpy,wind,text);
-     	*brack = ' ';
-	return;
     }
-    if (brack = rindex(text,' ')) text = brack+1;
-    XSetIconName(grXdpy,wind,text);
-    XStoreName(grXdpy,wind,text);
 }
 
 /*

@@ -443,7 +443,8 @@ calmaElementPath()
     if (nbytes > 0 && rtype == CALMA_PATHTYPE)
 	if (!calmaReadI2Record(CALMA_PATHTYPE, &pathtype)) return;
 
-    if (pathtype != CALMAPATH_SQUAREFLUSH && pathtype != CALMAPATH_SQUAREPLUS)
+    if (pathtype != CALMAPATH_SQUAREFLUSH && pathtype != CALMAPATH_SQUAREPLUS
+		&& pathtype != CALMAPATH_CUSTOM)
     {
 	calmaReadError("Warning: pathtype %d unsupported (ignored).\n", pathtype);
 	pathtype = CALMAPATH_SQUAREFLUSH;
@@ -466,11 +467,15 @@ calmaElementPath()
     width *= calmaReadScale1;
     if (width % calmaReadScale2 != 0)
 	calmaReadError("Wire width snapped to nearest integer boundary.\n");
-
     width /= calmaReadScale2;
 
-    /* Handle BGNEXTN, ENDEXTN */
+    /* Note:  SQUARE endcaps are handled inside CIFPaintWirePath by	*/
+    /* enabling "endcap".  Round endcaps are treated like square.	*/
+    /* Custom endcaps are treated like no endcap, with the extensions	*/
+    /* added in here.							*/
     extend1 = extend2 = 0;
+
+    /* Handle BGNEXTN, ENDEXTN */
     PEEKRH(nbytes, rtype);
     if (nbytes > 0 && rtype == CALMA_BGNEXTN)
     {
@@ -597,8 +602,8 @@ calmaElementPath()
 	}
 
 	CIFPaintWirePath(pathheadp, width,
-		(pathtype == CALMAPATH_SQUAREFLUSH) ? FALSE : TRUE,
-		plane, CIFPaintTable, (PaintUndoInfo *)NULL);
+		(pathtype == CALMAPATH_SQUAREFLUSH || pathtype == CALMAPATH_CUSTOM) ?
+		FALSE : TRUE, plane, CIFPaintTable, (PaintUndoInfo *)NULL);
 
 	if (cifCurReadPlanes == cifEditCellPlanes)
 	{
@@ -775,7 +780,16 @@ calmaElementText()
     /* String itself */
     if (!calmaReadStringRecord(CALMA_STRING, &textbody)) return;
 
-    /* Eliminate strange characters. */
+    /* Eliminate characters not in the official GDSII string format set. */
+
+    /* NOTE:  Disabling this 10/3/2014.  I can think of no reason that
+     * other ASCII characters may not be parsed out of a non-compliant
+     * GDS file.  If we want to generate GDS-compliant output, there's
+     * a flag for that in the "cifoutput" section of the techfile.
+     */
+
+#if 0 
+
     {
 	static bool algmsg = FALSE;
 	bool changed = FALSE;
@@ -814,6 +828,8 @@ calmaElementText()
 	}
     }
 
+#endif /* 0 */
+
     /* Place the label */
     if (strlen(textbody) == 0)
     {
@@ -830,10 +846,19 @@ calmaElementText()
     }
     else
     {
-	int flags;
+	int flags, i;
 
-	if (cifnum >= 0 && (cifCurReadStyle->crs_layers[cifnum]->crl_flags
-			& CIFR_TEXTLABELS))
+        /* Find the style layer record corresponding to the label type */
+        layer = -1;
+        for (i = 0; i < cifCurReadStyle->crs_nLayers; i++)
+            if (cifCurReadStyle->crs_layers[i]->crl_magicType == type) {
+                layer = i;
+                break;
+            }
+
+	if (layer >= 0 && cifCurReadStyle->crs_labelSticky[layer])
+	    flags = LABEL_STICKY;
+	else if (cifCurReadStyle->crs_flags & CRF_NO_RECONNECT_LABELS)
 	    flags = LABEL_STICKY;
 	else
 	    flags = 0;

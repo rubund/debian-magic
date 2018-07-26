@@ -138,7 +138,28 @@ DBPaintPlaneMark(def, pNum, type, area, undo)
 
     undo->pu_pNum = pNum;
     DBNMPaintPlane0(def->cd_planes[pNum], type, area,
-		dbCurPaintTbl[pNum][loctype], undo, TRUE);
+		dbCurPaintTbl[pNum][loctype], undo, (unsigned char)PAINT_MARK);
+}
+
+/*
+ * ----------------------------------------------------------------------------
+ *
+ * ----------------------------------------------------------------------------
+ */
+
+void
+DBPaintPlaneXor(def, pNum, type, area, undo)
+    CellDef *def;
+    int pNum;
+    TileType type;
+    Rect *area;
+    PaintUndoInfo *undo;
+{
+    TileType loctype = type & TT_LEFTMASK;
+
+    undo->pu_pNum = pNum;
+    DBNMPaintPlane0(def->cd_planes[pNum], type, area,
+		dbCurPaintTbl[pNum][loctype], undo, (unsigned char)PAINT_XOR);
 }
 
 /*
@@ -957,7 +978,9 @@ dbCellCopyCellsFunc(scx, arg)
  *	value with another call to this procedure.
  *
  * Side effects:
- *	A new paint table takes effect.
+ *	A new paint table takes effect.  However, if newTable is NULL,
+ *	then the old paint table remains active.  This allows one to
+ *	get a pointer to the active paint table without altering it.
  *
  * ----------------------------------------------------------------------------
  */
@@ -967,7 +990,7 @@ DBNewPaintTable(newTable))[NT][NT]
     PaintResultType (*newTable)[NT][NT];  /* Address of new paint table. */
 {
     PaintResultType (*oldTable)[NT][NT] = dbCurPaintTbl;
-    dbCurPaintTbl = newTable;
+    if (newTable) dbCurPaintTbl = newTable;
     return oldTable;
 }
 

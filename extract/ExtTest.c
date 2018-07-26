@@ -120,7 +120,7 @@ ExtractTest(w, cmd)
     Rect editArea;
     char *addr, *name;
     FILE *f;
-    typedef enum {  CLRDEBUG, CLRLENGTH, DRIVER, INTERACTIONS,
+    typedef enum {  CLRDEBUG, CLRLENGTH, DRIVER, DUMP, INTERACTIONS,
 		    INTERCOUNT, EXTPARENTS, RECEIVER, SETDEBUG, SHOWDEBUG,
 		    SHOWPARENTS, SHOWTECH, STATS, STEP, TIME } cmdType;
     static struct
@@ -131,6 +131,7 @@ ExtractTest(w, cmd)
 	"clrdebug",		CLRDEBUG,
 	"clrlength",		CLRLENGTH,
 	"driver",		DRIVER,
+	"dump",			DUMP,
 	"interactions",		INTERACTIONS,
 	"intercount",		INTERCOUNT,
 	"parents",		EXTPARENTS,
@@ -244,6 +245,15 @@ ExtractTest(w, cmd)
 	case EXTPARENTS:
 	    if (ToolGetEditBox(&editArea))
 		ExtParentArea(EditCellUse, &editArea, TRUE);
+	    break;
+
+	case DUMP:
+	    if (cmd->tx_argc != 2 && cmd->tx_argc != 3)
+	    {
+		TxError("Usage: *extract dump filename|-\n");
+		break;
+	    }
+	    ExtDumpCaps(cmd->tx_argc > 2 ? cmd->tx_argv[2] : "-");
 	    break;
 
 	case DRIVER:
@@ -712,4 +722,710 @@ extNewYank(name, puse, pdef)
     CellDef **pdef;
 {
     DBNewYank(name, puse, pdef);
+}
+
+/*
+ * ----------------------------------------------------------------------------
+ * Dump parasitic capacitance extraction information to a file
+ * ----------------------------------------------------------------------------
+ */
+
+void
+ExtDumpCapsToFile(f)
+    FILE *f;
+{
+    TileType t, s, r;
+    EdgeCap *e;
+    int p, found;
+
+    fprintf(f, "Parasitic extraction capacitance values\n");
+    
+    fprintf(f, "\n1) Area caps\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	if (ExtCurStyle->exts_areaCap[t] > 0.0)
+	    fprintf(f, "%s  %3.3f\n",
+			DBTypeLongNameTbl[t],
+			ExtCurStyle->exts_areaCap[t]);
+    }
+
+    fprintf(f, "\n2) Perimeter caps\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    if (ExtCurStyle->exts_perimCap[t][s] > 0.0)
+		fprintf(f, "%s | %s  %3.3f\n",
+			DBTypeLongNameTbl[t],
+			DBTypeLongNameTbl[s],
+			ExtCurStyle->exts_perimCap[t][s]);
+	}
+    }
+
+    fprintf(f, "\n3) Overlap caps\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    if (ExtCurStyle->exts_overlapCap[t][s] > 0.0)
+		fprintf(f, "%s | %s  %3.3f\n",
+			DBTypeLongNameTbl[t],
+			DBTypeLongNameTbl[s],
+			ExtCurStyle->exts_overlapCap[t][s]);
+	}
+    }
+
+    fprintf(f, "\n4) Side coupling caps\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    for (e = ExtCurStyle->exts_sideCoupleCap[t][s]; e; e = e->ec_next) {
+		fprintf(f, "%s | %s:  %3.3f\n",
+			DBTypeLongNameTbl[t],
+			DBTypeLongNameTbl[s],
+			e->ec_cap);
+		fprintf(f, "   near: ");
+		for (r = 0; r < DBNumTypes; r++)
+		    if (TTMaskHasType(&e->ec_near, r))
+			fprintf(f, " %s", DBTypeLongNameTbl[r]);
+		fprintf(f, "\n   far: ");
+		for (r = 0; r < DBNumTypes; r++)
+		    if (TTMaskHasType(&e->ec_far, r))
+			fprintf(f, " %s", DBTypeLongNameTbl[r]);
+		fprintf(f, "\n   planes: ");
+		for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+		    if (PlaneMaskHasPlane(e->ec_pmask, p))
+			fprintf(f, " %s", DBPlaneLongNameTbl[p]);
+		fprintf(f, "\n");
+	    }
+	}
+    }
+
+    fprintf(f, "\n5) Side overlap caps\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    for (e = ExtCurStyle->exts_sideOverlapCap[t][s]; e; e = e->ec_next) {
+		fprintf(f, "%s | %s:  %3.3f\n",
+			DBTypeLongNameTbl[t],
+			DBTypeLongNameTbl[s],
+			e->ec_cap);
+		fprintf(f, "   near: ");
+		for (r = 0; r < DBNumTypes; r++)
+		    if (TTMaskHasType(&e->ec_near, r))
+			fprintf(f, " %s", DBTypeLongNameTbl[r]);
+		fprintf(f, "\n   far: ");
+		for (r = 0; r < DBNumTypes; r++)
+		    if (TTMaskHasType(&e->ec_far, r))
+			fprintf(f, " %s", DBTypeLongNameTbl[r]);
+		fprintf(f, "\n   planes: ");
+		for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+		    if (PlaneMaskHasPlane(e->ec_pmask, p))
+			fprintf(f, " %s", DBPlaneLongNameTbl[p]);
+		fprintf(f, "\n");
+	    }
+	}
+    }
+
+    fprintf(f, "\n6) (Check) Perimeter cap mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	found = 0;
+	for (s = 0; s < DBNumTypes; s++)
+	    if (TTMaskHasType(&ExtCurStyle->exts_perimCapMask[t], s))
+	    {
+		if (found == 0)
+		{
+		    fprintf(f, "   %s: ", DBTypeLongNameTbl[t]);
+		    found = 1;
+		}
+		fprintf(f, " %s", DBTypeLongNameTbl[s]);
+	    }
+	if (found != 0) fprintf(f, "\n");
+    }
+
+    fprintf(f, "\n7) (Check) Overlap plane mask\n");
+    for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+	if (PlaneMaskHasPlane(ExtCurStyle->exts_overlapPlanes, p))
+	    fprintf(f, " %s", DBPlaneLongNameTbl[p]);
+    fprintf(f, "\n");
+
+    fprintf(f, "\n8) (Check) Overlap types mask\n");
+    for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+    {
+	found = 0;
+	for (s = 0; s < DBNumTypes; s++)
+	    if (TTMaskHasType(&ExtCurStyle->exts_overlapTypes[p], s))
+	    {
+		if (found == 0)
+		{
+		    found = 1;
+		    fprintf(f, "   %s: ", DBPlaneLongNameTbl[p]);
+		}
+		fprintf(f, " %s", DBTypeLongNameTbl[s]);
+	    }
+	if (found != 0) fprintf(f, "\n");
+    }
+
+    fprintf(f, "\n9) (Check) Overlap other types mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	found = 0;
+	for (s = 0; s < DBNumTypes; s++)
+	    if (TTMaskHasType(&ExtCurStyle->exts_overlapOtherTypes[t], s))
+	    {
+		if (found == 0)
+		{
+		    fprintf(f, "   %s: ", DBTypeLongNameTbl[t]);
+		    found = 1;
+		}
+		fprintf(f, " %s", DBTypeLongNameTbl[s]);
+	     }
+	if (found != 0) fprintf(f, "\n");
+    }
+
+    fprintf(f, "\n10) (Check) Overlap other planes mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	found = 0;
+        for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+	    if (PlaneMaskHasPlane(ExtCurStyle->exts_overlapOtherPlanes[t], p))
+	    {
+		if (found == 0)
+		{
+		    fprintf(f, "   %s: ", DBTypeLongNameTbl[t]);
+		    found = 1;
+		}
+		fprintf(f, " %s", DBPlaneLongNameTbl[p]);
+	    }
+	if (found != 0) fprintf(f, "\n");
+    }
+
+    fprintf(f, "\n11) (Check) Overlap shield types mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    found = 0;
+	    for (r = 0; r < DBNumTypes; r++)
+		if (TTMaskHasType(&ExtCurStyle->exts_overlapShieldTypes[t][s], r))
+		{
+		    if (found == 0)
+		    {
+			fprintf(f, "   %s | %s: ",
+				DBTypeLongNameTbl[t], DBTypeLongNameTbl[s]);
+			found = 1;
+		    }
+		    fprintf(f, " %s", DBTypeLongNameTbl[r]);
+		}
+	    if (found != 0) fprintf(f, "\n");
+	}
+    }
+
+    fprintf(f, "\n12) (Check) Overlap shield planes mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    found = 0;
+	    for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+		if (PlaneMaskHasPlane(ExtCurStyle->exts_overlapShieldPlanes[t][s], p))
+		{
+		    if (found == 0)
+		    {
+	    		fprintf(f, "   %s | %s: ",
+				DBTypeLongNameTbl[t], DBTypeLongNameTbl[s]);
+			found = 1;
+		    }
+		    fprintf(f, " %s", DBPlaneLongNameTbl[p]);
+		}
+	    if (found != 0) fprintf(f, "\n");
+	}
+    }
+
+    fprintf(f, "\n13) (Check) Side couple other edges mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    found = 0;
+	    for (r = 0; r < DBNumTypes; r++)
+		if (TTMaskHasType(&ExtCurStyle->exts_sideCoupleOtherEdges[t][s], r))
+		{
+		    if (found == 0)
+		    {
+			fprintf(f, "   %s | %s: ",
+				DBTypeLongNameTbl[t], DBTypeLongNameTbl[s]);
+			found = 1;
+		    }
+		    fprintf(f, " %s", DBTypeLongNameTbl[r]);
+		}
+	    if (found != 0) fprintf(f, "\n");
+	}
+    }
+
+    fprintf(f, "\n14) (Check) Side overlap other planes mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    found = 0;
+	    for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+		if (PlaneMaskHasPlane(ExtCurStyle->exts_sideOverlapOtherPlanes[t][s], p))
+		{
+		    if (found == 0)
+		    {
+			fprintf(f, "   %s | %s: ",
+				DBTypeLongNameTbl[t], DBTypeLongNameTbl[s]);
+			found = 1;
+		    }
+		    fprintf(f, " %s", DBPlaneLongNameTbl[p]);
+		}
+	    if (found != 0) fprintf(f, "\n");
+	}
+    }
+
+    fprintf(f, "\n15) (Check) Side overlap other types mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    found = 0;
+	    for (r = 0; r < DBNumTypes; r++)
+		if (TTMaskHasType(&ExtCurStyle->exts_sideOverlapOtherTypes[t][s], r))
+		{
+		    if (found == 0)
+		    {
+			fprintf(f, "   %s | %s: ",
+				DBTypeLongNameTbl[t], DBTypeLongNameTbl[s]);
+			found = 1;
+		    }
+		    fprintf(f, " %s", DBTypeLongNameTbl[r]);
+		}
+	    if (found != 0) fprintf(f, "\n");
+	}
+    }
+
+    fprintf(f, "\n16) (Check) Side overlap shield planes mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    found = 0;
+	    for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+		if (PlaneMaskHasPlane(ExtCurStyle->exts_sideOverlapShieldPlanes[t][s], p))
+		{
+		    if (found == 0)
+		    {
+			fprintf(f, "   %s | %s: ",
+				DBTypeLongNameTbl[t], DBTypeLongNameTbl[s]);
+			found = 1;
+		    }
+		    fprintf(f, " %s", DBPlaneLongNameTbl[p]);
+		}
+	    if (found != 0) fprintf(f, "\n");
+	}
+    }
+
+    fprintf(f, "\n17) (Check) Side planes mask\n");
+    for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+	if (PlaneMaskHasPlane(ExtCurStyle->exts_sidePlanes, p))
+	    fprintf(f, " %s", DBPlaneLongNameTbl[p]);
+    fprintf(f, "\n");
+
+    fprintf(f, "\n18) (Check) Side types mask\n");
+    for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+    {
+	found = 0;
+	for (s = 0; s < DBNumTypes; s++)
+	    if (TTMaskHasType(&ExtCurStyle->exts_sideTypes[p], s))
+	    {
+		if (found == 0)
+		{
+		    fprintf(f, "   %s: ", DBPlaneLongNameTbl[p]);
+		    found = 1;
+		}
+		fprintf(f, " %s", DBTypeLongNameTbl[s]);
+	    }
+	if (found != 0) fprintf(f, "\n");
+    }
+
+    fprintf(f, "\n19) (Check) Side edges mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	found = 0;
+	for (s = 0; s < DBNumTypes; s++)
+	    if (TTMaskHasType(&ExtCurStyle->exts_sideTypes[t], s))
+	    {
+		if (found == 0)
+		{
+		    fprintf(f, "   %s: ", DBTypeLongNameTbl[t]);
+		    found = 1;
+		}
+		fprintf(f, " %s", DBTypeLongNameTbl[s]);
+	    }
+	if (found != 0) fprintf(f, "\n");
+    }
+}
+
+/*
+ * ----------------------------------------------------------------------------
+ * ExtDumpCaps ---
+ * Debugging tool.  Dump information about all parasitics
+ * ----------------------------------------------------------------------------
+ */
+
+void
+ExtDumpCaps(filename)
+    char *filename;
+{
+    TileType t, s, r;
+    EdgeCap *e;
+    int p, found;
+
+    if (strcmp(filename, "-"))
+    {
+	FILE *f;
+	f = fopen(filename, "w");
+	if (f == NULL)
+	{
+	    TxError("Cannot open file %s for writing\n", filename);
+	    return;
+	}
+	ExtDumpCapsToFile(f);
+	return;
+    }
+
+    TxPrintf("Parasitic extraction capacitance values\n");
+    
+    TxPrintf("\n1) Area caps\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	if (ExtCurStyle->exts_areaCap[t] > 0.0)
+	    TxPrintf("%s  %3.3f\n",
+			DBTypeLongNameTbl[t],
+			ExtCurStyle->exts_areaCap[t]);
+    }
+
+    TxPrintf("\n2) Perimeter caps\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    if (ExtCurStyle->exts_perimCap[t][s] > 0.0)
+		TxPrintf("%s | %s  %3.3f\n",
+			DBTypeLongNameTbl[t],
+			DBTypeLongNameTbl[s],
+			ExtCurStyle->exts_perimCap[t][s]);
+	}
+    }
+
+    TxPrintf("\n3) Overlap caps\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    if (ExtCurStyle->exts_overlapCap[t][s] > 0.0)
+		TxPrintf("%s | %s  %3.3f\n",
+			DBTypeLongNameTbl[t],
+			DBTypeLongNameTbl[s],
+			ExtCurStyle->exts_overlapCap[t][s]);
+	}
+    }
+
+    TxPrintf("\n4) Side coupling caps\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    for (e = ExtCurStyle->exts_sideCoupleCap[t][s]; e; e = e->ec_next) {
+		TxPrintf("%s | %s:  %3.3f\n",
+			DBTypeLongNameTbl[t],
+			DBTypeLongNameTbl[s],
+			e->ec_cap);
+		TxPrintf("   near: ");
+		for (r = 0; r < DBNumTypes; r++)
+		    if (TTMaskHasType(&e->ec_near, r))
+			TxPrintf(" %s", DBTypeLongNameTbl[r]);
+		TxPrintf("\n   far: ");
+		for (r = 0; r < DBNumTypes; r++)
+		    if (TTMaskHasType(&e->ec_far, r))
+			TxPrintf(" %s", DBTypeLongNameTbl[r]);
+		TxPrintf("\n   planes: ");
+		for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+		    if (PlaneMaskHasPlane(e->ec_pmask, p))
+			TxPrintf(" %s", DBPlaneLongNameTbl[p]);
+		TxPrintf("\n");
+	    }
+	}
+    }
+
+    TxPrintf("\n5) Side overlap caps\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    for (e = ExtCurStyle->exts_sideOverlapCap[t][s]; e; e = e->ec_next) {
+		TxPrintf("%s | %s:  %3.3f\n",
+			DBTypeLongNameTbl[t],
+			DBTypeLongNameTbl[s],
+			e->ec_cap);
+		TxPrintf("   near: ");
+		for (r = 0; r < DBNumTypes; r++)
+		    if (TTMaskHasType(&e->ec_near, r))
+			TxPrintf(" %s", DBTypeLongNameTbl[r]);
+		TxPrintf("\n   far: ");
+		for (r = 0; r < DBNumTypes; r++)
+		    if (TTMaskHasType(&e->ec_far, r))
+			TxPrintf(" %s", DBTypeLongNameTbl[r]);
+		TxPrintf("\n   planes: ");
+		for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+		    if (PlaneMaskHasPlane(e->ec_pmask, p))
+			TxPrintf(" %s", DBPlaneLongNameTbl[p]);
+		TxPrintf("\n");
+	    }
+	}
+    }
+
+    TxPrintf("\n6) (Check) Perimeter cap mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	found = 0;
+	for (s = 0; s < DBNumTypes; s++)
+	    if (TTMaskHasType(&ExtCurStyle->exts_perimCapMask[t], s))
+	    {
+		if (found == 0)
+		{
+		    TxPrintf("   %s: ", DBTypeLongNameTbl[t]);
+		    found = 1;
+		}
+		TxPrintf(" %s", DBTypeLongNameTbl[s]);
+	    }
+	if (found != 0) TxPrintf("\n");
+    }
+
+    TxPrintf("\n7) (Check) Overlap plane mask\n");
+    for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+	if (PlaneMaskHasPlane(ExtCurStyle->exts_overlapPlanes, p))
+	    TxPrintf(" %s", DBPlaneLongNameTbl[p]);
+    TxPrintf("\n");
+
+    TxPrintf("\n8) (Check) Overlap types mask\n");
+    for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+    {
+	found = 0;
+	for (s = 0; s < DBNumTypes; s++)
+	    if (TTMaskHasType(&ExtCurStyle->exts_overlapTypes[p], s))
+	    {
+		if (found == 0)
+		{
+		    found = 1;
+		    TxPrintf("   %s: ", DBPlaneLongNameTbl[p]);
+		}
+		TxPrintf(" %s", DBTypeLongNameTbl[s]);
+	    }
+	if (found != 0) TxPrintf("\n");
+    }
+
+    TxPrintf("\n9) (Check) Overlap other types mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	found = 0;
+	for (s = 0; s < DBNumTypes; s++)
+	    if (TTMaskHasType(&ExtCurStyle->exts_overlapOtherTypes[t], s))
+	    {
+		if (found == 0)
+		{
+		    TxPrintf("   %s: ", DBTypeLongNameTbl[t]);
+		    found = 1;
+		}
+		TxPrintf(" %s", DBTypeLongNameTbl[s]);
+	     }
+	if (found != 0) TxPrintf("\n");
+    }
+
+    TxPrintf("\n10) (Check) Overlap other planes mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	found = 0;
+        for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+	    if (PlaneMaskHasPlane(ExtCurStyle->exts_overlapOtherPlanes[t], p))
+	    {
+		if (found == 0)
+		{
+		    TxPrintf("   %s: ", DBTypeLongNameTbl[t]);
+		    found = 1;
+		}
+		TxPrintf(" %s", DBPlaneLongNameTbl[p]);
+	    }
+	if (found != 0) TxPrintf("\n");
+    }
+
+    TxPrintf("\n11) (Check) Overlap shield types mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    found = 0;
+	    for (r = 0; r < DBNumTypes; r++)
+		if (TTMaskHasType(&ExtCurStyle->exts_overlapShieldTypes[t][s], r))
+		{
+		    if (found == 0)
+		    {
+			TxPrintf("   %s | %s: ",
+				DBTypeLongNameTbl[t], DBTypeLongNameTbl[s]);
+			found = 1;
+		    }
+		    TxPrintf(" %s", DBTypeLongNameTbl[r]);
+		}
+	    if (found != 0) TxPrintf("\n");
+	}
+    }
+
+    TxPrintf("\n12) (Check) Overlap shield planes mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    found = 0;
+	    for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+		if (PlaneMaskHasPlane(ExtCurStyle->exts_overlapShieldPlanes[t][s], p))
+		{
+		    if (found == 0)
+		    {
+	    		TxPrintf("   %s | %s: ",
+				DBTypeLongNameTbl[t], DBTypeLongNameTbl[s]);
+			found = 1;
+		    }
+		    TxPrintf(" %s", DBPlaneLongNameTbl[p]);
+		}
+	    if (found != 0) TxPrintf("\n");
+	}
+    }
+
+    TxPrintf("\n13) (Check) Side couple other edges mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    found = 0;
+	    for (r = 0; r < DBNumTypes; r++)
+		if (TTMaskHasType(&ExtCurStyle->exts_sideCoupleOtherEdges[t][s], r))
+		{
+		    if (found == 0)
+		    {
+			TxPrintf("   %s | %s: ",
+				DBTypeLongNameTbl[t], DBTypeLongNameTbl[s]);
+			found = 1;
+		    }
+		    TxPrintf(" %s", DBTypeLongNameTbl[r]);
+		}
+	    if (found != 0) TxPrintf("\n");
+	}
+    }
+
+    TxPrintf("\n14) (Check) Side overlap other planes mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    found = 0;
+	    for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+		if (PlaneMaskHasPlane(ExtCurStyle->exts_sideOverlapOtherPlanes[t][s], p))
+		{
+		    if (found == 0)
+		    {
+			TxPrintf("   %s | %s: ",
+				DBTypeLongNameTbl[t], DBTypeLongNameTbl[s]);
+			found = 1;
+		    }
+		    TxPrintf(" %s", DBPlaneLongNameTbl[p]);
+		}
+	    if (found != 0) TxPrintf("\n");
+	}
+    }
+
+    TxPrintf("\n15) (Check) Side overlap other types mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    found = 0;
+	    for (r = 0; r < DBNumTypes; r++)
+		if (TTMaskHasType(&ExtCurStyle->exts_sideOverlapOtherTypes[t][s], r))
+		{
+		    if (found == 0)
+		    {
+			TxPrintf("   %s | %s: ",
+				DBTypeLongNameTbl[t], DBTypeLongNameTbl[s]);
+			found = 1;
+		    }
+		    TxPrintf(" %s", DBTypeLongNameTbl[r]);
+		}
+	    if (found != 0) TxPrintf("\n");
+	}
+    }
+
+    TxPrintf("\n16) (Check) Side overlap shield planes mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	for (s = 0; s < DBNumTypes; s++)
+	{
+	    found = 0;
+	    for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+		if (PlaneMaskHasPlane(ExtCurStyle->exts_sideOverlapShieldPlanes[t][s], p))
+		{
+		    if (found == 0)
+		    {
+			TxPrintf("   %s | %s: ",
+				DBTypeLongNameTbl[t], DBTypeLongNameTbl[s]);
+			found = 1;
+		    }
+		    TxPrintf(" %s", DBPlaneLongNameTbl[p]);
+		}
+	    if (found != 0) TxPrintf("\n");
+	}
+    }
+
+    TxPrintf("\n17) (Check) Side planes mask\n");
+    for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+	if (PlaneMaskHasPlane(ExtCurStyle->exts_sidePlanes, p))
+	    TxPrintf(" %s", DBPlaneLongNameTbl[p]);
+    TxPrintf("\n");
+
+    TxPrintf("\n18) (Check) Side types mask\n");
+    for (p = PL_TECHDEPBASE; p < DBNumPlanes; p++)
+    {
+	found = 0;
+	for (s = 0; s < DBNumTypes; s++)
+	    if (TTMaskHasType(&ExtCurStyle->exts_sideTypes[p], s))
+	    {
+		if (found == 0)
+		{
+		    TxPrintf("   %s: ", DBPlaneLongNameTbl[p]);
+		    found = 1;
+		}
+		TxPrintf(" %s", DBTypeLongNameTbl[s]);
+	    }
+	if (found != 0) TxPrintf("\n");
+    }
+
+    TxPrintf("\n19) (Check) Side edges mask\n");
+    for (t = 0; t < DBNumTypes; t++)
+    {
+	found = 0;
+	for (s = 0; s < DBNumTypes; s++)
+	    if (TTMaskHasType(&ExtCurStyle->exts_sideTypes[t], s))
+	    {
+		if (found == 0)
+		{
+		    TxPrintf("   %s: ", DBTypeLongNameTbl[t]);
+		    found = 1;
+		}
+		TxPrintf(" %s", DBTypeLongNameTbl[s]);
+	    }
+	if (found != 0) TxPrintf("\n");
+    }
 }

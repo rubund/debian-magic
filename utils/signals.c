@@ -91,8 +91,9 @@ global bool SigInterruptPending = FALSE;
  */
 global bool SigIOReady = FALSE;
 
-/* If true, we will set SigInterruptPending whenever we set SigIOReady. */
-global bool SigInterruptOnSigIO;
+/* If set to 1, we will set SigInterruptPending whenever we set SigIOReady. */
+/* If set to -1, then SigInterruptPending is never set */
+global char SigInterruptOnSigIO;
 
 /*
  * Set to true when we recieve a SIGWINCH/SIGWINDOW signal 
@@ -520,7 +521,7 @@ sigRetVal
 sigIO(int signo)
 {
     SigIOReady = TRUE;
-    if (SigInterruptOnSigIO) sigOnInterrupt(0);
+    if (SigInterruptOnSigIO == 1) sigOnInterrupt(0);
     sigReturn;
 }
 
@@ -611,58 +612,63 @@ sigCrash(signum)
  */
 
 void
-SigInit()
+SigInit(batchmode)
+    int batchmode;
 {
-  /* fprintf(stderr, "Establishing signal handlers.\n"); fflush(stderr); */
+    /* fprintf(stderr, "Establishing signal handlers.\n"); fflush(stderr); */
 
-  sigSetAction(SIGINT,  sigOnInterrupt);
-  sigSetAction(SIGTERM, sigOnTerm);
+    if (batchmode)
+    {
+	SigInterruptOnSigIO = -1;
+    }
+    else
+    {
+	SigInterruptOnSigIO = 0;
+	sigSetAction(SIGINT,  sigOnInterrupt);
+	sigSetAction(SIGTERM, sigOnTerm);
+    }
 
-/* Under Tcl, sigOnStop just causes Tcl to hang forever.  So don't set	*/
-/* any new actions.							*/
+    /* Under Tcl, sigOnStop just causes Tcl to hang forever.  So don't	*/
+    /* set any new actions.						*/
 
 #ifndef MAGIC_WRAPPER
 #ifdef SIGTSTP
-  sigSetAction(SIGTSTP, sigOnStop);
+    sigSetAction(SIGTSTP, sigOnStop);
 #endif
 
 #ifdef SIGWINCH
-  sigSetAction(SIGWINCH, sigOnWinch);
+    sigSetAction(SIGWINCH, sigOnWinch);
 #endif
 
 #ifdef SIGWINDOW
-  sigSetAction(SIGWINDOW, sigOnWinch);
+    sigSetAction(SIGWINDOW, sigOnWinch);
 #endif
 #endif	/* MAGIC_WRAPPER */
 
-  if( !mainDebug ) {
-    sigSetAction(SIGIO, sigIO);
+    if (!mainDebug )
+    {
+	sigSetAction(SIGIO, sigIO);
 #ifdef MAGIC_WRAPPER
-    SigTimerDisplay();
+	if (batchmode == 0)
+	    SigTimerDisplay();
+	else
+	    sigSetAction(SIGALRM, SIG_IGN);
 #else
-    sigSetAction(SIGALRM,  SIG_IGN);
+	sigSetAction(SIGALRM, SIG_IGN);
 #endif
-    sigSetAction(SIGPIPE,  SIG_IGN);
+
+	sigSetAction(SIGPIPE, SIG_IGN);
+
 #ifdef SIGPOLL
-	if( SIGIO != SIGPOLL ) {
-      sigSetAction(SIGPOLL,  SIG_IGN);
+	if (SIGIO != SIGPOLL)
+	{
+	    sigSetAction(SIGPOLL, SIG_IGN);
 	}
 #endif
-
-#ifdef FANCY_ABORT
-    sigSetAction(SIGILL,  sigCrash);
-    sigSetAction(SIGTRAP, sigCrash);
-    sigSetAction(SIGIOT,  sigCrash);
-    sigSetAction(SIGEMT,  sigCrash);
-    sigSetAction(SIGFPE,  sigCrash);
-    sigSetAction(SIGBUS,  sigCrash);
-    sigSetAction(SIGSEGV, sigCrash);
-    sigSetAction(SIGSYS,  sigCrash);
-#endif /* FANCY_ABORT */
-  }
+    }
 
 #if !defined(SYSV) && !defined(CYGWIN)
-  sigsetmask(0);
+    sigsetmask(0);
 #endif
 }
 
@@ -670,18 +676,18 @@ void
 sigSetAction(int signo, sigRetVal (*handler)(int))
 {
 #if defined(SYSV) || defined(CYGWIN) || defined(__NetBSD__)
-  struct sigaction sa;
+    struct sigaction sa;
 
-  sa.sa_handler = handler;
-  sigemptyset(&sa.sa_mask);
-  sa.sa_flags = 0;
-  sigaction(signo, &sa, (struct sigaction *)NULL);
+    sa.sa_handler = handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(signo, &sa, (struct sigaction *)NULL);
 #else
-  struct sigvec sv;
+    struct sigvec sv;
 
-  sv.sv_handler = handler;
-  sv.sv_mask    = 0;
-  sv.sv_flags   = 0;
-  sigvec(signo, &sv, (struct sigvec *)NULL);
+    sv.sv_handler = handler;
+    sv.sv_mask    = 0;
+    sv.sv_flags   = 0;
+    sigvec(signo, &sv, (struct sigvec *)NULL);
 #endif
 }

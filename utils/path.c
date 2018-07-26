@@ -23,6 +23,7 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <pwd.h>
 #include <ctype.h>
 #include <sys/param.h>
@@ -414,17 +415,26 @@ PaLockOpen(file, mode, ext, path, library, pRealName, is_locked)
     /* See if we must supply an extension. */
 
     length = strlen(file);
-    if (length >= MAXSIZE) length = MAXSIZE-1;
+    if (length >= MAXSIZE) length = MAXSIZE - 1;
     if (ext != NULL)
     {
-	(void) strncpy(extendedName, file, length+1);
+	(void) strncpy(extendedName, file, length + 1);
 	i = MAXSIZE - 1 - length;
 	extLength = strlen(ext);
 	if (extLength > i) extLength = i;
 
-	/* if the extension is already on the name, don't add it */
-	if ( (length < extLength) || ((extLength > 0) && (strcmp(ext, file + length - extLength))) )
-	    (void) strncpy(&(extendedName[length]), ext, extLength+1);
+	/* (Modified by Tim, 1/13/2015;  assume that "file" has	*/
+	/* the extension already stripped, therefore always add	*/
+	/* the extension if one is specified.  This allows the	*/
+	/* code to distinguish between, say, "a.mag" and	*/
+	/* "a.mag.mag".)					*/
+
+	/* If the extension is already on the name, don't add it */
+	// if ((length < extLength) || ((extLength > 0)
+	//		&& (strcmp(ext, file + length - extLength))))
+
+	    (void) strncpy(&(extendedName[length]), ext, extLength + 1);
+
 	extendedName[MAXSIZE-1] = '\0';
 	file = extendedName;
     }
@@ -477,6 +487,10 @@ PaLockOpen(file, mode, ext, path, library, pRealName, is_locked)
 	f = flock_open(realName, mode, is_locked);
 #endif
 	if (f != NULL) return f;
+
+	// If any error other than "file not found" occurred,
+	// then halt immediately.
+	if (errno != ENOENT) return NULL;
     }
 
     /* We've tried the path and that didn't work.  Now go through
@@ -492,6 +506,10 @@ PaLockOpen(file, mode, ext, path, library, pRealName, is_locked)
 	f = flock_open(realName, mode, is_locked);
 #endif
 	if (f != NULL) return f;
+
+	// If any error other than "file not found" occurred,
+	// then halt immediately.
+	if (errno != ENOENT) return NULL;
     }
 
     return NULL;

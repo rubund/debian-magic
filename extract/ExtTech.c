@@ -72,7 +72,7 @@ typedef enum
     DEFAULTSIDEWALL,
     DEVICE, FET, FETRESIST, HEIGHT, LAMBDA, OVERC,
     PERIMC, PLANEORDER, NOPLANEORDER, RESIST, RSCALE, SIDEHALO, SIDEOVERLAP,
-    SIDEWALL, STEP, STYLE, UNITS, VARIANT
+    SIDEWALL, STEP, STYLE, SUBSTRATE, UNITS, VARIANT
 } Key;
 
 typedef struct
@@ -94,13 +94,13 @@ static keydesc keyTable[] = {
     "cscale",		CSCALE,		2,	2,
 "capacitance-scalefactor",
 
-    "defaultareacap",	DEFAULTAREACAP,	4,	5,
+    "defaultareacap",	DEFAULTAREACAP,	4,	6,
 "types plane capacitance",
 
     "defaultoverlap",	DEFAULTOVERLAP,	6,	6,
 "types plane otertypes otherplane capacitance",
 
-    "defaultperimeter",	DEFAULTPERIMETER, 4,	5,
+    "defaultperimeter",	DEFAULTPERIMETER, 4,	6,
 "types plane capacitance",
 
     "defaultsideoverlap", DEFAULTSIDEOVERLAP, 6, 6,
@@ -156,6 +156,9 @@ static keydesc keyTable[] = {
     "style",		STYLE,		2,	4,
 "stylename",
 
+    "substrate",	SUBSTRATE,	3,	3,
+"types plane",
+
     "units",		UNITS,		2,	2,
 "lambda|microns",
 
@@ -182,8 +185,11 @@ static keydesc devTable[] = {
     "bjt",		DEV_BJT,		5,	5,
 "name base-types emitter-types collector-types",
 
-    "capacitor",	DEV_CAP,		5,	8,
-"name top-types bottom-types [sub-types|None sub-node] [perimcap] areacap",
+    "capacitor",	DEV_CAP,		4,	8,
+"name top-types bottom-types [sub-types|None sub-node] [[perimcap] areacap]",
+
+    "capreverse",	DEV_CAPREV,		4,	8,
+"name bottom-types top-types [sub-types|None sub-node] [[perimcap] areacap]",
 
     "resistor",		DEV_RES,		4,	6,
 "name|None res-types terminal-types [sub-types|None sub-node]",
@@ -191,13 +197,19 @@ static keydesc devTable[] = {
     "diode",		DEV_DIODE,		4,	6,
 "name pos-types neg-types [sub-types|None sub-node]",
 
+    "pdiode",		DEV_PDIODE,		4,	6,
+"name pos-types neg-types [sub-types|None sub-node]",
+
+    "ndiode",		DEV_NDIODE,		4,	6,
+"name neg-types pos-types [sub-types|None sub-node]",
+
     "subcircuit",	DEV_SUBCKT,		3,	11,
 "name dev-types [N] [term1-types ... termN-types [sub-types|None sub-node]] [options]",
 
     "rsubcircuit",	DEV_RSUBCKT,		4,	7,
 "name dev-types terminal-types [sub-types|None sub-node] [options]",
 
-    "msubcircuit",	DEV_MSUBCKT,		4,	11,
+    "msubcircuit",	DEV_MSUBCKT,		3,	11,
 "name dev-types [N] [term1-types ... termN-types [sub-types|None sub-node]] [options]",
 
     0
@@ -524,8 +536,8 @@ extTechStyleAlloc()
     style = (ExtStyle *) mallocMagic(sizeof (ExtStyle));
 
     /* Make sure that the memory for character strings is NULL, */
-    /* because we want the Init section to free memory if has	*/
-    /* been previously allocated.				*/
+    /* because we want the Init section to free memory if it	*/
+    /* has been previously allocated.				*/
 
     for (r = 0; r < NT; r++)
     {
@@ -536,7 +548,6 @@ extTechStyleAlloc()
 	style->exts_deviceClass[r] = (char) 0;
 	style->exts_transResist[r].ht_table = (HashEntry **) NULL;
     }
-
     return style;
 }
 
@@ -561,6 +572,7 @@ extTechStyleInit(style)
 
     style->exts_sidePlanes = style->exts_overlapPlanes = 0;
     TTMaskZero(&style->exts_transMask);
+    style->exts_activeTypes = DBAllButSpaceAndDRCBits;
 
     for (r = 0; r < NP; r++)
     {
@@ -661,6 +673,14 @@ extTechStyleInit(style)
 	style->exts_typeToResistClass[r] = -1;
     }
     doConvert = FALSE;
+
+    // The exts_globSubstratePlane setting of -1 will be used to set a
+    // backwards-compatibility mode matching previous behavior with
+    // respect to the substrate when there is no "substrate" line in
+    // the techfile.
+
+    style->exts_globSubstratePlane = -1;
+    TTMaskZero(&style->exts_globSubstrateTypes);
 }
 
 
@@ -805,6 +825,18 @@ ExtTechInit()
  *	to "overlap" of types on the second plane (if specified) and
  *	all planes below it, with appropriate intervening types. 
  *
+ * Usage:
+ *	defaultareacap types plane [[subtypes] subplane] value
+ *
+ *	where "types" are the types for which to compute area cap,
+ *	"plane" is the plane of "types", "subplane" is a plane
+ *	containing wells or any types that have the same coupling
+ *	as the substrate.  If absent, it is assumed that nothing
+ *	shields "types" from the subtrate.  Additional optional
+ *	"subtypes" is a list of types in "subplane" that shield.
+ *	If absent, then all types in "subplane" are shields to the
+ *	substrate.  "value" is the area capacitance in aF/um^2.
+ *
  * Results:
  *	None.
  *
@@ -840,7 +872,12 @@ ExtTechSimpleAreaCap(argc, argv)
     if (argc == 4)
 	plane2 = -1;
     else
-	plane2 = DBTechNoisyNamePlane(argv[3]);
+	plane2 = DBTechNoisyNamePlane(argv[argc - 2]);
+
+    if (argc > 5)
+	DBTechNoisyNameMask(argv[argc - 3], &subtypes);
+    else
+	subtypes = DBAllButSpaceAndDRCBits;
 
     /* Part 1: Area cap */
     for (t = TT_TECHDEPBASE; t < DBNumTypes; t++)
@@ -857,7 +894,6 @@ ExtTechSimpleAreaCap(argc, argv)
     /* Find all types in or below plane2 (i.e., ~(space)/plane2)	   */
     /* Shield types are everything in the planes between plane1 and plane2 */
 
-    TTMaskZero(&subtypes);
     TTMaskZero(&shields);
 
     pshield = 0;
@@ -871,7 +907,7 @@ ExtTechSimpleAreaCap(argc, argv)
 	}
 	else if (pnum3 <= pnum2)
 	{
-	    TTMaskSetMask(&subtypes, &DBPlaneTypes[plane3]);
+	    TTMaskAndMask(&subtypes, &DBPlaneTypes[plane3]);
 	    TTMaskClearType(&subtypes, TT_SPACE);
 	}
 	TTMaskClearType(&shields, TT_SPACE);
@@ -917,6 +953,18 @@ ExtTechSimpleAreaCap(argc, argv)
  *	statement for overlaps to types that are effectively substrate
  *	(e.g., well, implant, marker layers, etc.)
  *
+ * Usage:
+ *	defaultperimeter types plane [[subtypes] subplane] value
+ *
+ *	where "types" are the types for which to compute fringing cap,
+ *	"plane" is the plane of the types, "subplane" is an optional
+ *	plane that shields "types" from substrate, and "value" is the
+ *	fringing cap in aF/micron.  If "subplane" is omitted, then
+ *	nothing shields "types" from the substrate.  Optional "subtypes"
+ *	lists the types in "subplane" that shield.  Otherwise, it is
+ *	assumed that all types in "subplane" shield "types" from the
+ *	substrate.
+ *
  * Results:
  *	None.
  *
@@ -945,17 +993,27 @@ ExtTechSimplePerimCap(argc, argv)
     }
 
     DBTechNoisyNameMask(argv[1], &types);
-    TTMaskCom2(&nottypes, &types);
+    // TTMaskCom2(&nottypes, &types);
+    // For general use, only consider space and space-like types.
+    // For device fringing fields, like poly to diffusion on a FET,
+    // use perimc commands to augment the defaults.
+    TTMaskZero(&nottypes);
+    TTMaskSetType(&nottypes, TT_SPACE);
     plane1 = DBTechNoisyNamePlane(argv[2]);
     TTMaskAndMask(&types, &DBPlaneTypes[plane1]);
     TTMaskAndMask(&nottypes, &DBPlaneTypes[plane1]);
 
     capVal = aToCap(argv[argc - 1]);
 
-    if (argc == 4)
-	plane2 = -1;
+    if (argc >= 4)
+	plane2 = DBTechNoisyNamePlane(argv[argc - 2]);
     else
-	plane2 = DBTechNoisyNamePlane(argv[3]);
+	plane2 = -1;
+
+    if (argc > 5)
+	DBTechNoisyNameMask(argv[argc - 3], &subtypes);
+    else
+	subtypes = DBAllButSpaceAndDRCBits;
 
     /* Part 1: Perimeter cap */
 
@@ -977,7 +1035,6 @@ ExtTechSimplePerimCap(argc, argv)
     /* Find all types in or below plane2 (i.e., ~(space)/plane2)	   */
     /* Shield types are everything in the planes between plane1 and plane2 */
 
-    TTMaskZero(&subtypes);
     TTMaskZero(&shields);
 
     pshield = 0;
@@ -991,7 +1048,7 @@ ExtTechSimplePerimCap(argc, argv)
 	}
 	else if (pnum3 <= pnum2)
 	{
-	    TTMaskSetMask(&subtypes, &DBPlaneTypes[plane3]);
+	    TTMaskAndMask(&subtypes, &DBPlaneTypes[plane3]);
 	}
     }
     TTMaskClearType(&shields, TT_SPACE);
@@ -1004,12 +1061,12 @@ ExtTechSimplePerimCap(argc, argv)
 	/* Side overlap computed from residues */
     	if (DBIsContact(s)) continue;
 
-	if (!TTMaskHasType(&types, s))
+	if (TTMaskHasType(&types, s))	// Corrected, 2/21/2017
 	{
 	    ExtCurStyle->exts_sidePlanes |= PlaneNumToMaskBit(plane1);
 	    TTMaskSetType(&ExtCurStyle->exts_sideTypes[plane1], s);
 	    TTMaskSetMask(&ExtCurStyle->exts_sideEdges[s], &nottypes);
-	    for (t = TT_TECHDEPBASE; t < DBNumTypes; t++)
+	    for (t = 0; t < DBNumTypes; t++)
 	    {
 		if (!TTMaskHasType(&nottypes, t)) continue;
   		if (DBIsContact(t)) continue;
@@ -1092,7 +1149,10 @@ ExtTechSimpleSidewallCap(argv)
     plane = DBTechNoisyNamePlane(argv[2]);
     capVal = aToCap(argv[3]);
 
-    TTMaskCom2(&types2, &types1);
+    // Like perimeter cap, treat only space and space-like types
+    // TTMaskCom2(&types2, &types1);
+    TTMaskZero(&types2);
+    TTMaskSetType(&types2, TT_SPACE);
 
     TTMaskAndMask(&types1, &DBPlaneTypes[plane]);
     TTMaskAndMask(&types2, &DBPlaneTypes[plane]);
@@ -1225,7 +1285,7 @@ ExtTechSimpleOverlapCap(argv)
  *
  * ExtTechSimpleSideOverlapCap --
  *
- *	Parse the techfile line for the "defaultareacap" keyword.
+ *	Parse the techfile line for the "defaultsideoverlap" keyword.
  *
  * Results:
  *	None.
@@ -1255,16 +1315,22 @@ ExtTechSimpleSideOverlapCap(argv)
 
     DBTechNoisyNameMask(argv[1], &types);
     plane1 = DBTechNoisyNamePlane(argv[2]);
-    TTMaskCom2(&nottypes, &types);
 
-    TTMaskAndMask(&types, &DBPlaneTypes[plane1]);
-    TTMaskAndMask(&nottypes,    &DBPlaneTypes[plane1]);
+    // TTMaskCom2(&nottypes, &types);
+    TTMaskZero(&nottypes);
+    TTMaskSetType(&nottypes, TT_SPACE);
+
+    TTMaskAndMask(&types,    &DBPlaneTypes[plane1]);
+    TTMaskAndMask(&nottypes, &DBPlaneTypes[plane1]);
 
     DBTechNoisyNameMask(argv[3], &ov);
     plane2 = DBTechNoisyNamePlane(argv[4]);
-    TTMaskCom2(&notov, &ov);
 
-    TTMaskAndMask(&ov, &DBPlaneTypes[plane2]);
+    // TTMaskCom2(&notov, &ov);
+    TTMaskZero(&notov);
+    TTMaskSetType(&notov, TT_SPACE);
+
+    TTMaskAndMask(&ov,    &DBPlaneTypes[plane2]);
     TTMaskAndMask(&notov, &DBPlaneTypes[plane2]);
 
     capVal = aToCap(argv[5]);
@@ -1332,6 +1398,7 @@ ExtTechSimpleSideOverlapCap(argv)
 
 	/* Reverse case (swap "types" and "ov") */
 
+#if 0
 	if (TTMaskHasType(&ov, s))
 	{
 	    ExtCurStyle->exts_sidePlanes |= PlaneNumToMaskBit(plane2);
@@ -1358,6 +1425,7 @@ ExtTechSimpleSideOverlapCap(argv)
 			ExtCurStyle->exts_sideOverlapShieldPlanes[s][r] |= pshield;
 	    }
 	}
+#endif /* 0 */
     }
 }
 
@@ -1402,8 +1470,6 @@ ExtTechSimpleSideOverlapCap(argv)
  * where type is the type of contact tile, minsize is chosen so that contacts
  * that are integer multiples of minsize get an additional contact cut for each
  * increment of minsize, and resistance is in milliohms.
- *
- * +++ FOR NOW, CONSIDER ALL SUBSTRATE TO BE AT GROUND +++
  *
  * Overlap coupling capacitance is specified by:
  *
@@ -1731,6 +1797,7 @@ ExtTechLine(sectionName, argc, argv)
 	case RESIST:
 	case SIDEWALL:
 	case SIDEOVERLAP:
+	case SUBSTRATE:
 	    DBTechNoisyNameMask(argv[1], &types1);
 	    break;
 	case DEVICE:
@@ -1790,12 +1857,20 @@ ExtTechLine(sectionName, argc, argv)
 	    nterm = atoi(argv[3]);
 	    transName = argv[4];
 	    subsName = argv[5];
-	    cp = index(subsName, '!');
+
+	    // From magic version 8.1, subs name can be a nonfunctional
+	    // throwaway (e.g., "error"), so don't throw a warning. 
+	
+	    cp = strchr(subsName, '!');
 	    if (cp == NULL || cp[1] != '\0')
 	    {
-		TechError("Fet substrate node %s is not a global name\n",
-		    subsName);
+		if (strcasecmp(subsName, "error"))
+		{
+		    TechError("Fet substrate node %s is not a global name\n",
+				subsName);
+		}
 	    }
+
 	    subsTypes = DBZeroTypeBits;
 	    if (sscanf(argv[6], "%lf", &capVal) != 1)
 	    {
@@ -1808,6 +1883,7 @@ ExtTechLine(sectionName, argc, argv)
 		gscap = aToCap(argv[6]);
 		gccap = (argc > 7) ? aToCap(argv[7]) : (CapValue) 0;
 	    }
+
 	    TTMaskSetMask(&ExtCurStyle->exts_transMask, &types1);
 	    for (t = TT_TECHDEPBASE; t < DBNumTypes; t++)
 		if (TTMaskHasType(&types1, t))
@@ -1816,7 +1892,7 @@ ExtTechLine(sectionName, argc, argv)
 		    ExtCurStyle->exts_transSDTypes[t] = (TileTypeBitMask *)
 				mallocMagic(2 * sizeof(TileTypeBitMask));
 		    ExtCurStyle->exts_transSDTypes[t][0] = termtypes[0];
-		    ExtCurStyle->exts_transSDTypes[t][1] = DBSpaceBits;
+		    ExtCurStyle->exts_transSDTypes[t][1] = DBZeroTypeBits;
 		    ExtCurStyle->exts_transSDCount[t] = nterm;
 		    ExtCurStyle->exts_transSDCap[t] = gscap;
 		    ExtCurStyle->exts_transGateCap[t] = gccap;
@@ -1875,25 +1951,82 @@ ExtTechLine(sectionName, argc, argv)
 	    if ((argc - 1) < dv->k_minargs)
 		goto usage;
 
-	    /* No limit on arguments in DEV_SUBCKT and DEV_MSUBCKT! */
-	    /* And. . . check DEV_RSUBCKT later, after parsing parameter names */
+	    /* Parse parameters from the end of the argument list.	*/
+	    /* Parameters may be provided for any device.		*/
+
+	    /* Check final arguments for "x=y" statements showing what	*/
+	    /* parameter names the device uses.				*/
+
+	    subcktParams = NULL;
+	    while ((paramName = strchr(argv[argc - 1], '=')) != NULL)
+	    {
+		char *mult;
+
+		paramName++;
+		newParam = (ParamList *)mallocMagic(sizeof(ParamList));
+		newParam->pl_count = 0;
+		newParam->pl_param[0] = *argv[argc - 1];
+		newParam->pl_param[1] = '\0';
+
+		if (paramName - argv[argc - 1] == 3)
+		    newParam->pl_param[1] = *(argv[argc - 1] + 1);
+
+		else if (paramName - argv[argc - 1] > 3)
+		    TechError("Parameter name %s can be no more than"
+			"two characters.\n", argv[argc - 1]);
+
+		// Parameter syntax "<type>=<name>*<scale>" indicates
+		// that the subcircuit has internal scaling, and the
+		// extractor should multiply the parameter by this value
+		// before passing it to the subcircuit.
+
+		if ((mult = strchr(paramName, '*')) != NULL)
+		{
+		    *mult = '\0';
+		    mult++;
+		    newParam->pl_scale = atof(mult);
+		}
+		else
+		    newParam->pl_scale = 1.0;
+
+		newParam->pl_name = StrDup((char **)NULL, paramName);
+		newParam->pl_next = subcktParams;
+		subcktParams = newParam;
+		argc--;
+	    }
+
+	    /* Check the number of arguments after splitting out	*/
+	    /* parameter entries.  There is no limit on arguments in	*/
+	    /* DEV_SUBCKT and DEV_MSUBCKT.				*/
+
 	    class = dv->k_key;
 	    switch (class)
 	    {
 		case DEV_SUBCKT:
-		case DEV_RSUBCKT:
 		case DEV_MSUBCKT:
 		    break;
 		default:
+		    /* If parameters were saved but the	*/
+		    /* argument list indicates a bad	*/
+		    /* device entry, then free up the	*/
+		    /* parameters.			*/
+
 		    if ((argc - 1) > dv->k_maxargs)
+		    {
+			while (subcktParams != NULL)
+			{
+			    freeMagic(subcktParams->pl_name);
+			    freeMagic(subcktParams);
+			    subcktParams = subcktParams->pl_next;
+			}
 			goto usage;
+		    }
 		    break;
 	    }
 
 	    gscap = (CapValue) 0;
 	    gccap = (CapValue) 0;
 	    subsName = NULL;
-	    subcktParams = NULL;
 	    subsTypes = DBZeroTypeBits;
 	    transName = argv[2];
 
@@ -1901,7 +2034,7 @@ ExtTechLine(sectionName, argc, argv)
 	    {
 		case DEV_BJT:
 		    DBTechNoisyNameMask(argv[4], &termtypes[0]); /* emitter */
-		    termtypes[1] = DBSpaceBits;
+		    termtypes[1] = DBZeroTypeBits;
 		    DBTechNoisyNameMask(argv[5], &subsTypes);	 /* collector */
 		    nterm = 1;	/* emitter is the only "terminal type" expected */
 		    break;
@@ -1915,14 +2048,14 @@ ExtTechLine(sectionName, argc, argv)
 			TTMaskAndMask3(&termtypes[2], &termtypes[0], &termtypes[1]);
 
 			if (TTMaskEqual(&termtypes[0], &termtypes[1]))
-			    termtypes[1] = DBSpaceBits;	/* Make it symmetric */
+			    termtypes[1] = DBZeroTypeBits;	/* Make it symmetric */
 			else if (!TTMaskIsZero(&termtypes[2]))
 			{
 			    TechError("Device mosfet %s has overlapping drain"
 				" and source types!\n", transName);
 			    /* Should this device be disabled? */
 			}
-			termtypes[2] = DBSpaceBits;
+			termtypes[2] = DBZeroTypeBits;
 			if (strcmp(argv[6], "None"))
 		    	DBTechNoisyNameMask(argv[6], &subsTypes);   /* substrate */
 			subsName = argv[7];
@@ -1936,7 +2069,7 @@ ExtTechLine(sectionName, argc, argv)
 			/* Normal symmetric device with swappable source/drain */
 			
 			DBTechNoisyNameMask(argv[4], &termtypes[0]); /* source/drain */
-			termtypes[1] = DBSpaceBits;
+			termtypes[1] = DBZeroTypeBits;
 			if (strcmp(argv[5], "None"))
 			    DBTechNoisyNameMask(argv[5], &subsTypes);   /* substrate */
 			if (argc > 6) subsName = argv[6];
@@ -1948,8 +2081,10 @@ ExtTechLine(sectionName, argc, argv)
 		    break;
 
 		case DEV_DIODE:
+		case DEV_PDIODE:
+		case DEV_NDIODE:
 		    DBTechNoisyNameMask(argv[4], &termtypes[0]); /* negative types */
-		    termtypes[1] = DBSpaceBits;
+		    termtypes[1] = DBZeroTypeBits;
 		    nterm = 1;
 		    if ((argc > 4) && strcmp(argv[4], "None"))
 			DBTechNoisyNameMask(argv[4], &subsTypes);   /* substrate */
@@ -1960,7 +2095,7 @@ ExtTechLine(sectionName, argc, argv)
 
 		case DEV_RES:
 		    DBTechNoisyNameMask(argv[4], &termtypes[0]); /* terminals */
-		    termtypes[1] = DBSpaceBits;
+		    termtypes[1] = DBZeroTypeBits;
 		    nterm = 2;
 		    if ((argc > 5) && strcmp(argv[5], "None"))
 			DBTechNoisyNameMask(argv[5], &subsTypes);   /* substrate */
@@ -1970,10 +2105,12 @@ ExtTechLine(sectionName, argc, argv)
 		    break;
 
 		case DEV_CAP:
+		case DEV_CAPREV:
 		    DBTechNoisyNameMask(argv[4], &termtypes[0]); /* bottom */
-		    termtypes[1] = DBSpaceBits;
+		    termtypes[1] = DBZeroTypeBits;
 
-		    gccap = aToCap(argv[argc - 1]);		/* area cap */
+		    if (argc > 5)
+			gccap = aToCap(argv[argc - 1]);		/* area cap */
 		    if ((argc > 6) && StrIsNumeric(argv[argc - 2]))
 		    {
 			gscap = aToCap(argv[argc - 2]);		/* perimeter cap */
@@ -1990,128 +2127,59 @@ ExtTechLine(sectionName, argc, argv)
 
 		case DEV_SUBCKT:
 		case DEV_MSUBCKT:
-		    /* Check final arguments for "x=y" statements showing what	*/
-		    /* parameter names the subcircuit uses.			*/
+		    // Determine if [substrate, name] optional arguments
+		    // are present by checking if the last argument
+		    // parses as a layer list.
 
-		    while ((paramName = strchr(argv[argc - 1], '=')) != NULL)
+		    if (DBTechNameMask(argv[argc - 1], &termtypes[0]) <= 0)
 		    {
-			char *mult;
-
-			paramName++;
-			newParam = (ParamList *)mallocMagic(sizeof(ParamList));
-			newParam->pl_count = 0;
-			newParam->pl_param[0] = *argv[argc - 1];
-			newParam->pl_param[1] = '\0';
-
-			if (paramName - argv[argc - 1] == 3)
-			    newParam->pl_param[1] = *(argv[argc - 1] + 1);
-
-			else if (paramName - argv[argc - 1] > 3)
-			    TechError("Parameter name %s can be no more than"
-				"two characters.\n", argv[argc - 1]);
-
-			// Parameter syntax "<type>=<name>*<scale>" indicates
-			// that the subcircuit has internal scaling, and the
-			// extractor should multiply the parameter by this value
-			// before passing it to the subcircuit.
-
-			if ((mult = strchr(paramName, '*')) != NULL)
-			{
-			    *mult = '\0';
-			    mult++;
-			    newParam->pl_scale = atof(mult);
-			}
+			if (strcmp(argv[argc - 2], "None"))
+			    DBTechNoisyNameMask(argv[argc - 2], &subsTypes);
 			else
-			    newParam->pl_scale = 1.0;
-
-			newParam->pl_name = StrDup((char **)NULL, paramName);
-			newParam->pl_next = subcktParams;
-			subcktParams = newParam;
-			argc--;
+			    subsTypes = DBZeroTypeBits;
+			subsName = argv[argc - 1];
+			argc -= 2;
 		    }
 
 		    if (StrIsInt(argv[4]))
 		    {
 			nterm = atoi(argv[4]);
-			iterm = 4 + nterm;
+			iterm = 5;
+			if (nterm > argc - 5)
+			{
+			    TechError("Not enough terminals for subcircuit, "
+					"%d were required, %d found.\n",
+					nterm, argc - 5);
+			    nterm = argc - 5;
+			}
 		    }
 		    else
 		    {
-			nterm = 1;
+			nterm = argc - 4;
 			iterm = 4;
 		    }
 		    
 		    /* terminals */
 		    for (i = iterm; i < iterm + nterm; i++)
 			DBTechNoisyNameMask(argv[iterm], &termtypes[i - iterm]);
-		    termtypes[nterm] = DBSpaceBits;
+		    termtypes[nterm] = DBZeroTypeBits;
 
 		    if (nterm == 0) i++;
 
-		    // Type MSUBCKT:  Source and drain are symmetric.  The
-		    // number of unique terminals in the definition is 1,
-		    // but nterm needs to be set to 2 for proper extraction.
+		    // Type MSUBCKT:  If source and drain are symmetric (both
+		    // have the same types), then they must both be declared,
+		    // but only one is used (same policy as "device mosfet").
 
-		    if ((dv->k_key == DEV_MSUBCKT) && (nterm == 1)) nterm = 2;
+		    if ((nterm == 2) && TTMaskEqual(&termtypes[nterm - 1],
+				&termtypes[nterm - 2]))
+			termtypes[nterm - 1] = DBZeroTypeBits;
 
-		    if (argc > i)
-			DBTechNoisyNameMask(argv[i], &subsTypes); /* substrate */
-		    if (argc > (i + 1)) subsName = argv[i + 1];
 		    break;
 
 		case DEV_RSUBCKT:
-		    /* Check final arguments for "x=y" statements showing what	*/
-		    /* parameter names the subcircuit uses.			*/
-
-		    while ((paramName = strchr(argv[argc - 1], '=')) != NULL)
-		    {
-			char *mult;
-
-			paramName++;
-			newParam = (ParamList *)mallocMagic(sizeof(ParamList));
-			newParam->pl_count = 0;
-			newParam->pl_param[0] = *argv[argc - 1];
-			newParam->pl_param[1] = '\0';
-
-			if (paramName - argv[argc - 1] == 3)
-			    newParam->pl_param[1] = *(argv[argc - 1] + 1);
-
-			else if (paramName - argv[argc - 1] > 3)
-			    TechError("Parameter name %s can be no more than"
-				"two characters.\n", argv[argc - 1]);
-
-			// See comments for DEV_SUBCKT/DEV_MSUBCKT above.
-
-			if ((mult = strchr(paramName, '*')) != NULL)
-			{
-			    *mult = '\0';
-			    mult++;
-			    newParam->pl_scale = atof(mult);
-			}
-			else
-			    newParam->pl_scale = 1.0;
-
-			newParam->pl_name = StrDup((char **)NULL, paramName);
-			newParam->pl_next = subcktParams;
-			subcktParams = newParam;
-			argc--;
-		    }
-
-		    /* Now check number of parameters */
-		    if ((argc - 1) > dv->k_maxargs)
-		    {
-			while (subcktParams != NULL)
-			{
-			    freeMagic(subcktParams->pl_name);
-			    freeMagic(subcktParams);
-			    subcktParams = subcktParams->pl_next;
-			}
-			goto usage;
-		    }
-
 		    nterm = 2;
 		    DBTechNoisyNameMask(argv[4], &termtypes[0]);	/* terminals */
-		    termtypes[1] = DBSpaceBits;
+		    termtypes[1] = DBZeroTypeBits;
 
 		    if ((argc > 5) && strcmp(argv[5], "None"))
 			DBTechNoisyNameMask(argv[5], &subsTypes);   /* substrate */
@@ -2128,13 +2196,13 @@ ExtTechLine(sectionName, argc, argv)
 		{
 		    TTMaskSetMask(ExtCurStyle->exts_transConn + t, &types1);
 
-		    for (i = 0; !TTMaskHasType(&termtypes[i], TT_SPACE); i++);
+		    for (i = 0; !TTMaskIsZero(&termtypes[i]); i++);
 		    ExtCurStyle->exts_transSDTypes[t] = (TileTypeBitMask *)
 					mallocMagic((i + 1) * sizeof(TileTypeBitMask));
 			
-		    for (i = 0; !TTMaskHasType(&termtypes[i], TT_SPACE); i++)
+		    for (i = 0; !TTMaskIsZero(&termtypes[i]); i++)
 			ExtCurStyle->exts_transSDTypes[t][i] = termtypes[i];
-		    ExtCurStyle->exts_transSDTypes[t][i] = DBSpaceBits;
+		    ExtCurStyle->exts_transSDTypes[t][i] = DBZeroTypeBits;
 
 		    ExtCurStyle->exts_transSDCount[t] = nterm;
 		    ExtCurStyle->exts_transSDCap[t] = gscap;
@@ -2315,7 +2383,7 @@ ExtTechLine(sectionName, argc, argv)
 	    /* specified.						     */
 	    if (TTMaskHasType(&ov, TT_SPACE))
 	    {
-	    	if ((cp = index(argv[3],'/')) == NULL)
+		if ((cp = strchr(argv[3],'/')) == NULL)
 		{
 		    TechError("Must specify plane for sideoverlap to space\n");
 		}
@@ -2424,8 +2492,8 @@ ExtTechLine(sectionName, argc, argv)
 	    }
 	    break;
 	case SIDEHALO:
-	    /* Allow floating-point and increase by factor of 1000	*/
-	    /* to accomodate "units microns".				*/
+	    /* Allow floating-point and increase by factor of 1000      */
+	    /* to accommodate "units microns".                          */
 
 	    /* Warning:  Due to some gcc bug with an i686 FPU, using a	*/
 	    /* result from atof() with a static value like 1000		*/
@@ -2451,7 +2519,24 @@ ExtTechLine(sectionName, argc, argv)
 	case RESIST: {
 	    float chop = 1.0;
 
-	    val = atoi(argv[2]);
+	    if (!StrIsInt(argv[2]))
+	    {
+		if (!strcmp(argv[2], "None"))
+		{
+		    for (t = TT_TECHDEPBASE; t < DBNumTypes; t++)
+			if (TTMaskHasType(&types1, t))
+			    TTMaskClearType(&ExtCurStyle->exts_activeTypes, t);
+		    break;
+		}
+		else
+		{
+		    TxError("Resist argument must be integer or \"None\".\n");
+		    break;
+		}
+	    }
+	    else
+		val = atoi(argv[2]);
+
 	    if (argc == 4)
 		chop = atof(argv[3]);
 	    class = ExtCurStyle->exts_numResistClasses++;
@@ -2477,6 +2562,11 @@ ExtTechLine(sectionName, argc, argv)
 		return (FALSE);
 	    }
 	    ExtCurStyle->exts_stepSize = val;
+	    break;
+	case SUBSTRATE:
+	    TTMaskZero(&ExtCurStyle->exts_globSubstrateTypes);
+	    TTMaskSetMask(&ExtCurStyle->exts_globSubstrateTypes, &types1);
+	    ExtCurStyle->exts_globSubstratePlane = DBTechNoisyNamePlane(argv[2]);
 	    break;
 	case NOPLANEORDER: {
 	     if ( ExtCurStyle->exts_planeOrderStatus == seenPlaneOrder ) 
@@ -2563,7 +2653,7 @@ extTechFinalStyle(style)
 {
     TileTypeBitMask maskBits;
     TileType r, s, t;
-    int p1, missing, conflict;
+    int p, p1, missing, conflict;
     int indicis[NP];
 
     for (r = TT_TECHDEPBASE; r < DBNumTypes; r++)
@@ -2608,7 +2698,6 @@ extTechFinalStyle(style)
     {
 	TileTypeBitMask rmask;
 	PlaneMask pMask;
-	int p;
 	TileType q;
 
 	if (!DBIsContact(s)) continue;
@@ -2676,6 +2765,31 @@ extTechFinalStyle(style)
 		TTMaskSetType(&style->exts_overlapOtherTypes[s], r);
 	    }
 	}
+
+    /* Finally, for all coupling type masks, remove those types	 */
+    /* that have been declared not to participate in extraction. */
+
+    for (s = TT_TECHDEPBASE; s < DBNumTypes; s++)
+    {
+	TTMaskAndMask(&style->exts_overlapOtherTypes[s], &style->exts_activeTypes);
+	TTMaskAndMask(&style->exts_perimCapMask[s], &style->exts_activeTypes);
+
+	for (t = TT_TECHDEPBASE; t < DBNumTypes; t++)
+	{
+	    TTMaskAndMask(&style->exts_overlapShieldTypes[s][t], 
+			&style->exts_activeTypes);
+	    TTMaskAndMask(&style->exts_sideOverlapOtherTypes[s][t], 
+			&style->exts_activeTypes);
+	    TTMaskAndMask(&style->exts_sideCoupleOtherEdges[s][t],
+			&style->exts_activeTypes);
+	}
+    }
+
+    for (p = 0; p < DBNumPlanes; p++)
+    {
+	TTMaskAndMask(&style->exts_overlapTypes[p], &style->exts_activeTypes);
+	TTMaskAndMask(&style->exts_sideTypes[p], &style->exts_activeTypes);
+    }
 
     if ( style->exts_planeOrderStatus == noPlaneOrder ) 
     	return /* no need to check */ ;
@@ -2761,18 +2875,20 @@ zinit:
 				ec = ec->ec_next)
 		    ec->ec_cap *= scalefac;
 
-		// Sidewall capacitance is referred to distance,
-		// so cap value does not scale.  However, the lambda
-                // reference for sidewall cap is 2 lambda, so if
-                // the reference is to be interpreted as 1 micron,
-                // the value needs to be divided by 2 (the factor of
-                // 2 is made up by the fact that the sidewall is
-                // independently accumulated on each plate of the
-                // capacitor).
+		// Note that because sidewall caps are referred to
+		// a specific distance, the value (run / separation)
+		// is unscaled, so the capacitance does not get
+		// modified by the scalefactor.  However, the lambda
+		// reference for sidewall cap is 2 lambda, so if 
+		// the reference is to be interpreted as 1 micron,
+		// the value needs to be divided by 2 (the factor of
+		// 2 is made up by the fact that the sidewall is
+		// independently accumulated on each plate of the
+		// capacitor)
 
 		for (ec = style->exts_sideCoupleCap[r][s]; ec != NULL;
 				ec = ec->ec_next)
-		   ec->ec_cap *= 0.5;
+		    ec->ec_cap *= 0.5;
 	    }
 	}
 
@@ -2791,7 +2907,7 @@ zinit:
 	style->exts_stepSize = 100;		/* Revert to default */
     }
 
-    /* We had multiplied sideCoupleHalo by 1000 to accomodate a 	*/
+    /* We had multiplied sideCoupleHalo by 1000 to accommodate a 	*/
     /* floating-point value in microns, whether or not doConvert was	*/
     /* needed, so normalize it back to lambda units.			*/
 
@@ -2848,8 +2964,9 @@ ExtTechScale(scalen, scaled)
 	    style->exts_overlapCap[i][j] *= sqn;
 	    style->exts_overlapCap[i][j] /= sqd;    /* Typo fixed in 7.2.57 */
 
-	    // Sidewall capacitance is referred to distance,
-	    // so cap value does not scale.
+	    // Do not scale sidewall cap, for while the value is
+	    // per distance, the distance is referred to a separation
+	    // distance in the same units, so the cap never scales.
 
 	    // for (ec = style->exts_sideCoupleCap[i][j]; ec != NULL;
 	    //			ec = ec->ec_next)
@@ -2868,3 +2985,4 @@ ExtTechScale(scalen, scaled)
 
     return;
 }
+

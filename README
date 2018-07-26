@@ -19,7 +19,21 @@
 ---------------------------------
    See the file "INSTALL" in this directory.
 
-3. Version 8.0 Release Notes:
+3. Version 8.1 Release Notes:
+---------------------------------
+
+   As of the release of version 8.1, Version 8.0 is now the new stable
+   distribution, and 8.1 is the development distribution.
+
+   What's new in 8.1:
+   ------------------
+   1) Substantially revised substrate handling allows for "soft
+      connectivity" detection, and resolves (finally) the problem of
+      the hack handling of nMOS bulk connections using a default
+      name without any understanding of a substrate node and
+      connectivity.
+
+4. Version 8.0 Release Notes:
 ---------------------------------
 
    As of the release of version 8.0, Version 7.5 is now the new stable
@@ -31,10 +45,23 @@
       and offset.  Public-license outline fonts provided by the freefont
       project.
 
-   2) New cifoutput operators including "net" and "maxrect", specifically
+   2) Hierarchical SPICE output for LVS.
+
+   3) New cifoutput operators including "net" and "maxrect", specifically
       for using with the "cif paint" command.
 
-4. Version 7.5 Release Notes:
+   4) DRC method for handling via rules specifying overlap on two
+      opposite sides but not on the others.
+
+   5) Improved DRC method that ignores errors in subcells that are
+      masked by the parent cell.
+
+   6) Improved cell manager based on methods available in Tk 8.5
+
+   7) New extraction method "msubcircuit" with methods for specifying
+      parameter names for source/drain area and perimeter.
+
+5. Version 7.5 Release Notes:
 ---------------------------------
 
    Version 7.5 is the development branch.  Version 7.5.0 is the same as
@@ -89,7 +116,7 @@
 
    See the online release notes for a more thorough list of features.
 
-4. Version 7.4 Release Notes:
+6. Version 7.4 Release Notes:
 ---------------------------------
 
    Version 7.4 is the new stable distribution version of magic.
@@ -101,7 +128,7 @@
    not be a "What's new in 7.4" section, as there is not supposed
    to be anything new in version 7.4.
 
-5. Version 7.3 Release Notes:
+7. Version 7.3 Release Notes:
 ---------------------------------
 
    Magic release 7.3 incorporates a stacked contact model which is,
@@ -149,7 +176,7 @@
 	28) New method for crash backups, including restore with "magic -r"
         29) A number of other technology file additions and enhancements
 
-6. Version 7.2 Release Notes:
+8. Version 7.2 Release Notes:
 ---------------------------------
 
    Magic release 7.2 incorporates the capability to run magic from the Tcl
@@ -207,7 +234,7 @@
       26) Improved techfile format with asterisk-notation and DRC
 	  "surround", "overhang", and "rect_only" statements.
 
-7. Version 7.1 Release Notes:
+9. Version 7.1 Release Notes:
 ---------------------------------
 
    Magic release 7.1 consolidates all known patches/features
@@ -235,7 +262,7 @@
             - tons of other small things that hopefully make the build process
               nicer.
 
-8. Releases prior to version 7:
+10. Releases prior to version 7:
 ---------------------------------
 
    What's new in 6.5.2:

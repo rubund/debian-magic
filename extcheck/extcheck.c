@@ -82,9 +82,9 @@ main(argc, argv)
     EFFlatBuild(inName, EF_FLATNODES|EF_FLATCAPS|EF_FLATRESISTS);
 
     EFVisitDevs(devVisit, (ClientData) NULL);
-    if (EFCapThreshold < INFINITE_THRESHOLD)
+    if (IS_FINITE_F(EFCapThreshold))
 	EFVisitCaps(capVisit, (ClientData) NULL);
-    if (EFResistThreshold < INFINITE_THRESHOLD)
+    if (EFResistThreshold != INFINITE_THRESHOLD)
 	EFVisitResists(resistVisit, (ClientData) NULL);
     EFVisitNodes(nodeVisit, (ClientData) NULL);
 
@@ -157,8 +157,7 @@ capVisit(hn1, hn2, cap)
     double cap;
 {
     ecNumCaps++;
-    cap = (cap + 500) / 1000;
-    if (cap > (double) EFCapThreshold) ecNumThreshCaps++;
+    if ((cap / 1000.) > (double) EFCapThreshold) ecNumThreshCaps++;
     return 0;
 }
 
@@ -166,10 +165,9 @@ capVisit(hn1, hn2, cap)
 int
 resistVisit(hn1, hn2, res)
     HierName *hn1, *hn2;	/* UNUSED */
-    int res;
+    float res;
 {
     ecNumResists++;
-    res = (res + 500) / 1000;
-    if (res > EFResistThreshold) ecNumThreshResists++;
+    if ((res / 1000.) > EFResistThreshold) ecNumThreshResists++;
     return 0;
 }

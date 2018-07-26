@@ -21,6 +21,7 @@ static char rcsid[] __attribute__ ((unused)) ="$Header: /usr/cvsroot/magic-8.0/c
 #endif  /* not lint */
 
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 #include <ctype.h>
 #include <sys/types.h>
@@ -216,7 +217,7 @@ static char calmaMapTablePermissive[] =
       0,    0,    0,    0,    0,    0,    0,    0,	/* BS  - SI  */
       0,    0,    0,    0,    0,    0,    0,    0,	/* DLE - ETB */
       0,    0,    0,    0,    0,    0,    0,    0,	/* CAN - US  */
-    '_',  '!',  '"',  '#',  '$',  '&',  '%', '\'',	/* SP  - '   */
+    ' ',  '!',  '"',  '#',  '$',  '&',  '%', '\'',	/* SP  - '   */
     '(',  ')',  '*',  '+',  ',',  '-',  '.',  '/',	/* (   - /   */
     '0',  '1',  '2',  '3',  '4',  '5',  '6',  '7',	/* 0   - 7   */
     '8',  '9',  ':',  ';',  '<',  '=',  '>',  '?',	/* 8   - ?   */
@@ -413,7 +414,7 @@ calmaProcessDef(def, outf)
 
     /* Read the cell in if it is not already available. */
     if ((def->cd_flags & CDAVAILABLE) == 0)
-	if (!DBCellRead(def, (char *) NULL, TRUE))
+	if (!DBCellRead(def, (char *) NULL, TRUE, NULL))
 	    return (0);
 
     /*
@@ -458,8 +459,10 @@ calmaProcessDef(def, outf)
 
 	    DBPropGet(def->cd_parents->cu_parent, "GDS_FILE", &isReadOnly);
 	    if (!isReadOnly)
-		TxError("Calma output error:  Can't find GDS file for vendor cell."
-	    			"  Using magic's internal definition\n");
+		TxError("Calma output error:  Can't find GDS file \"%s\" "
+				"for vendor cell \"%s\".  Using magic's "
+				"internal definition\n", filename,
+				def->cd_name);
 	    else 
 		def->cd_flags |= CDVENDORGDS;
 	}
@@ -1130,8 +1133,6 @@ calmaWriteContacts(f)
     Rect area, cliprect;
     int halfwidth, halfsize;
     CIFOp *op;
-    HashSearch hs;
-    HashEntry *entry;
 
     /* Turn off generation of contact arrays for the duration of this	*/
     /* subroutine, so that the contact definitions themselves will get	*/
@@ -2400,11 +2401,7 @@ calmaOutR8(d, f)
     int c, i, sign, expon;
 
     /* mantissa must be 64 bits for this routine to work correctly */
-#if SIZEOF_UNSIGNED_LONG == 8
-    unsigned long mantissa;
-#else
-    unsigned long long mantissa;
-#endif
+    uint64_t mantissa;
 
     mantissa = 0;
     if (d == 0.0)

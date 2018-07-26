@@ -134,6 +134,8 @@ ResPrintExtTran(outextfile, transistors)
 		}
 #endif
 
+		/* Output according to device type */
+
 		/* fet type xl yl xh yh area perim sub gate t1 t2 */
 		fprintf(outextfile,"fet %s %d %d %d %d %d %d "
 				"%s \"%s\" %d %s \"%s\" %d %s \"%s\" %d %s\n",
@@ -210,11 +212,10 @@ ResPrintExtNode(outextfile, nodelist, nodename)
 	  if (snode->rn_name == NULL)
 	  {
 	       (void)sprintf(tmpname,"%s",nodename);
-	       cp = tmpname+strlen(tmpname)-1;
-               if (*cp == '!' || *cp == '#')
-               {
-                    *cp = '\0';
-               }
+
+	       cp = tmpname + strlen(tmpname) - 1;
+               if (*cp == '!' || *cp == '#') *cp = '\0';
+
      	       (void)sprintf(newname,"%s%s%d",tmpname,".n",nodenum++);
      	       entry = HashFind(&ResNodeTable,newname);
 	       node = ResInitializeNode(entry);

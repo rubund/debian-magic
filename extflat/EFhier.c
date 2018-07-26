@@ -236,6 +236,7 @@ EFHierSrDefs(hc, func, cdata)
 {
     HierContext newhc;
     Use *u;
+    int retval;
 
     if (func == NULL)
     {
@@ -261,7 +262,14 @@ EFHierSrDefs(hc, func, cdata)
     if (func == NULL)
 	return 0;
     else
-	return ((*func)(hc, cdata));
+    {
+	/* Clear DEF_PROCESSED for the duration of running the function */
+
+	hc->hc_use->use_def->def_flags &= ~DEF_PROCESSED;
+	retval = (*func)(hc, cdata);
+	hc->hc_use->use_def->def_flags |= DEF_PROCESSED;
+	return retval;
+    }
 }
 
 /*----------------------------------------------------------------------*/
@@ -382,7 +390,7 @@ efHierDevKilled(hc, dev, prefix)
     for (n = 0; n < dev->dev_nterm; n++)
     {
 	suffix = dev->dev_terms[n].dterm_node->efnode_name->efnn_hier;
-	he = HashFind(&def->def_nodes, EFHNToStr(suffix));
+	he = HashLookOnly(&efNodeHashTable, (char *)suffix);
 	if (he  && (nn = (EFNodeName *) HashGetValue(he))
 		&& (nn->efnn_node->efnode_flags & EF_KILLED))
 	    return TRUE;
@@ -507,13 +515,13 @@ efHierVisitSingleResist(hc, name1, name2, res, ca)
     HashEntry *he;
     Def *def = hc->hc_use->use_def;
 
-    if ((he = HashFind(&def->def_nodes, name1)) == NULL)
+    if ((he = HashLookOnly(&def->def_nodes, name1)) == NULL)
 	return 0;
     n1 = ((EFNodeName *) HashGetValue(he))->efnn_node;
     if (n1->efnode_flags & EF_KILLED)
 	return 0;
 
-    if ((he = HashFind(&def->def_nodes, name2)) == NULL)
+    if ((he = HashLookOnly(&def->def_nodes, name2)) == NULL)
 	return 0;
     n2 = ((EFNodeName *) HashGetValue(he))->efnn_node;
     if (n2->efnode_flags & EF_KILLED)
@@ -538,7 +546,8 @@ efHierVisitSingleResist(hc, name1, name2, res, ca)
  * (*resProc)(), which should be of the following form, where hn1 and
  * hn2 are the HierNames of the two nodes connected by the resistor.
  *
- *	(*resProc)(hn1, hn2, resistance, cdata)
+ *	(*resProc)(hc, hn1, hn2, resistance, cdata)
+ *	    HierContext *hc;
  *	    HierName *hn1, *hn2;
  *	    int resistance;
  *	    ClientData cdata;
@@ -615,71 +624,14 @@ efHierVisitResists(hc, ca)
 /*
  * ----------------------------------------------------------------------------
  *
- * efHierVisitSingleCap --
- *
- * Visit a capacitor of cap->conn_cap attoFarads between the nodes
- * 'name1' and 'name2' (text names, not hierarchical names).  Don't
- * process the capacitor if either terminal is a killed node.
- *
- * Results:
- *	Whatever the user-supplied procedure (*ca->ca_proc)() returns
- *	(type int).
- *
- * Side effects:
- *	Calls the user-supplied procedure.
- *
- * ----------------------------------------------------------------------------
- */
-
-int
-efHierVisitSingleCap(hc, name1, name2, cap, ca)
-    HierContext *hc;		/* Contains hierarchical pathname to cell */
-    char *name1, *name2;	/* Names of nodes connecting to capacitor */
-    Connection *cap;		/* Contains capacitance to add */
-    CallArg *ca;
-{
-    EFNode *n1, *n2;
-    EFNodeName *nn;
-    HashEntry *he;
-    Def *def = hc->hc_use->use_def;
-
-    if ((he = HashFind(&def->def_nodes, name1)) == NULL)
-	return 0;
-    nn = (EFNodeName *)HashGetValue(he);
-    if (nn == NULL)
-	return 0;
-    n1 = nn->efnn_node;
-    if (n1->efnode_flags & EF_KILLED)
-	return 0;
-
-    if ((he = HashFind(&def->def_nodes, name2)) == NULL)
-	return 0;
-    nn = (EFNodeName *)HashGetValue(he);
-    if (nn == NULL)
-	return 0;
-    n2 = nn->efnn_node;
-    if (n2->efnode_flags & EF_KILLED)
-	return 0;
-
-    /* Do nothing if the nodes aren't different */
-    if (n1 == n2)
-	return 0;
-
-    return (*ca->ca_proc)(hc, n1->efnode_name->efnn_hier,
-		n2->efnode_name->efnn_hier,
-		cap->conn_cap, ca->ca_cdata);
-}
-
-/*
- * ----------------------------------------------------------------------------
- *
  * EFHierVisitCaps --
  *
  * Visit all the local capacitance records
  * Calls the user-provided procedure (*capProc)()
  * which should be of the following format:
  *
- *	(*capProc)(hierName1, hierName2, cap, cdata)
+ *	(*capProc)(hc, hierName1, hierName2, cap, cdata)
+ *	    HierContext *hc;
  *	    HierName *hierName1, *hierName2;
  *	    EFCapValue cap;
  *	    ClientData cdata;
@@ -704,26 +656,84 @@ EFHierVisitCaps(hc, capProc, cdata)
     int (*capProc)();
     ClientData cdata;
 {
-    CallArg ca;
-    Def *def = hc->hc_use->use_def;
-    Connection *cap;
-    Transform t;
-    int scale;
+    HashSearch hs;
+    HashEntry *he;
+    EFCoupleKey *ck;
+    EFCapValue ccap;
 
-    ca.ca_proc = capProc;
-    ca.ca_cdata = cdata;
+    /* Visit capacitors flattened from a lower level, as well	*/
+    /* as our own.  These have been created and saved in	*/
+    /* efCapHashTable using efFlatCaps().			*/
 
-    /* Visit all resistors */
-    for (cap = def->def_caps; cap; cap = cap->conn_next)
+    HashStartSearch(&hs);
+    while (he = HashNext(&efCapHashTable, &hs))
     {
-	/* Special case for speed if no arraying info */
-	if (cap->conn_1.cn_nsubs == 0)
-	{
-	    if (efHierVisitSingleCap(hc, cap->conn_name1, cap->conn_name2,
-			cap, &ca))
-		return 1;
-	}
-	else if (efHierSrArray(hc, cap, efHierVisitSingleCap, (ClientData)&ca))
+	ccap = CapHashGetValue(he);
+	ck = (EFCoupleKey *) he->h_key.h_words;
+	if ((*capProc)(hc, ck->ck_1->efnode_name->efnn_hier,
+			ck->ck_2->efnode_name->efnn_hier,
+			(double) ccap, cdata))
+	    return 1;
+    }
+    return 0;
+}
+
+/*
+ * ----------------------------------------------------------------------------
+ *
+ * EFHierVisitNodes --
+ *
+ * Visit all the flat nodes in the circuit.
+ * Calls the user-provided procedure (*nodeProc)()
+ * which should be of the following format:
+ *
+ *	(*nodeProc)(hc, hierName1, hierName2, res, cap, cdata)
+ *	    HierContext *hc;
+ *	    HierName *hierName1, *hierName2;
+ *	    int res;
+ *	    EFCapValue cap;
+ *	    ClientData cdata;
+ *	{
+ *	}
+ *
+ * Here cap is the lumped capacitance to substrate in attofarads,
+ * and res is the lumped resistance to substrate in milliohms.
+ *
+ * Results:
+ *	Returns 1 if the client procedure returned 1;
+ *	otherwise returns 0.
+ *
+ * Side effects:
+ *	Calls the user-provided procedure (*nodeProc)().
+ *
+ * ----------------------------------------------------------------------------
+ */
+
+int
+EFHierVisitNodes(hc, nodeProc, cdata)
+    HierContext *hc;
+    int (*nodeProc)();
+    ClientData cdata;
+{
+    Def *def = hc->hc_use->use_def;
+    EFCapValue cap;
+    int res;
+    EFNode *snode;
+    HierName *hierName;
+
+    for (snode = (EFNode *) efNodeList.efnode_next;
+            snode != &efNodeList;
+            snode = (EFNode *) snode->efnode_next)
+    {
+	res = EFNodeResist(snode);
+	cap = snode->efnode_cap;
+	hierName = (HierName *) snode->efnode_name->efnn_hier;
+	if (snode->efnode_flags & EF_SUBS_NODE)
+	    cap = 0;
+
+	if (snode->efnode_flags & EF_KILLED) continue;
+
+	if ((*nodeProc)(hc, snode, res, (double)cap, cdata))
 	    return 1;
     }
     return 0;

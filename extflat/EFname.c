@@ -97,16 +97,19 @@ EFHNIsGlob(hierName)
 #endif
     return hierName->hn_name[strlen(hierName->hn_name) - 1] == '!';
 }
-
+
 /*
  * ----------------------------------------------------------------------------
  *
  * EFHNIsGND --
  *
  * Determine whether a HierName is the same as the global signal GND.
- *
+ * 
  * The Tcl version of magic expands this to include names which are
  * equal to the global Tcl variable $GND, if it is set.
+ *
+ * This is only used in substrate backwards-compatibility mode, when the
+ * substrate is not specified in the technology file.
  *
  * Results:
  *	TRUE if the name is GND, false if not.
@@ -125,7 +128,7 @@ EFHNIsGND(hierName)
     char *retstr;
 #endif
 
-    if (hierName->hn_parent != (HierName *) NULL) return FALSE;
+    if (hierName->hn_parent != (HierName *)NULL) return FALSE;
 
 #ifdef MAGIC_WRAPPER
     retstr = (char *)Tcl_GetVar(magicinterp, "GND", TCL_GLOBAL_ONLY);
@@ -135,6 +138,7 @@ EFHNIsGND(hierName)
 
     return (strcmp(hierName->hn_name, "GND!") == 0);
 }
+
 
 /*
  * ----------------------------------------------------------------------------
@@ -520,6 +524,10 @@ EFHNBest(hierName1, hierName2)
      */
     if (ncomponents1 < ncomponents2) return TRUE;
     if (ncomponents1 > ncomponents2) return FALSE;
+
+    /* Non-default substrate node name is preferred over "0" */
+    if (ncomponents1 == 1 && !strcmp(hierName1->hn_name, "0")) return FALSE;
+    if (ncomponents2 == 1 && !strcmp(hierName2->hn_name, "0")) return TRUE;
 
     /* Same # of pathname components; check length */
     for (len1 = 0, np1 = hierName1; np1; np1 = np1->hn_parent)

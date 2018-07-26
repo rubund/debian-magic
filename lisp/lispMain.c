@@ -99,7 +99,7 @@ LispEvaluate (argc, argv, inFile)
       LispPrint (stdout, l);
       TxPrintf ("\n\n");
     }
-    SigInterruptOnSigIO = FALSE;
+    if (SigInterruptOnSigIO >= 0) SigInterruptOnSigIO = 0;
     SigInterruptPending = FALSE;
     res = LispEval(l,LispMainFrame);
   }

@@ -5,6 +5,7 @@ config.log
 *.o
 *.so
 *~
+.*.swp
 scmos/cif_template/objs/*
 UPDATE_ME
 VERSION

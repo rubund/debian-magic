@@ -6,7 +6,7 @@
 #
 
 # syntax of first line:  size <number of glyphs> <width> <height>
-size 23 16 16
+size 24 16 16
 
 . . . . . . K K K . . . . . . .
 . . . . . . K K K . . . . . . .
@@ -397,4 +397,21 @@ K K . . . K K . K K . . . K K .
 . . K K K . . . . . K K K . . .
 . . . K K K K . K K K K . . . .
 . . . . . K K . K K . . . . . .
+. . . . . . . . . . . . . . . .
+
+. . . . . . K K K . . . . . . .
+. . . . K K K . K K K . . . . .
+. . . . K . . . . . K . . . . .
+. . . K K . . . . . K K . . . .
+. . . K . . . . . . . K . . . .
+. . . K . . . . . . . K . . . .
+. . . K . . . . . . . K . . . .
+. K K K K K K K*K K K K K K . .
+. K K K K K . . . K K K K K . .
+. K K K K K . . . K K K K K . .
+. K K K K K . . . K K K K K . .
+. K K K K K K . K K K K K K . .
+. K K K K K K . K K K K K K . .
+. K K K K K K . K K K K K K . .
+. K K K K K K K K K K K K K . .
 . . . . . . . . . . . . . . . .

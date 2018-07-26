@@ -45,6 +45,7 @@ typedef struct {
 extern TOGL_CURRENT toglCurrent;
 
 extern bool grtoglGetCursorPos();
+extern bool grtoglGetCursorRootPos();
 extern bool grtoglDrawGrid();
 extern void GrTOGLEnableTablet();
 extern void GrTOGLDisableTablet();

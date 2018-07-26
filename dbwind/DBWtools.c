@@ -191,6 +191,18 @@ ToolGetBox(rootDef, rootArea)
     return TRUE;
 }
 
+/* ToolScaleBox ---  Simple scaling of the root area box, no update needed */
+
+void
+ToolScaleBox(scalen, scaled)
+    int scalen;
+    int scaled;
+{
+    DBScalePoint(&boxRootArea.r_ll, scalen, scaled);
+    DBScalePoint(&boxRootArea.r_ur, scalen, scaled);
+
+}
+
 
 /*
  * ----------------------------------------------------------------------------
@@ -471,6 +483,16 @@ DBWDrawCrosshair(window, plane)
 		   window->w_screenArea.r_xtop, p.p_y);
 }
 
+/* DBWScaleCrosshair ---  Simple scaling of the crosshair point, no update needed */
+
+void
+DBWScaleCrosshair(scalen, scaled)
+    int scalen;
+    int scaled;
+{
+    DBScalePoint(&crosshairPos, scalen, scaled);
+}
+
 /*
  * ----------------------------------------------------------------------------
  *	DBWSetCrosshair --
@@ -623,7 +645,7 @@ DBWDrawBox(window, plane)
     if ((screenArea.r_xbot == screenArea.r_xtop) &&
 	    (screenArea.r_ybot == screenArea.r_ytop))
     {
-	GrSetStuff(STYLE_DRAWBOX);
+	GrSetStuff(STYLE_OUTLINEHIGHLIGHTS);
 	GrFastBox(&screenArea);
 	GEO_EXPAND(&screenArea, 1, &screenArea);
 	GrFastBox(&screenArea);
@@ -641,7 +663,7 @@ DBWDrawBox(window, plane)
 	    || ((screenArea.r_ytop != screenArea.r_ybot) &&
 	    (screenArea.r_ytop < screenArea.r_ybot + 4)))
     {
-	GrClipBox(&screenArea, STYLE_DRAWBOX);
+	GrClipBox(&screenArea, STYLE_OUTLINEHIGHLIGHTS);
 	return;
     }
 

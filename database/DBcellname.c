@@ -602,7 +602,7 @@ DBTopPrint(mw, dolist)
  *	Stuff is printed.
  *
  * Notes: "who" takes one of the options defined in database.h:
- *	PARENTS, CHILDREN, SELF, OTHER, ALLCELLS, or TOPCELLS.
+ *	PARENTS, CHILDREN, SELF, OTHER, ALLCELLS, MODIFIED, or TOPCELLS.
  *	"SELF" lists celldef names (most useful to list the name of
  *	a selected cell).  "OTHER" lists instance names.
  *
@@ -621,21 +621,41 @@ DBCellPrint(CellName, who, dolist)
     CellDef *celldef;
     CellUse *celluse;
     
+    if (!dolist)
+    {
+	switch (who)
+	{
+	    case ALLCELLS:
+		TxPrintf("Cell currently loaded:\n");
+		break;
+	    case MODIFIED:
+		TxPrintf("Modified cells:\n");
+		break;
+	    case TOPCELLS:
+		TxPrintf("Top level cells are:\n");
+		break;
+	}
+    }
+
     switch (who)
     {
 	case ALLCELLS:
+	case MODIFIED:
 	    /*
 	     * Print the name of all the 'known' cells.
+	     * If "MODIFIED", print only those cells that have the
+	     * CDMODIFIED flag set.
 	     */
 
-	    if (!dolist) TxPrintf("Cell currently loaded:\n");
 	    HashStartSearch(&hs);
 	    while( (entry = HashNext(&dbCellDefTable, &hs)) != NULL)
 	    {
 		celldef = (CellDef *) HashGetValue(entry);
 		if (celldef != (CellDef *) NULL)
 		{
-		    if ( (celldef->cd_flags & CDINTERNAL) != CDINTERNAL)
+		    if (((celldef->cd_flags & CDINTERNAL) != CDINTERNAL) &&
+				((who != MODIFIED) ||
+				(celldef->cd_flags & CDMODIFIED)))
 		    {
 			if (celldef->cd_name != NULL)
 			{
@@ -658,7 +678,6 @@ DBCellPrint(CellName, who, dolist)
 	     * Print the name of all the 'top' cells.
 	     */
 
-	    if (!dolist) TxPrintf("Top level cells are:\n");
 	    HashStartSearch(&hs);
 	    while( (entry = HashNext(&dbCellDefTable, &hs)) != NULL)
 	    {
@@ -930,6 +949,12 @@ dbUsePrintInfo(StartUse, who, dolist)
  *	a selected instance).  "OTHER" lists the celldef name of the
  *	instance.
  *
+ *	CellName should be referenced either to the current edit cell,
+ *	if it is not a hierarchical name;  otherwise, if it is a
+ *	hierarchical name, the instance before the last '/' is mapped
+ *	to its cellDef, and that cellDef is searched for the indicated
+ *	instance.  
+ *
  * ----------------------------------------------------------------------------
  */
 
@@ -944,9 +969,29 @@ DBUsePrint(CellName, who, dolist)
     HashEntry *entry;
     CellDef *celldef;
     CellUse *celluse;
+    char *lasthier;
 
     int dbCellUsePrintFunc();
     
+    if ((CellName != NULL) && ((lasthier = strrchr(CellName, '/')) != NULL))
+    {
+	char *prevhier;
+	*lasthier = '\0';
+	prevhier = strrchr(CellName, '/');
+	if (prevhier == NULL)
+	    prevhier = CellName;	
+	else
+	    prevhier++;
+
+	celldef = DBCellLookDef(CellName);
+	*lasthier = '/';
+    }
+    else
+    {
+	/* Referenced cellDef is the current edit def */
+	celldef = EditCellUse->cu_def;
+    }
+
     switch (who)
     {
 	case ALLCELLS:
@@ -992,34 +1037,16 @@ DBUsePrint(CellName, who, dolist)
 	    }
 	    else
 	    {
-		SearchContext scx;
+		celluse = DBFindUse(CellName, celldef);
 
-		bzero(&scx, sizeof(SearchContext));
-		found = 0;
-
-		HashStartSearch(&hs);
-		while( (entry = HashNext(&dbCellDefTable, &hs)) != NULL)
-		{
-		    CellUse fakeuse;
-		    celldef = (CellDef *) HashGetValue(entry);
-		    if ((celldef != (CellDef *) NULL) &&
-				(!(celldef->cd_flags & CDINTERNAL)))
-		    {
-			/* DBTreeFindUse() should really take a def, not a use */
-			fakeuse.cu_def = celldef;
-			DBTreeFindUse(CellName, &fakeuse, &scx);
-			if (scx.scx_use != NULL) break;
-		    }
-		}
-
-		if (scx.scx_use == NULL)
+		if (celluse == NULL)
 		{
 		    if (!dolist)
 		        TxError("Cell %s is not currently loaded.\n", CellName);
 		}
 		else
 		{
-		    dbUsePrintInfo(scx.scx_use, who, dolist);
+		    dbUsePrintInfo(celluse, who, dolist);
 		}
 	    }
 	    break;
@@ -1668,7 +1695,7 @@ DBLinkCell(use, parentDef)
      * terminal naming conventions).  If the cellName has a slash,
      * just use the part of it after the last slash.
      */
-    lastName = rindex(use->cu_def->cd_name, '/');
+    lastName = strrchr(use->cu_def->cd_name, '/');
     if (lastName == NULL) lastName = use->cu_def->cd_name;
     else lastName++;
     
@@ -1803,8 +1830,17 @@ DBFindUse(id, parentDef)
     CellDef *parentDef;
 {
     HashEntry *he;
+    char *delimit;
+   
+    /* Sanity checks */
+    if (id == NULL) return NULL;
+    if (parentDef == NULL) return NULL;
+
+    /* Array delimiters should be ignored */
+    if ((delimit = strrchr(id, '[')) != NULL) *delimit = '\0';
 
     he = HashLookOnly(&parentDef->cd_idHash, id);
+    if (delimit != NULL) *delimit = '[';
     if (he == NULL)
 	return (CellUse *) NULL;
 

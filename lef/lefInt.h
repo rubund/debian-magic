@@ -35,13 +35,8 @@ typedef struct
 #define DO_SPECIAL  1
 #define ALL_SPECIAL 2	/* treat all nets as SPECIALNETS */
 
-/* Structure used for returning information from a route or geometry section */
-
-typedef struct _linkedRect {
-   Rect      area;
-   TileType  type;
-   struct _linkedRect *rect_next;
-} linkedRect;
+/* For a linked list of rectangular areas, use the LinkedRect structure	*/
+/* defined in utils/geometry.h.						*/
 
 /* Structure used for returning information about polygon geometry */
 
@@ -71,7 +66,7 @@ typedef struct {
     Rect	area;		/* Area of single contact, or cell bbox	*/
 				/* in units of 1/2 lambda		*/
     CellDef	*cell;		/* Cell for fixed via def, or NULL	*/
-    linkedRect	*lr;		/* Extra information for vias with	*/
+    LinkedRect	*lr;		/* Extra information for vias with	*/
 				/* more complicated geometry.		*/
     TileType	obsType;	/* Secondary obstruction type		*/
 } lefVia;
@@ -121,13 +116,13 @@ int lefDefInitFunc(), lefDefPushFunc();
 FILE *lefFileOpen();
 
 char *LefGetInput();
-bool LefParseEndStatement();
+int LefParseEndStatement();
 void LefSkipSection();
 void LefEndStatement();
 CellDef *lefFindCell();
 char *LefNextToken();
 char *LefLower();
-linkedRect *LefReadGeometry();
+LinkedRect *LefReadGeometry();
 void LefEstimate();
 lefLayer *LefRedefined();
 void LefAddViaGeometry();

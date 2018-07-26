@@ -962,7 +962,7 @@ ResDoSimplify(tolerance,rctol,goodies)
 	          for (node = ResNodeList; node != NULL; node = node->rn_more)
 	          {     
 	      	       rc = (RCDelayStuff *)node->rn_client;
-		       if (goodies->rg_Tdi < rc->rc_Tdi)
+		       if (rc && (goodies->rg_Tdi < rc->rc_Tdi))
 		       {
 		   	    slownode = node;
 			    goodies->rg_Tdi = rc->rc_Tdi;

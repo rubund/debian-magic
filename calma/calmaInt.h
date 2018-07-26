@@ -110,6 +110,7 @@
 #define	CALMAPATH_SQUAREFLUSH	0	/* Square end flush with endpoint */
 #define	CALMAPATH_ROUND		1	/* Round end */
 #define	CALMAPATH_SQUAREPLUS	2	/* Square end plus half-width extent */
+#define	CALMAPATH_CUSTOM	4	/* Square end plus specified extents */
 
 /* Largest calma layer or data type numbers */
 #define	CALMA_LAYER_MAX	255

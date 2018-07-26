@@ -587,6 +587,17 @@ PlotPNM(fileName, scx, layers, xMask, width)
     char command[200], tempFile[200];
 #endif
 
+    // Sanity check on PaintStyles---may be NULL if plot section
+    // was missing from techfile.  If so, run default init/final
+    // procedures, flag a warning, and continue.
+
+    if (PaintStyles == NULL)
+    {
+	TxError ("Warning:  No plot section in techfile, using defaults.\n");
+	PlotPNMTechInit();
+	PlotPNMTechFinal();
+    }
+
     if (width <= 0)
     {
 	TxError ("PNM module given negative pixel width; cannot plot\n");
@@ -1092,11 +1103,14 @@ PlotPNMTechLine(sectionName, argc, argv)
     char *argv[];		/* Pointers to fields of line. */
 {
     int i, j, k, style;
+    void PlotPNMSetDefaults();	/* Forward declaration */
 
     if (!strncmp(argv[0], "color", 5))
 	PlotLoadColormap((argc == 1) ? NULL : argv[1]);
     else if (!strncmp(argv[0], "dstyle", 6))
 	PlotLoadStyles((argc == 1) ? NULL : argv[1]);
+    else if (!strncmp(argv[0], "default", 7))
+	PlotPNMSetDefaults();
     else if (!strncmp(argv[0], "draw", 4))
     {
 	if (argc == 2)
@@ -1121,6 +1135,9 @@ PlotPNMTechLine(sectionName, argc, argv)
 	}
 	else if (argc == 3)
 	{
+	    pstyle savestyle;
+	    bool newcolor = FALSE;
+
 	    /* Use the specified drawing style(s) instead of the */
 	    /* display drawing styles (used to override crosses	 */
 	    /* on contacts and such).				 */
@@ -1128,6 +1145,12 @@ PlotPNMTechLine(sectionName, argc, argv)
 	    k = (int)DBTechNameType(argv[1]);
 	    if (k >= 0 && k < DBNumUserLayers)
 	    {
+	    	savestyle = PaintStyles[k];
+		PaintStyles[k].wmask = 0;
+		PaintStyles[k].color.r = 255;
+		PaintStyles[k].color.g = 255;
+		PaintStyles[k].color.b = 255;
+
 		for (j = 2; j < argc; j++)
 		{
 		    /* Use the specified display style, or the internal one */
@@ -1141,6 +1164,7 @@ PlotPNMTechLine(sectionName, argc, argv)
 				PaintStyles[k].color =
 					PNMColorBlend(&PaintStyles[k].color,
 						&Dstyles[i].color);
+				newcolor = TRUE;
 			    }
 			}
 		    }
@@ -1153,10 +1177,21 @@ PlotPNMTechLine(sectionName, argc, argv)
 			    PaintStyles[k].color =
 					PNMColorIndexAndBlend(&PaintStyles[k].color,
 					GrStyleTable[i].color);
+			    newcolor = TRUE;
 			}
+			else
+			    TxError("Unknown drawing style \"%s\" for PNM plot.\n",
+					argv[j]);
 		    }
+
+		    /* In case of error, revert to the default style */
+
+		    if (newcolor == FALSE)
+			PaintStyles[k] = savestyle;
 		}
 	    }
+	    else
+		TxError("Unknown magic layer \"%s\" for PNM plot.\n", argv[1]);
 	}
     }
     else if (!strncmp(argv[0], "map", 3))
@@ -1182,6 +1217,38 @@ PlotPNMTechLine(sectionName, argc, argv)
 /*
  * ----------------------------------------------------------------------------
  *
+ * PlotPNMSetDefaults --
+ *
+ *	Generate default colors for the PNM plot style from existing
+ *	graphics colors for the window.
+ *
+ * ----------------------------------------------------------------------------
+ */
+
+void
+PlotPNMSetDefaults()
+{
+    int i, j, style;
+
+    for (i = TT_SPACE + 1; i < DBNumUserLayers; i++)
+    {
+	for (j = 0; j < DBWNumStyles; j++)
+	{
+	    style = j + TECHBEGINSTYLES;
+	    if (TTMaskHasType(DBWStyleToTypes(j), i))
+	    {
+		PaintStyles[i].wmask |= GrStyleTable[style].mask;
+		PaintStyles[i].color =
+			PNMColorIndexAndBlend(&PaintStyles[i].color,
+			GrStyleTable[style].color);
+	    }
+	}
+    }
+}
+
+/*
+ * ----------------------------------------------------------------------------
+ *
  * PlotPNMTechFinal --
  *
  *	Routine to be run at the end of reading the  "plot pnm" techfile
@@ -1200,7 +1267,7 @@ PlotPNMTechLine(sectionName, argc, argv)
 void
 PlotPNMTechFinal()
 {
-    int i, j, style;
+    int i;
 
     for (i = 0; i < ndstyles; i++)
 	freeMagic(Dstyles[i].name);
@@ -1231,21 +1298,9 @@ PlotPNMTechFinal()
     if (i < DBNumUserLayers)
 	return;
 
-    for (i = TT_SPACE + 1; i < DBNumUserLayers; i++)
-    {
-	for (j = 0; j < DBWNumStyles; j++)
-	{
-	    style = j + TECHBEGINSTYLES;
-	    if (TTMaskHasType(DBWStyleToTypes(j), i))
-	    {
-		PaintStyles[i].wmask |= GrStyleTable[style].mask;
-		PaintStyles[i].color =
-			PNMColorIndexAndBlend(&PaintStyles[i].color,
-			GrStyleTable[style].color);
-	    }
-	}
-    }
+    PlotPNMSetDefaults();
 }
+
 
 /*
  * ----------------------------------------------------------------------------

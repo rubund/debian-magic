@@ -958,7 +958,7 @@ dbwLabelFunc(scx, label, tpath)
 
     if (label->lab_flags & PORT_DIR_MASK)
     {
-	if (label->lab_font >= 0)	// If not calculated above. . .
+	if (label->lab_font >= 0)	// If not done already. . .
 	{
 	    screenPos = GeoTransPos(&scx->scx_trans, label->lab_just);
 	    GeoTransRect(&scx->scx_trans, &label->lab_rect, &tmp);

@@ -48,12 +48,10 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
 
 int calmaNonManhattan;
 
-extern void CIFPaintCurrent();
-
 extern HashTable calmaDefInitHash;
 
 /* forward declarations */
-void calmaElementSref();
+int  calmaElementSref();
 bool calmaParseElement();
 
 /* Structure used when flattening the GDS hierarchy on read-in */
@@ -180,9 +178,9 @@ calmaNextCell()
              READRH(nbytes, rtype);      /* Read header */
              if (nbytes <= 0)
              {
-                /* We have reached the end of the file.  There are no
-		 * more cell definitions remaining to read.
-                 * Set file pointer to CALMA_ENDLIB record.
+                /* We have reached the end of the file unexpectedly.
+		 * try to set the file pointer somewhere sane, but
+		 * it will likely dump an error later on.
 		 */
                 fseek(calmaInputFile, -(CALMAHEADERLENGTH), SEEK_END);
                 return;
@@ -192,8 +190,9 @@ calmaNextCell()
 	      * structure record.
               */
              fseek(calmaInputFile, nbytes - CALMAHEADERLENGTH, SEEK_CUR);
-        } while(rtype != CALMA_BGNSTR);
-        fseek(calmaInputFile, -nbytes, SEEK_CUR);
+        } while((rtype != CALMA_BGNSTR) && (rtype != CALMA_ENDLIB));
+
+	fseek(calmaInputFile, -nbytes, SEEK_CUR);
     }
 }
 
@@ -310,18 +309,29 @@ calmaParseStructure(filename)
     {
 	if (def->cd_flags & CDPROCESSEDGDS)
 	{
-	    /* If cell definition was marked as processed, then skip */
+	    /* If cell definition was marked as processed, then skip	*/
+	    /* (NOTE:  This is probably a bad policy in general)	*/
+	    /* However, if post-ordering is set, then this cell was	*/
+	    /* probably just read earlier, so don't gripe about it.	*/
+
+	    if (!CalmaPostOrder)
+	    {
+		calmaReadError("Cell \"%s\" was already defined in this file.\n",
+				strname);
+		calmaReadError("Ignoring duplicate definition\n");
+	    }
 	    calmaNextCell();
 	    return TRUE;
 	}
 	else
 	{
+	    calmaReadError("Cell \"%s\" was already defined in this file.\n",
+				strname);
 	    for (suffix = 1; HashGetValue(he) != NULL; suffix++)
 	    {
 		(void) sprintf(newname, "%s_%d", strname, suffix);
 		he = HashFind(&calmaDefInitHash, newname);
 	    }
-	    calmaReadError("Cell \"%s\" was already defined in this file.\n", strname);
 	    calmaReadError("Giving this cell a new name: %s\n", newname);
 	    strncpy(strname, newname, CALMANAMELENGTH*2);
 	}
@@ -349,7 +359,7 @@ calmaParseStructure(filename)
     osrefs = nsrefs = 0;
     npaths = 0;
     calmaNonManhattan = 0;
-    while (calmaParseElement(&nsrefs, &npaths))
+    while (calmaParseElement(filename, &nsrefs, &npaths))
     {
 	if (SigInterruptPending)
 	    goto done;
@@ -358,9 +368,6 @@ calmaParseStructure(filename)
 	osrefs = nsrefs;
 	calmaNonManhattan = 0;
     }
-
-    /* Make sure it ends with an ENDSTR record */
-    if (!calmaSkipExact(CALMA_ENDSTR)) goto syntaxerror;
 
     if (CalmaReadOnly)
     {
@@ -385,6 +392,9 @@ calmaParseStructure(filename)
 	/* cifReadCellDef->cd_flags |= CDNOEDIT; */
     }
 
+    /* Make sure it ends with an ENDSTR record */
+    if (!calmaSkipExact(CALMA_ENDSTR)) goto syntaxerror;
+
     /*
      * Don't paint now, just keep the CIF planes, and flatten the
      * cell by painting when instanced.  But---if this cell was
@@ -392,9 +402,30 @@ calmaParseStructure(filename)
      */
     if (CalmaFlattenUses && (!was_called) && (npaths < 10) && (nsrefs == 0))
     {
-	TxPrintf("Flattening cell %s\n", cifReadCellDef->cd_name);
+	/* To-do:  If CDFLATGDS is already set, need to remove	*/
+	/* existing planes and free memory.			*/
+
+	if (cifReadCellDef->cd_flags & CDFLATGDS)
+	{
+	    Plane **cifplanes = (Plane **)cifReadCellDef->cd_client;
+	    int pNum;
+
+            for (pNum = 0; pNum < MAXCIFRLAYERS; pNum++)
+            {
+                if (cifplanes[pNum] != NULL)
+                {
+                    DBFreePaintPlane(cifplanes[pNum]);
+                    TiFreePlane(cifplanes[pNum]);
+                }
+            }
+            freeMagic((char *)cifReadCellDef->cd_client);
+            cifReadCellDef->cd_client = (ClientData)CLIENTDEFAULT;
+	}
+
+	TxPrintf("Saving contents of cell %s\n", cifReadCellDef->cd_name);
 	cifReadCellDef->cd_client = (ClientData) calmaExact();
 	cifReadCellDef->cd_flags |= CDFLATGDS;
+	cifReadCellDef->cd_flags &= ~CDFLATTENED;
     }
     else
     {
@@ -414,9 +445,8 @@ calmaParseStructure(filename)
     /* cell, or if the cell is read-only, or if "calma drcnocheck true"	*/
     /* has been issued.							*/
 
-    if (!CalmaFlattenUses || (npaths >= 10) || (nsrefs != 0))
-	if (!CalmaReadOnly && !CalmaNoDRCCheck)
-	    DRCCheckThis(cifReadCellDef, TT_CHECKPAINT, &cifReadCellDef->cd_bbox);
+    if (!CalmaReadOnly && !CalmaNoDRCCheck)
+	DRCCheckThis(cifReadCellDef, TT_CHECKPAINT, &cifReadCellDef->cd_bbox);
 
     DBWAreaChanged(cifReadCellDef, &cifReadCellDef->cd_bbox,
 	DBW_ALLWINDOWS, &DBAllButSpaceBits);
@@ -464,12 +494,13 @@ syntaxerror:
  */
 
 bool
-calmaParseElement(pnsrefs, pnpaths)
+calmaParseElement(filename, pnsrefs, pnpaths)
+    char *filename;
     int *pnsrefs, *pnpaths;
 {
     static int node[] = { CALMA_ELFLAGS, CALMA_PLEX, CALMA_LAYER,
 			  CALMA_NODETYPE, CALMA_XY, -1 };
-    int nbytes, rtype;
+    int nbytes, rtype, madeinst;
 
     READRH(nbytes, rtype);
     if (nbytes < 0)
@@ -482,8 +513,9 @@ calmaParseElement(pnsrefs, pnpaths)
     {
 	case CALMA_AREF:
 	case CALMA_SREF:
-	    calmaElementSref();
-	    (*pnsrefs)++;
+	    madeinst = calmaElementSref(filename);
+	    if (madeinst >= 0)
+		(*pnsrefs) += madeinst;
 	    break;
 	case CALMA_BOUNDARY:	
 	    calmaElementBoundary();
@@ -520,7 +552,9 @@ calmaParseElement(pnsrefs, pnpaths)
  * Process a structure reference (either CALMA_SREF or CALMA_AREF).
  *
  * Results:
- *	None.
+ *	Returns 1 if an actual child instance was generated, 0 if
+ *	only the child geometry was copied up, and -1 if an error
+ * 	occurred.
  *
  * Side effects:
  *	Consumes input.
@@ -529,18 +563,21 @@ calmaParseElement(pnsrefs, pnpaths)
  * ----------------------------------------------------------------------------
  */
 
-void
-calmaElementSref()
+int
+calmaElementSref(filename)
+    char *filename;
 {
     int nbytes, rtype, cols, rows, nref, n, i, savescale;
     int xlo, ylo, xhi, yhi, xsep, ysep;
+    bool madeinst = FALSE;
     char *sname = NULL;
     bool isArray = FALSE;
     Transform trans, tinv;
-    Point refarray[3], p;
+    Point refarray[3], refunscaled[3], p;
     CellUse *use;
     CellDef *def;
     int gdsCopyPaintFunc();	/* Forward reference */
+    int gdsHasUses();		/* Forward reference */
     /* Added by NP */
     char *useid = NULL, *arraystr = NULL;
     int propAttrType;
@@ -549,7 +586,8 @@ calmaElementSref()
     calmaSkipSet(calmaElementIgnore);
 
     /* Read subcell name */
-    if (!calmaReadStringRecord(CALMA_SNAME, &sname)) return;
+    if (!calmaReadStringRecord(CALMA_SNAME, &sname))
+	return -1;
 
     /*
      * Create a new cell use with this transform.  If the
@@ -581,19 +619,19 @@ calmaElementSref()
 	    HashTable OrigCalmaLayerHash;
 	    int crsMultiplier = cifCurReadStyle->crs_multiplier;
 	    char *currentSname = cifReadCellDef->cd_name;
+	    Plane **savePlanes;
 
 	    OrigCalmaLayerHash = calmaLayerHash;
-	    cifReadCellDef->cd_client = (ClientData)calmaExact();
+	    savePlanes = calmaExact();
 
 	    /* Read cell definition "sname". */
-	    calmaParseStructure();
+	    calmaParseStructure(filename);
 
 	    /* Put things back to the way they were. */
 	    fseek(calmaInputFile, originalFilePos, SEEK_SET);
 	    cifReadCellDef = calmaLookCell(currentSname);
 	    def = calmaLookCell(sname);
-	    cifCurReadPlanes = (Plane **)cifReadCellDef->cd_client;
-	    cifReadCellDef->cd_client = (ClientData)NULL;
+	    cifCurReadPlanes = savePlanes;
 	    calmaLayerHash = OrigCalmaLayerHash;
 	    if (crsMultiplier != cifCurReadStyle->crs_multiplier)
 	    {
@@ -627,20 +665,20 @@ calmaElementSref()
 			def->cd_name, cifReadCellDef->cd_name);
 	calmaReadError(" and can't be used as a subcell.\n");
 	calmaReadError("(Use skipped)\n");
-	return;
+	return -1;
     }
 
     /* Read subcell transform */
     if (!calmaReadTransform(&trans, sname))
     {
 	printf("Couldn't read transform.\n");
-	return;
+	return -1;
     }
 
     /* Get number of columns and rows if array */
     cols = rows = 0;  /* For half-smart compilers that complain otherwise. */
     READRH(nbytes, rtype);
-    if (nbytes < 0) return;
+    if (nbytes < 0) return -1;
     if (rtype == CALMA_COLROW)
     {
 	isArray = TRUE;
@@ -648,7 +686,7 @@ calmaElementSref()
 	READI2(rows);
 	xlo = 0; xhi = cols - 1;
 	ylo = 0; yhi = rows - 1;
-	if (feof(calmaInputFile)) return;
+	if (feof(calmaInputFile)) return -1;
 	(void) calmaSkipBytes(nbytes - CALMAHEADERLENGTH - 4);
     }
     else
@@ -662,11 +700,11 @@ calmaElementSref()
      * For arrays, there will be three; for their meanings, see below.
      */
     READRH(nbytes, rtype)
-    if (nbytes < 0) return;
+    if (nbytes < 0) return -1;
     if (rtype != CALMA_XY)
     {
 	calmaUnexpected(CALMA_XY, rtype);
-	return;
+	return -1;
     }
 
     /* Length of remainder of record */
@@ -698,95 +736,40 @@ calmaElementSref()
      * coordinates, and don't scale to the magic database.
      */
 
-    if (def->cd_flags & CDFLATGDS)	/* Don't scale to magic coords! */
+    for (n = 0; n < nref; n++)
     {
-	for (n = 0; n < nref; n++)
+	savescale = cifCurReadStyle->crs_scaleFactor;
+	calmaReadPoint(&refarray[n], 1);
+	refunscaled[n] = refarray[n];	// Save for CDFLATGDS cells
+	refarray[n].p_x = CIFScaleCoord(refarray[n].p_x, COORD_EXACT);
+	if (savescale != cifCurReadStyle->crs_scaleFactor)
 	{
-	    calmaReadPoint(&refarray[n], 1);
-	    if (feof(calmaInputFile))
-		return;
-	}
-    }
-    else
-    {
-	for (n = 0; n < nref; n++)
-	{
+	    for (i = 0; i < n; i++)
+	    {
+		refarray[i].p_x *= (savescale / cifCurReadStyle->crs_scaleFactor);
+		refarray[i].p_y *= (savescale / cifCurReadStyle->crs_scaleFactor);
+	    }
 	    savescale = cifCurReadStyle->crs_scaleFactor;
-	    calmaReadPoint(&refarray[n], 1);
-	    refarray[n].p_x = CIFScaleCoord(refarray[n].p_x, COORD_EXACT);
-	    if (savescale != cifCurReadStyle->crs_scaleFactor)
-	    {
-		for (i = 0; i < n; i++)
-		{
-		    refarray[i].p_x *= (savescale / cifCurReadStyle->crs_scaleFactor);
-		    refarray[i].p_y *= (savescale / cifCurReadStyle->crs_scaleFactor);
-		}
-		savescale = cifCurReadStyle->crs_scaleFactor;
-	    }
-	    refarray[n].p_y = CIFScaleCoord(refarray[n].p_y, COORD_EXACT);
-	    if (savescale != cifCurReadStyle->crs_scaleFactor)
-	    {
-		for (i = 0; i < n; i++)
-		{
-		    refarray[i].p_x *= (savescale / cifCurReadStyle->crs_scaleFactor);
-		    refarray[i].p_y *= (savescale / cifCurReadStyle->crs_scaleFactor);
-		}
-		refarray[n].p_x *= (savescale / cifCurReadStyle->crs_scaleFactor);
-	    }
-
-	    if (feof(calmaInputFile))
-		return;
 	}
+	refarray[n].p_y = CIFScaleCoord(refarray[n].p_y, COORD_EXACT);
+	if (savescale != cifCurReadStyle->crs_scaleFactor)
+	{
+	    for (i = 0; i < n; i++)
+	    {
+		refarray[i].p_x *= (savescale / cifCurReadStyle->crs_scaleFactor);
+		refarray[i].p_y *= (savescale / cifCurReadStyle->crs_scaleFactor);
+	    }
+	    refarray[n].p_x *= (savescale / cifCurReadStyle->crs_scaleFactor);
+	}
+
+	if (feof(calmaInputFile))
+	    return -1;
     }
 
     /* Skip remainder */
     nbytes -= nref * 8;
     if (nbytes)
 	(void) calmaSkipBytes(nbytes);
-
-    /*
-     * Figure out the inter-element spacing of array elements,
-     * and also the translation part of the transform.
-     * The first reference point for both SREFs and AREFs is the
-     * translation of the use's or array's lower-left.
-     */
-    trans.t_c = refarray[0].p_x;
-    trans.t_f = refarray[0].p_y;
-    GeoInvertTrans(&trans, &tinv);
-    if (isArray)
-    {
-	/*
-	 * The remaining two points for an array are displaced from
-	 * the first reference point by:
-	 *    - the inter-column spacing times the number of columns,
-	 *    - the inter-row spacing times the number of rows.
-	 */
-	xsep = ysep = 0;
-	if (cols)
-	{
-	    GeoTransPoint(&tinv, &refarray[1], &p);
-	    if (p.p_x % cols)
-	    {
-		n = (p.p_x + (cols+1)/2) / cols;
-		calmaReadError("# cols doesn't divide displacement ref pt\n");
-		calmaReadError("    %d / %d -> %d\n", p.p_x, cols, n);
-		xsep = n;
-	    }
-	    else xsep = p.p_x / cols;
-	}
-	if (rows)
-	{
-	    GeoTransPoint(&tinv, &refarray[2], &p);
-	    if (p.p_y % rows)
-	    {
-		n = (p.p_y + (rows+1)/2) / rows;
-		calmaReadError("# rows doesn't divide displacement ref pt\n");
-		calmaReadError("    %d / %d -> %d\n", p.p_y, rows, n);
-		ysep = n;
-	    }
-	    ysep = p.p_y / rows;
-	}
-    }
 
     /* Added by NP --- parse PROPATTR and PROPVALUE record types */
     /* The PROPATTR types 98 and 99 are defined internally to	 */
@@ -796,19 +779,19 @@ calmaElementSref()
     while (1)
     {
 	READRH(nbytes, rtype);
-	if (nbytes < 0) return;
+	if (nbytes < 0) return -1;
 	if (rtype == CALMA_PROPATTR)
 	{
 	    READI2(propAttrType);
 	    if (propAttrType == CALMA_PROP_USENAME)
 	    {
 		if (!calmaReadStringRecord(CALMA_PROPVALUE, &useid))
-		    return;
+		    return -1;
 	    }
 	    else if (propAttrType == CALMA_PROP_ARRAY_LIMITS)
 	    {
 		if (!calmaReadStringRecord(CALMA_PROPVALUE, &arraystr))
-		    return;
+		    return -1;
 		else if (arraystr)
 		{
 		    int xl, xh, yl, yh;
@@ -833,64 +816,152 @@ calmaElementSref()
 	}
     }
 
-    /*
-     * Check for cells which have been marked for flattening
-     */
-    if (def->cd_flags & CDFLATGDS)
+    /* Transform manipulation.  Run through this twice if necessary.	*/
+    /* The second time will use the unscaled transform to compute	*/
+    /* the coordinates of saved geometry for a CD_FLATGDS cell.		*/
+
+    for (i = 0; i < 2; i++)
     {
-	Plane **gdsplanes = (Plane **)def->cd_client;
-	GDSCopyRec gdsCopyRec;
-	int pNum;
-
-	/* To do:  Deal with arrays by modifying trans and	*/
-	/* looping over X and Y					*/
-
-	for (pNum = 0; pNum < MAXCIFRLAYERS; pNum++)
+	if (i == 1)
 	{
-	    if (gdsplanes[pNum] != NULL)
+	    for (n = 0; n < nref; n++)
+		refarray[n] = refunscaled[n]; 	// Restore for CDFLATGDS cells
+	}
+
+	/*
+	 * Figure out the inter-element spacing of array elements,
+	 * and also the translation part of the transform.
+	 * The first reference point for both SREFs and AREFs is the
+	 * translation of the use's or array's lower-left.
+	 */
+
+	trans.t_c = refarray[0].p_x;
+	trans.t_f = refarray[0].p_y;
+	GeoInvertTrans(&trans, &tinv);
+	if (isArray)
+	{
+	    /*
+	     * The remaining two points for an array are displaced from
+	     * the first reference point by:
+	     *    - the inter-column spacing times the number of columns,
+	     *    - the inter-row spacing times the number of rows.
+	     */
+	    xsep = ysep = 0;
+	    if (cols)
 	    {
-		gdsCopyRec.plane = cifCurReadPlanes[pNum];
-		if (isArray)
+		GeoTransPoint(&tinv, &refarray[1], &p);
+		if (p.p_x % cols)
 		{
-		    Transform artrans;
-		    int x, y;
+		    n = (p.p_x + (cols+1)/2) / cols;
+		    calmaReadError("# cols doesn't divide displacement ref pt\n");
+		    calmaReadError("    %d / %d -> %d\n", p.p_x, cols, n);
+		    xsep = n;
+		}
+		else xsep = p.p_x / cols;
+	    }
+	    if (rows)
+	    {
+		GeoTransPoint(&tinv, &refarray[2], &p);
+		if (p.p_y % rows)
+		{
+		    n = (p.p_y + (rows+1)/2) / rows;
+		    calmaReadError("# rows doesn't divide displacement ref pt\n");
+		    calmaReadError("    %d / %d -> %d\n", p.p_y, rows, n);
+		    ysep = n;
+		}
+		ysep = p.p_y / rows;
+	    }
+	}
 
-		    gdsCopyRec.trans = &artrans;
+	/*
+	 * Check for cells which have *not* been marked for flattening
+	 */
 
-		    for (x = 0; x < cols; x++)
-			for (y = 0; y < rows; y++)
-			{
-			    GeoTransTranslate((x * xsep), (y * ysep), &trans,
+	if (!(def->cd_flags & CDFLATGDS))
+	{
+	    use = DBCellNewUse(def, (useid) ? useid : (char *) NULL);
+	    if (isArray)
+		DBMakeArray(use, &GeoIdentityTransform, xlo, ylo, xhi, yhi, xsep, ysep);
+	    DBSetTrans(use, &trans);
+	    DBPlaceCell(use, cifReadCellDef);
+
+	    break;	// No need to do 2nd loop
+	}
+
+	else if (i == 1)
+	{
+	    Plane **gdsplanes = (Plane **)def->cd_client;
+	    GDSCopyRec gdsCopyRec;
+	    int pNum;
+	    bool hasUses;
+
+	    // Mark cell as flattened (at least once)
+	    def->cd_flags |= CDFLATTENED;
+
+	    for (pNum = 0; pNum < MAXCIFRLAYERS; pNum++)
+	    {
+		if (gdsplanes[pNum] != NULL)
+		{
+		    gdsCopyRec.plane = cifCurReadPlanes[pNum];
+		    if (isArray)
+		    {
+			Transform artrans;
+			int x, y;
+
+			gdsCopyRec.trans = &artrans;
+
+			for (x = 0; x < cols; x++)
+			    for (y = 0; y < rows; y++)
+			    {
+				GeoTransTranslate((x * xsep), (y * ysep), &trans,
 					&artrans);
-			    DBSrPaintArea((Tile *)NULL, gdsplanes[pNum],
+				DBSrPaintArea((Tile *)NULL, gdsplanes[pNum],
 					&TiPlaneRect, &DBAllButSpaceBits,
 					gdsCopyPaintFunc, &gdsCopyRec);
-			}
-		}
-		else
-		{
-		    gdsCopyRec.trans = &trans;
-		    DBSrPaintArea((Tile *)NULL, gdsplanes[pNum], &TiPlaneRect,
-			&DBAllButSpaceBits, gdsCopyPaintFunc, &gdsCopyRec);
+			    }
+		    }
+		    else
+		    {
+			gdsCopyRec.trans = &trans;
+			DBSrPaintArea((Tile *)NULL, gdsplanes[pNum], &TiPlaneRect,
+				&DBAllButSpaceBits, gdsCopyPaintFunc, &gdsCopyRec);
+		    }
 		}
 	    }
 	}
-    }
-    else
-    {
-	use = DBCellNewUse(def, (useid) ? useid : (char *) NULL);
-	if (isArray)
-	    DBMakeArray(use, &GeoIdentityTransform, xlo, ylo, xhi, yhi, xsep, ysep);
-	DBSetTrans(use, &trans);
-	DBPlaceCell(use, cifReadCellDef);
+
+	/* If cell has children in addition to paint to be flattened,	*/
+	/* then also generate an instance of the cell.			*/
+
+	else
+	{
+	    use = DBCellNewUse(def, (useid) ? useid : (char *) NULL);
+	    if (isArray)
+		DBMakeArray(use, &GeoIdentityTransform, xlo, ylo, xhi, yhi, xsep, ysep);
+	    DBSetTrans(use, &trans);
+	    DBPlaceCell(use, cifReadCellDef);
+	    madeinst = TRUE;
+	}
     }
 
     /* Done with allocated variables */
     if (sname != NULL) freeMagic(sname);
     if (useid != NULL) freeMagic(useid);
     if (arraystr != NULL) freeMagic(arraystr);
+
+    return ((def->cd_flags & CDFLATGDS) ? (madeinst ? 1 : 0) : 1);
 }
 
+
+/* Callback function for determining if a cell has at least one subcell */
+
+int
+gdsHasUses(use, clientdata)
+    CellUse *use;
+    ClientData clientdata;
+{
+    return 1;
+}
 
 /* Callback function for copying paint from one CIF cell into another */
 
@@ -900,19 +971,24 @@ gdsCopyPaintFunc(tile, gdsCopyRec)
     GDSCopyRec *gdsCopyRec;
 {
     int pNum;
+    TileType dinfo;
     Rect sourceRect, targetRect;
     Transform *trans = gdsCopyRec->trans;
     Plane *plane = gdsCopyRec->plane;
+
+    dinfo = TiGetTypeExact(tile);
 
     if (trans)
     {
 	TiToRect(tile, &sourceRect);
 	GeoTransRect(trans, &sourceRect, &targetRect);
+	if (IsSplit(tile))
+	    dinfo = DBTransformDiagonal(TiGetTypeExact(tile), trans);
     }
     else
 	TiToRect(tile, &targetRect);
 
-    DBNMPaintPlane(plane, TiGetTypeExact(tile), &targetRect, CIFPaintTable,
+    DBNMPaintPlane(plane, dinfo, &targetRect, CIFPaintTable,
 		(PaintUndoInfo *)NULL);
     
     return 0;

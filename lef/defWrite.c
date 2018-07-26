@@ -1503,7 +1503,7 @@ defCountViaFunc(tile, cviadata)
 	lefl->lefClass = CLASS_VIA;
 	lefl->info.via.area = r;
 	lefl->info.via.cell = (CellDef *)NULL;
-	lefl->info.via.lr = (linkedRect *)NULL;
+	lefl->info.via.lr = (LinkedRect *)NULL;
 	lefl->refCnt = 0;	/* These entries will be removed after writing */
 	HashSetValue(he, lefl);
 	lefl->canonName = (char *)he->h_key.h_name;
@@ -1548,11 +1548,12 @@ defGetType(ttype, lefptr)
 	while (he = HashNext(&LefInfo, &hs))
 	{
 	    lefl = (lefLayer *)HashGetValue(he);
-	    if (lefl && (lefl->type == ttype) && (contact == lefl->lefClass))
-	    {
-		if (lefptr) *lefptr = lefl;
-		return lefl->canonName;
-	    }
+	    if (lefl && (contact == lefl->lefClass))
+		if ((lefl->type == ttype) || (lefl->obsType == ttype))
+		{
+		    if (lefptr) *lefptr = lefl;
+		    return lefl->canonName;
+		}
 	}
     }
 

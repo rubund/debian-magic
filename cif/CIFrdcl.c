@@ -89,6 +89,13 @@ TileType cifCurLabelType = TT_SPACE;	/* Magic layer on which to put '94'
 					 * type.
 					 */
 
+/* Structure used when flattening the CIF hierarchy on read-in */
+
+typedef struct {
+    Plane *plane;
+    Transform *trans;
+} CIFCopyRec;
+
 /* The following variable is used to hold a subcell id between
  * the 91 statement and the (immediately-following?) call statement.
  * The string this points to is dynamically allocated, so it must
@@ -483,6 +490,54 @@ CIFParseStart()
     return TRUE;
 }
 
+
+/*
+ * ----------------------------------------------------------------------------
+ * cifCheckPaintFunc ---
+ *
+ *	Callback function for checking if any paint has been generated
+ *	on the CIF target plane for a "copyup" layer.
+ * ----------------------------------------------------------------------------
+ */
+
+int cifCheckPaintFunc(tile, clientData)
+    Tile *tile;
+    ClientData clientData;
+{
+    return 1;
+}
+
+/* Callback function for copying paint from one CIF cell into another */
+
+int
+cifCopyPaintFunc(tile, cifCopyRec)
+    Tile *tile;
+    CIFCopyRec *cifCopyRec;
+{
+    int pNum;
+    TileType dinfo;
+    Rect sourceRect, targetRect;
+    Transform *trans = cifCopyRec->trans;
+    Plane *plane = cifCopyRec->plane;
+
+    dinfo = TiGetTypeExact(tile);
+
+    if (trans)
+    {
+        TiToRect(tile, &sourceRect);
+        GeoTransRect(trans, &sourceRect, &targetRect);
+	if (IsSplit(tile))
+	    dinfo = DBTransformDiagonal(TiGetTypeExact(tile), trans);
+    }
+    else
+        TiToRect(tile, &targetRect);
+
+    DBNMPaintPlane(plane, dinfo, &targetRect, CIFPaintTable,
+                (PaintUndoInfo *)NULL);
+
+    return 0;
+}
+
 /*
  * ----------------------------------------------------------------------------
  *
@@ -493,7 +548,7 @@ CIFParseStart()
  *	CIF cell.
  *
  * Results:
- *	None.
+ *	Return 0
  *
  * Side effects:
  *	Lots of information gets added to the current Magic cell.
@@ -501,16 +556,17 @@ CIFParseStart()
  * ----------------------------------------------------------------------------
  */
 
-void
+int
 CIFPaintCurrent()
 {
     Plane *plane, *swapplane;
     int i;
 
-    for (i = 0; i < cifCurReadStyle->crs_nLayers; i += 1)
+    for (i = 0; i < cifCurReadStyle->crs_nLayers; i++)
     {
 	TileType type;
 	extern int cifPaintCurrentFunc();	/* Forward declaration. */
+	CIFOp *op;
 
 	plane = CIFGenLayer(cifCurReadStyle->crs_layers[i]->crl_ops,
 	    &TiPlaneRect, (CellDef *) NULL, cifCurReadPlanes);
@@ -522,6 +578,64 @@ CIFPaintCurrent()
 
 	if (cifCurReadStyle->crs_layers[i]->crl_flags & CIFR_TEMPLAYER)
 	{
+	    op = cifCurReadStyle->crs_layers[i]->crl_ops;
+	    while (op)
+	    {
+		if (op->co_opcode == CIFOP_COPYUP) break;
+		op = op->co_next;
+	    }
+
+	    /* Quick check to see if anything was generated	*/
+	    /* on this layer.					*/
+
+	    if (op && (DBSrPaintArea((Tile *)NULL, plane, &TiPlaneRect,
+			&DBAllButSpaceBits, cifCheckPaintFunc,
+			(ClientData)NULL) == 1))
+	    {
+		/* Copy-up function */
+
+		int pNum;
+		Plane *newplane;
+		Plane **parray;
+		extern char *(cifReadLayers[MAXCIFRLAYERS]);
+
+		if (cifReadCellDef->cd_flags & CDFLATGDS)
+		    parray = (Plane **)cifReadCellDef->cd_client;
+		else
+		{
+		    parray = (Plane **)mallocMagic(MAXCIFRLAYERS * sizeof(Plane *));
+		    cifReadCellDef->cd_flags |= CDFLATGDS;
+		    cifReadCellDef->cd_flags &= ~CDFLATTENED;
+		    cifReadCellDef->cd_client = (ClientData)parray;
+		    for (pNum = 0; pNum < MAXCIFRLAYERS; pNum++)
+			parray[pNum] = NULL;
+		}
+
+		for (pNum = 0; pNum < MAXCIFRLAYERS; pNum++)
+		{
+		    if (TTMaskHasType(&op->co_cifMask, pNum))
+		    {
+			CIFCopyRec cifCopyRec;
+
+			newplane = parray[pNum];
+			if (newplane == NULL)
+		 	{
+			    newplane = DBNewPlane((ClientData) TT_SPACE);
+			    DBClearPaintPlane(newplane);
+			}
+
+			cifCopyRec.plane = newplane;
+			cifCopyRec.trans = NULL;
+
+			DBSrPaintArea((Tile *)NULL, plane, &TiPlaneRect,
+				&DBAllButSpaceBits, cifCopyPaintFunc,
+				&cifCopyRec);
+
+			parray[pNum] = newplane;
+		    }
+		}
+	    }
+
 	    /* Swap planes */
 	    swapplane = cifCurReadPlanes[type];
 	    cifCurReadPlanes[type] = plane;
@@ -544,6 +658,8 @@ CIFPaintCurrent()
 
     for (i = 0; i < MAXCIFRLAYERS; i++)
 	DBClearPaintPlane(cifCurReadPlanes[i]);
+
+    return 0;
 }
 
 /* Below is the search function invoked for each CIF tile type
@@ -957,8 +1073,7 @@ cifParseUser94()
     }
     if (type >=0 )
     {
-	if (layer >= 0 && (cifCurReadStyle->crs_layers[layer]->crl_flags
-		& CIFR_TEXTLABELS))
+	if (layer >= 0 && cifCurReadStyle->crs_labelSticky[layer])
 	    flags = LABEL_STICKY;
 	else
 	    flags = 0;
@@ -991,7 +1106,7 @@ bool
 cifParseUser95()
 {
     Rect rectangle;
-    Point size, center;
+    Point size, center, cscaled;
     char *name = NULL;
     TileType type;
     int layer, i;
@@ -1016,30 +1131,30 @@ cifParseUser95()
     /* so that half-lambda centers are resolved before remapping to	*/
     /* magic coordinates.						*/
 
-    center.p_x = CIFScaleCoord(center.p_x - size.p_x/2, COORD_ANY);
+    cscaled.p_x = CIFScaleCoord(center.p_x - size.p_x/2, COORD_ANY);
     savescale = cifCurReadStyle->crs_scaleFactor;
-    center.p_y = CIFScaleCoord(center.p_y - size.p_y/2, COORD_ANY);
+    cscaled.p_y = CIFScaleCoord(center.p_y - size.p_y/2, COORD_ANY);
     if (savescale != cifCurReadStyle->crs_scaleFactor)
     {
-	center.p_x *= (savescale / cifCurReadStyle->crs_scaleFactor);
+	cscaled.p_x *= (savescale / cifCurReadStyle->crs_scaleFactor);
 	savescale = cifCurReadStyle->crs_scaleFactor;
     }
     size.p_x = CIFScaleCoord(center.p_x + (size.p_x - size.p_x/2), COORD_ANY);
     if (savescale != cifCurReadStyle->crs_scaleFactor)
     {
-	center.p_x *= (savescale / cifCurReadStyle->crs_scaleFactor);
-	center.p_y *= (savescale / cifCurReadStyle->crs_scaleFactor);
+	cscaled.p_x *= (savescale / cifCurReadStyle->crs_scaleFactor);
+	cscaled.p_y *= (savescale / cifCurReadStyle->crs_scaleFactor);
 	savescale = cifCurReadStyle->crs_scaleFactor;
     }
     size.p_y = CIFScaleCoord(center.p_y + (size.p_y - size.p_y/2), COORD_ANY);
     if (savescale != cifCurReadStyle->crs_scaleFactor)
     {
-	center.p_x *= (savescale / cifCurReadStyle->crs_scaleFactor);
-	center.p_y *= (savescale / cifCurReadStyle->crs_scaleFactor);
+	cscaled.p_x *= (savescale / cifCurReadStyle->crs_scaleFactor);
+	cscaled.p_y *= (savescale / cifCurReadStyle->crs_scaleFactor);
 	size.p_x *= (savescale / cifCurReadStyle->crs_scaleFactor);
     }
-    rectangle.r_xbot = center.p_x;
-    rectangle.r_ybot = center.p_y;
+    rectangle.r_xbot = cscaled.p_x;
+    rectangle.r_ybot = cscaled.p_y;
     rectangle.r_xtop = size.p_x;
     rectangle.r_ytop = size.p_y;
 
@@ -1072,8 +1187,7 @@ cifParseUser95()
     if (type >=0 )
     {
 	int flags;
-	if (layer >= 0 && (cifCurReadStyle->crs_layers[layer]->crl_flags
-		& CIFR_TEXTLABELS))
+	if (layer >= 0 && cifCurReadStyle->crs_labelSticky[layer])
 	    flags = LABEL_STICKY;
 	else
 	    flags = 0;
@@ -1161,6 +1275,7 @@ CIFReadCellCleanup(type)
     HashSearch hs;
     CellDef *def;
     MagWindow *window;
+    int flags;
 
     if (cifSubcellBeingRead)
     {
@@ -1186,79 +1301,24 @@ CIFReadCellCleanup(type)
 		calmaReadError("cell table has NULL entry (Magic error).\n");
 	    continue;
 	}
-	if (!(def->cd_flags & CDAVAILABLE))
+	flags = def->cd_flags;
+	if (!(flags & CDAVAILABLE))
 	{
 	    if (type == 0)
 		CIFReadError("cell %s was used but not defined.\n", def->cd_name);
 	    else
 		calmaReadError("cell %s was used but not defined.\n", def->cd_name);
         }
-	if (def->cd_flags & CDPROCESSEDGDS)
-	{
-	    def->cd_flags &= ~CDPROCESSEDGDS;
-	}
-	if (def->cd_flags & CDFLATGDS)
-	{
-	    /* These cells have been flattened and are no longer needed. */
+	def->cd_flags &= ~CDPROCESSEDGDS;
 
-	    char *savename = StrDup((char **)NULL, def->cd_name);
-	    int pNum;
-	    Plane **gdsplanes = (Plane **)def->cd_client;
-
-	    UndoDisable();
-	    for (pNum = 0; pNum < MAXCIFRLAYERS; pNum++)
-	    {
-	        if (gdsplanes[pNum] != NULL)
-		{
-		    DBFreePaintPlane(gdsplanes[pNum]);
-		    TiFreePlane(gdsplanes[pNum]);
-		}
-	    }
-	    freeMagic((char *)def->cd_client);
-
-	    if (def->cd_parents != (CellUse *)NULL)
-	    {
-		CellUse *cu_p = def->cd_parents;
-		if (type == 0)
-		    CIFReadError("CIF read warning:  Cell %s has parent %s\n",
-				savename, cu_p->cu_id);
-		else
-		    calmaReadError("GDS read warning:  Cell %s has parent %s\n",
-				savename, cu_p->cu_id);
-		def->cd_parents = (CellUse *)NULL;
-	    }
-	    if (DBCellDeleteDef(def) == FALSE)
-	    {
-		if (type == 0)
-		    CIFReadError("CIF read error:  Unable to delete cell %s\n",
-				savename);
-		else
-		    calmaReadError("GDS read error:  Unable to delete cell %s\n",
-				savename);
-	    }
-	    else
-	    {
-		if (type == 0)
-		    CIFReadError("CIF read:  Removed flattened cell %s\n", savename);
-		else
-		    calmaReadError("GDS read:  Removed flattened cell %s\n", savename);
-	    }
-	    UndoEnable();
-	    freeMagic(savename);
-	}
-	else
-	{
-	    if ((type == 0 && CIFNoDRCCheck == FALSE) ||
+	if ((type == 0 && CIFNoDRCCheck == FALSE) ||
 			(type == 1 && CalmaNoDRCCheck == FALSE))
-		DRCCheckThis(def, TT_CHECKPAINT, &def->cd_bbox);
-	    DBWAreaChanged(def, &def->cd_bbox, DBW_ALLWINDOWS, &DBAllButSpaceBits);
-	    DBCellSetModified(def, TRUE);
-	}
+	    DRCCheckThis(def, TT_CHECKPAINT, &def->cd_bbox);
+	DBWAreaChanged(def, &def->cd_bbox, DBW_ALLWINDOWS, &DBAllButSpaceBits);
+	DBCellSetModified(def, TRUE);
     }
 
-    HashKill(&CifCellTable);
-
-    /* Finally, do geometrical processing on the top-level cell. */
+    /* Do geometrical processing on the top-level cell. */
 
     CIFPaintCurrent();
     DBAdjustLabels(EditCellUse->cu_def, &TiPlaneRect);
@@ -1266,4 +1326,71 @@ CIFReadCellCleanup(type)
     DBWAreaChanged(EditCellUse->cu_def, &EditCellUse->cu_def->cd_bbox,
 	    DBW_ALLWINDOWS, &DBAllButSpaceBits);
     DBCellSetModified(EditCellUse->cu_def, TRUE);
+
+    /* Clean up saved CIF/GDS planes in cd_client records of cells */
+
+    HashStartSearch(&hs);
+    while (TRUE)
+    {
+	h = HashNext(&CifCellTable, &hs);
+	if (h == NULL) break;
+
+	def = (CellDef *) HashGetValue(h);
+	if (def == NULL) continue;
+
+	if (def->cd_flags & CDFLATGDS)
+	{
+	    /* These cells have been flattened and are no longer needed. */
+
+	    int pNum;
+	    Plane **cifplanes = (Plane **)def->cd_client;
+
+	    UndoDisable();
+
+	    for (pNum = 0; pNum < MAXCIFRLAYERS; pNum++)
+	    {
+	        if (cifplanes[pNum] != NULL)
+		{
+		    DBFreePaintPlane(cifplanes[pNum]);
+		    TiFreePlane(cifplanes[pNum]);
+		}
+	    }
+	    freeMagic((char *)def->cd_client);
+	    def->cd_client = (ClientData)CLIENTDEFAULT;
+
+	    /* If the CDFLATTENED flag was not set, then this geometry	*/
+	    /* was never instantiated, and should generate a warning.	*/
+
+	    if (!(def->cd_flags & CDFLATTENED))
+		CIFReadError("%s read error:  Unresolved geometry in cell"
+			" %s maps to no magic layers\n",
+			(type == 0) ? "CIF" : "GDS", def->cd_name);
+
+#if 0
+	    /* Remove the cell if it has no parents, no children, and no geometry */
+	    /* To-do:  Check that these conditions are valid */
+
+	    if (def->cd_parents == (CellUse *)NULL)
+	    {
+		char *savename = StrDup((char **)NULL, def->cd_name);
+
+		if (DBCellDeleteDef(def) == FALSE)
+		{
+		    CIFReadError("%s read error:  Unable to delete cell %s\n",
+				(type == 0) ? "CIF" : "GDS", savename);
+		}
+		else
+		{
+		    if (type == 0)
+			TxPrintf("CIF read:  Removed flattened cell %s\n", savename);
+		    else
+			TxPrintf("GDS read:  Removed flattened cell %s\n", savename);
+		}
+		freeMagic(savename);
+	    }
+#endif
+	    UndoEnable();
+	}
+    }
+    HashKill(&CifCellTable);
 }

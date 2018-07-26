@@ -377,6 +377,8 @@ CIFPaintWirePath(pathheadp, width, endcap, plane, ptable, ui)
 		/* Wire reverses direction.  Break wire here,	*/
 		/* draw, and start new polygon.			*/
 
+		TxError("Warning: direction reversal in path.\n");
+
 		phi = theta;
 		if (endcap)
 		{
@@ -497,15 +499,16 @@ CIFPaintWirePath(pathheadp, width, endcap, plane, ptable, ui)
  * ----------------------------------------------------------------------------
  */
 
-void
-PaintPolygon(pointlist, number, plane, ptable, ui)
+LinkedRect *
+PaintPolygon(pointlist, number, plane, ptable, ui, keep)
     Point *pointlist;		/* Array of Point structures */
     int number;			/* total number of points */
     Plane *plane;		/* Plane structure to paint into */
     PaintResultType *ptable;	/* Paint result table */
     PaintUndoInfo *ui;		/* Undo record */
+    bool keep;			/* Return list of rects if true */
 {
-    LinkedRect	*rectp;
+    LinkedRect	*rectp, *rectlist;
     CIFPath *newpath, *cifpath = (CIFPath *)NULL;
     int i;
    
@@ -518,14 +521,15 @@ PaintPolygon(pointlist, number, plane, ptable, ui)
 	cifpath = newpath;
     }
 
-    rectp = CIFPolyToRects(cifpath, plane, ptable, ui);
+    rectlist = CIFPolyToRects(cifpath, plane, ptable, ui);
     CIFFreePath(cifpath);
 
-    for (; rectp != NULL ; rectp = rectp->r_next)
+    for (rectp = rectlist; rectp != NULL ; rectp = rectp->r_next)
     {
 	DBPaintPlane(plane, &rectp->r_r, ptable, ui);
-	freeMagic((char *) rectp);
+	if (!keep) freeMagic((char *) rectp);
     }
+    return (keep) ? rectlist : (LinkedRect *)NULL;
 }
 
 /*

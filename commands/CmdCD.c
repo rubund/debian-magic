@@ -140,8 +140,6 @@ CmdCalma(w, cmd)
 	"		for the window's root cell",
 	"polygon subcells [yes|no]\n"
 	"		put non-Manhattan polygons into subcells",
-	"unfracture tiles[yes|no]\n"
-	"		optimize tiling of non-Manhattan geometry",
 	NULL
     };
 
@@ -173,7 +171,7 @@ CmdCalma(w, cmd)
 
 	    if (cmd->tx_argc == 1)
 	    {
-		namep = rindex(rootDef->cd_name, '/');
+		namep = strrchr(rootDef->cd_name, '/');
 		if (namep == (char *) NULL)
 		    namep = rootDef->cd_name;
 		goto outputCalma;
@@ -591,13 +589,15 @@ CmdCellname(w, cmd)
 	"property	list or set cell definition properties",
 	"rename		rename the indicated cell",
 	"writeable	make the cell definition read-only or read-write",
+	"modified	true if modified, false if not",
 	NULL
     };
     typedef enum { IDX_CHILDREN, IDX_PARENTS, IDX_EXISTS, IDX_SELF,
 		   IDX_INSTANCE, IDX_CHILDINST, IDX_CELLDEF, IDX_ALLCELLS,
 		   IDX_TOPCELLS, IDX_IN_WINDOW, IDX_CREATE,
 		   IDX_DELETE, IDX_FILEPATH, IDX_FLAGS, IDX_LOCK, IDX_UNLOCK,
-		   IDX_PROPERTY, IDX_RENAME, IDX_READWRITE } optionType;
+		   IDX_PROPERTY, IDX_RENAME, IDX_READWRITE,
+		   IDX_MODIFIED } optionType;
 
     if (strstr(cmd->tx_argv[0], "in"))
 	func = DBUsePrint;
@@ -655,7 +655,7 @@ CmdCellname(w, cmd)
 		TxError("Instances do not have a top level.  Use \"cellname\"?\n");
 		return;
 	    case IDX_IN_WINDOW: case IDX_READWRITE: case IDX_FLAGS:
-	    case IDX_PROPERTY: case IDX_FILEPATH:
+	    case IDX_PROPERTY: case IDX_FILEPATH: case IDX_MODIFIED:
 		TxError("Function unimplemented for instances.\n");
 		return;
 	    case IDX_DELETE:
@@ -699,6 +699,9 @@ CmdCellname(w, cmd)
 	case IDX_PARENTS:
 	    (*func)(cellname, PARENTS, dolist);
 	    break;
+	case IDX_MODIFIED:
+	    (*func)(cellname, MODIFIED, dolist);
+	    break;
 	case IDX_PROPERTY:
 	    if (cellname == NULL)
 		cellDef = EditRootDef;
@@ -713,11 +716,21 @@ CmdCellname(w, cmd)
 
 	case IDX_DELETE:
 	    /* Unload the cell definition and free memory */
+	    /* Make sure selections are cleared or they may	*/
+	    /* contain references to the deleted cell def.	*/
 	    if ((locargc == 4) && !strcmp(cmd->tx_argv[3 + ((dolist) ? 1 : 0)],
 			"-noprompt"))
+	    {
+		SelectClear();
 	        DBCellDelete(cellname, TRUE);
-	    else
+	    }
+	    else if (locargc == 3)
+	    {
+		SelectClear();
 	        DBCellDelete(cellname, FALSE);
+	    }
+	    else 
+		TxError("Delete cell command missing cellname\n");
 	    break;
 
 	case IDX_READWRITE:
@@ -760,7 +773,7 @@ CmdCellname(w, cmd)
 
 #ifdef FILE_LOCKS
 		    if (cellDef->cd_fd == -1)
-			dbReadOpen(cellDef, NULL, TRUE);
+			dbReadOpen(cellDef, NULL, TRUE, NULL);
 
 		    if (cellDef->cd_fd != -1)
 			cellDef->cd_flags &= ~CDNOEDIT;
@@ -1078,7 +1091,7 @@ CmdCif(w, cmd)
 
 	    if (argc == 1)
 	    {
-		namep = rindex(rootDef->cd_name, '/');
+		namep = strrchr(rootDef->cd_name, '/');
 		if (namep == (char *) NULL)
 		    namep = rootDef->cd_name;
 		goto outputCIF;
@@ -3421,13 +3434,13 @@ CmdDrc(w, cmd)
 
 		if (DRCTechHalo < DRCCurStyle->DRCTechHalo)
 		    TxPrintf("Warning: rulechecking limited to halo of "
-				"%d internal (%d DRC units).\n",
+				"%d internal units (%d DRC units).\n",
 				DRCTechHalo,
 				DRCTechHalo * DRCCurStyle->DRCScaleFactorN
 				/ DRCCurStyle->DRCScaleFactorD);
 		else
 		    TxPrintf("DRC checks all rules (halo of %d internal units, or"
-				"%d DRC units)\n",
+				" %d DRC units)\n",
 				DRCTechHalo,
 				DRCTechHalo * DRCCurStyle->DRCScaleFactorN
 				/ DRCCurStyle->DRCScaleFactorD);
@@ -3467,6 +3480,7 @@ CmdDrc(w, cmd)
 	
 	case DRC_OFF:
 	    DRCBackGround = DRC_SET_OFF;
+	    DRCBreak();
 #ifdef MAGIC_WRAPPER
 	    if (TxInputRedirect != TX_INPUT_REDIRECTED)
 #endif
@@ -3515,7 +3529,7 @@ CmdDrc(w, cmd)
 	    if (argc == 3)
 	    {
 		DRCStepSize = cmdScaleCoord(w, argv[2], FALSE, TRUE, 1);
-		TxPrintf("DRC step size is now %d internal units (%d DRC units)\n",
+		TxPrintf("DRC step size is now %d internal units (%d DRC units))\n",
 				DRCStepSize,
 				DRCStepSize * DRCCurStyle->DRCScaleFactorN
 				/ DRCCurStyle->DRCScaleFactorD);
@@ -3527,8 +3541,8 @@ CmdDrc(w, cmd)
 			DRCStepSize * DRCCurStyle->DRCScaleFactorN
 			/ DRCCurStyle->DRCScaleFactorD);
 		if (DRCStepSize != (16 * DRCCurStyle->DRCTechHalo))
-		    TxPrintf("Recommended step size is %d internal units "
-				"(%d DRC units) (16 times the halo)\n",
+		    TxPrintf("Recommended step size is %d internal units"
+				" (%d DRC units)\n",
 				(16 * DRCCurStyle->DRCTechHalo),
 				(16 * DRCCurStyle->DRCTechHalo) *
 				DRCCurStyle->DRCScaleFactorN /
@@ -3635,6 +3649,7 @@ cmdDumpParseArgs(cmdName, w, cmd, dummy, scx)
     Rect rootBox;
     Transform *tx_cell, trans_cell;
     char **av;
+    char *cellnameptr, *fullpathname;
     int ac, clen;
 
     if (cmd->tx_argc < 2)
@@ -3649,18 +3664,78 @@ cmdDumpParseArgs(cmdName, w, cmd, dummy, scx)
 	return FALSE;
     }
 
-    /* Locate the cell specified by the command */
-    if (CmdIllegalChars(cmd->tx_argv[1], "", "Cell name"))
-	return (FALSE);
+    /* cellnameptr should not include any path components */
+    if ((cellnameptr = strrchr(cmd->tx_argv[1], '/')) != NULL)
+    {
+	cellnameptr++;
+	/* Allocate extra space for cellname in case it needs an extension */
+	fullpathname = (char *)mallocMagic(strlen(cmd->tx_argv[1]) + 10);
+	strcpy(fullpathname, cmd->tx_argv[1]);
+    }
+    else
+    {
+	cellnameptr = cmd->tx_argv[1];
+	fullpathname = NULL;
+    }
 
     /* If the name still has ".mag" attached, then strip it. */
-    clen = strlen(cmd->tx_argv[1]);
-    if ((clen > 4) && !strcmp(cmd->tx_argv[1] + clen - 4, ".mag"))
-	*(cmd->tx_argv[1] + clen - 4) = '\0';
+    clen = strlen(cellnameptr);
+    if ((clen > 4) && !strcmp(cellnameptr + clen - 4, ".mag"))
+	*(cellnameptr + clen - 4) = '\0';
 
-    def = DBCellLookDef(cmd->tx_argv[1]);
+    /* However, if this is a full path, then the full path name must have .mag */
+    if (fullpathname != NULL)
+    {
+	clen = strlen(fullpathname);
+	if ((clen <= 4) || strcmp(fullpathname + clen - 4, ".mag"))
+	    strcat(cellnameptr, ".mag");
+    }
+
+    /* Check for illegal characters in the cellname */
+    if (CmdIllegalChars(cellnameptr, "", "Cell name"))
+    {
+	if (fullpathname) freeMagic(fullpathname);
+	return (FALSE);
+    }
+
+    def = DBCellLookDef(cellnameptr);
     if (def == (CellDef *) NULL)
-	def = DBCellNewDef(cmd->tx_argv[1], (char *) NULL);
+	def = DBCellNewDef(cellnameptr, (char *) NULL);
+
+    if (fullpathname != NULL)
+    {
+	/* Check if def already exists.  If it points to a	*/
+	/* different file, then force a rename of the cell and	*/
+	/* flag a warning.					*/
+
+	if (def->cd_file != NULL)
+	{
+	    /* Note: may want processing to see if absolute paths match */
+	    if (strcmp(def->cd_file, fullpathname))
+	    {
+		char uniqchar;
+		char *newcellname = (char *)mallocMagic(strlen(cellnameptr) + 3);
+		TxError("Warning:  Cell file path mismatch.  Existing cell has"
+			" path \"%s\", while %s path is \"%s\".\n",
+			def->cd_file, cmdName, fullpathname);
+		uniqchar = 'a';
+		while (def != NULL)
+		{
+		    sprintf(newcellname, "%s_%c", cellnameptr, uniqchar);
+		    def = DBCellLookDef(newcellname);
+		    uniqchar++;
+		}
+		TxError("Renaming cell to \"%s\" to avoid conflict.", newcellname);
+		def = DBCellNewDef(cellnameptr, (char *)NULL);
+		def->cd_file = StrDup(&def->cd_file, fullpathname);
+		freeMagic(newcellname);
+	    }
+	}
+	else
+	    def->cd_file = StrDup(&def->cd_file, fullpathname);
+	freeMagic(fullpathname);
+    }
+
     editDef = EditCellUse->cu_def;
 
     /*
@@ -3670,7 +3745,7 @@ cmdDumpParseArgs(cmdName, w, cmd, dummy, scx)
      * looked for then no new error message will be printed.
      */
     def->cd_flags &= ~CDNOTFOUND;
-    if (!DBCellRead(def, (char *) NULL, TRUE))
+    if (!DBCellRead(def, (char *) NULL, TRUE, NULL))
 	return (FALSE);
     DBReComputeBbox(def);
     dummy->cu_def = def;

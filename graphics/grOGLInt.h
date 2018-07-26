@@ -52,6 +52,7 @@ typedef struct {
 extern OGL_CURRENT oglCurrent;
 
 extern bool groglGetCursorPos();
+extern bool groglGetCursorRootPos();
 extern bool groglDrawGrid();
 extern void GrOGLEnableTablet();
 extern void GrOGLDisableTablet();

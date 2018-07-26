@@ -32,6 +32,7 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
 #include "utils/utils.h"
 #include "tiles/tile.h"
 #include "utils/hash.h"
+#include "utils/styles.h"
 #include "database/database.h"
 #include "database/fonts.h"
 #include "windows/windows.h"
@@ -679,12 +680,13 @@ CmdSelect(w, cmd)
 #define SEL_MOVE	 7
 #define SEL_PICK	 8
 #define SEL_SAVE	 9
-#define SEL_BOX		10
-#define SEL_CHUNK	11
-#define SEL_REGION	12
-#define SEL_NET		13
-#define SEL_SHORT	14
-#define SEL_DEFAULT	15
+#define SEL_FEEDBACK	10
+#define SEL_BOX		11
+#define SEL_CHUNK	12
+#define SEL_REGION	13
+#define SEL_NET		14
+#define SEL_SHORT	15
+#define SEL_DEFAULT	16
 
     static char *cmdSelectOption[] =
     {
@@ -698,6 +700,7 @@ CmdSelect(w, cmd)
 	"move",
 	"pick",
 	"save",
+	"feedback",
 	"box",
 	"chunk",
 	"region",
@@ -721,6 +724,7 @@ CmdSelect(w, cmd)
 	"move                            move selection to a location in the layout",
 	"pick                            delete selection from layout",
 	"save file                       save selection on disk in file.mag",
+	"feedback [style]		 copy selection to feedback",
 	"[more | less] box | chunk | region | net [layers]\n"
 	"				 [de]select chunk/region/net specified by\n"
 	"				 the lower left corner of the current box",
@@ -747,7 +751,7 @@ CmdSelect(w, cmd)
     static Rect chunkSelection;	/* Used to remember the size of the last chunk
 				 * selected.
 				 */
-    static int level;		/* How big a piece to select.  See definitions
+    static int level = 0;	/* How big a piece to select.  See definitions
 				 * below.
 				 */
     static CellUse *lastUse;	/* The last cellUse selected.  Used to step
@@ -757,7 +761,7 @@ CmdSelect(w, cmd)
 				 * also used to step through multiple uses.
 				 */
     static bool lessCycle = FALSE, lessCellCycle = FALSE;
-    char path[200], *printPath, **msg, **optionArgs;
+    char path[200], *printPath, **msg, **optionArgs, *feedtext;
     TerminalPath tpath;
     CellUse *use;
     CellDef *rootBoxDef;
@@ -766,6 +770,7 @@ CmdSelect(w, cmd)
     Rect r, selarea;
     ExtRectList *rlist;
     int option;
+    int feedstyle;
     bool layerspec;
     bool degenerate;
     bool more = FALSE, less = FALSE, samePlace = TRUE;
@@ -856,6 +861,14 @@ CmdSelect(w, cmd)
 	    else
 		optionArgs = &cmd->tx_argv[0];
 	}
+
+	/* options other than SEL_DEFAULT and the ones that cycle
+	 * through (SEL_BOX/CHUNK/REGION/NET) force "level" back
+	 * to 0.
+	 */
+	if (option != SEL_BOX && option != SEL_CHUNK && option !=
+		SEL_REGION && option != SEL_NET)
+	    level = 0;
     }
 
 #ifndef NO_SIM_MODULE
@@ -1002,6 +1015,33 @@ CmdSelect(w, cmd)
 	    return;
 
 	/*--------------------------------------------------------------------
+	 * Copy the selection into a feedback area for permanent display
+	 *--------------------------------------------------------------------
+	 */
+	 case SEL_FEEDBACK:
+	    feedtext = NULL;
+	    feedstyle = STYLE_ORANGE1;
+	    if (cmd->tx_argc > 2)
+	    {
+		/* Get style (To do) */
+		feedstyle = GrGetStyleFromName(cmd->tx_argv[2]);
+		if (feedstyle == -1)
+		{
+		    TxError("Unknown style %s\n", cmd->tx_argv[2]);
+		    TxError("Use a number or one of the long names in the"
+					" .dstyle file\n");
+		    return;
+		}
+		if (cmd->tx_argc > 3)
+		    feedtext = cmd->tx_argv[3];
+	    }
+	    SelCopyToFeedback(SelectRootDef, SelectUse, feedstyle,
+			(feedtext == NULL) ? "selection" : feedtext);
+	    GeoTransRect(&SelectUse->cu_transform, &SelectDef->cd_bbox, &selarea);
+	    DBWHLRedraw(SelectRootDef, &selarea, FALSE);
+	    return;
+
+	/*--------------------------------------------------------------------
 	 * Given a net selection and two labels, determine the shortest
 	 * connecting path between the two labels.
 	 *--------------------------------------------------------------------
@@ -1109,12 +1149,19 @@ Okay:
 
 	    /* See if we're pointing at the same place as we were the last time
 	     * this command was invoked, and if this command immediately follows
-	     * another selection comand.
+	     * another selection comand.  If not, it is important to set lastUse
+	     * to NULL, otherwise trouble occurs if lastUse is an instance that
+	     * was deleted (note that this is not foolproof:  deleting an
+	     * instance followed by selecting an instance that was occupying the
+	     * same space WILL cause a crash).
 	     */
 	
 	    if (!GEO_ENCLOSE(&cmd->tx_p, &lastArea)
 		    || ((lastCommand + 1) != TxCommandNumber))
+	    {
 		samePlace = FALSE;
+		lastUse = NULL;
+	    }
 
 	    lastArea.r_xbot = cmd->tx_p.p_x - MARGIN;
 	    lastArea.r_ybot = cmd->tx_p.p_y - MARGIN;
@@ -1206,17 +1253,19 @@ Okay:
 		{
 		    if (samePlace && lessCycle == less)
 		    {
-			level += 1;
+			level++;
 			if (level > SEL_NET) level = SEL_CHUNK;
 		    }
 		    else level = SEL_CHUNK;
 
-		    if (level != SEL_CHUNK && !TTMaskHasType (&mask, type)) {
+		    if ((level == 1) || (level != SEL_CHUNK &&
+				!TTMaskHasType (&mask, type))) {
 			/* User specified a new mask, and the current tile
 			 * type being expanded is not in the set of types
 			 * which the user wants us to use => reset level
 			 */
 			level = SEL_CHUNK;
+			SelectClear();
 		    }
 		}
 
@@ -1361,7 +1410,7 @@ Okay:
 		}
 		else
 		{
-		    printPath = index(path, '/');
+		    printPath = strchr(path, '/');
 		    if (printPath == NULL)
 			printPath = path;
 		    else printPath++;
@@ -1429,7 +1478,7 @@ cmdLabelTextFunc(label, cellUse, transform, text)
 	TxPrintf("%s\n", label->lab_text);
 #endif
     }
-    else if (cellDef == EditRootDef)
+    else
     {
 	if (strcmp(text, label->lab_text))
 	{
@@ -1466,7 +1515,7 @@ cmdLabelRotateFunc(label, cellUse, transform, value)
 	TxPrintf("%d\n", label->lab_rotate);
 #endif
     }
-    else if (cellDef == EditRootDef)
+    else
     {
 	DBUndoEraseLabel(cellDef, label);
 	DBWLabelChanged(cellDef, label, DBW_ALLWINDOWS);
@@ -1501,7 +1550,7 @@ cmdLabelSizeFunc(label, cellUse, transform, value)
 	TxPrintf("%g\n", (double)label->lab_size / 8.0);
 #endif
     }
-    else if (cellDef == EditRootDef)
+    else
     {
 	DBUndoEraseLabel(cellDef, label);
 	DBWLabelChanged(cellDef, label, DBW_ALLWINDOWS);
@@ -1536,7 +1585,7 @@ cmdLabelJustFunc(label, cellUse, transform, value)
 	TxPrintf("%s\n", GeoPosToName(label->lab_just));
 #endif
     }
-    else if (cellDef == EditRootDef)
+    else
     {
 	DBUndoEraseLabel(cellDef, label);
 	DBWLabelChanged(cellDef, label, DBW_ALLWINDOWS);
@@ -1572,7 +1621,7 @@ cmdLabelLayerFunc(label, cellUse, transform, value)
 	TxPrintf("%s\n", DBTypeLongNameTbl[label->lab_type]);
 #endif
     }
-    else if (cellDef == EditRootDef)
+    else
     {
 	ttype = (TileType)(*value);
 	if (label->lab_type != ttype)
@@ -1610,7 +1659,7 @@ cmdLabelStickyFunc(label, cellUse, transform, value)
 	TxPrintf("%s\n", (label->lab_flags & LABEL_STICKY) ? "true" : "false");
 #endif
     }
-    else if (cellDef == EditRootDef)
+    else
     {
 	newvalue = label->lab_flags;
 	newvalue &= ~LABEL_STICKY;
@@ -1654,7 +1703,7 @@ cmdLabelOffsetFunc(label, cellUse, transform, point)
 		(double)(label->lab_offset.p_y) / 8.0);
 #endif
     }
-    else if (cellDef == EditRootDef)
+    else
     {
 	DBUndoEraseLabel(cellDef, label);
 	DBWLabelChanged(cellDef, label, DBW_ALLWINDOWS);
@@ -1695,7 +1744,7 @@ cmdLabelFontFunc(label, cellUse, transform, font)
 	    TxPrintf("%s\n", DBFontList[label->lab_font]->mf_name);
 #endif
     }
-    else if (cellDef == EditRootDef)
+    else
     {
 	DBUndoEraseLabel(cellDef, label);
 	DBWLabelChanged(cellDef, label, DBW_ALLWINDOWS);
@@ -1750,6 +1799,7 @@ cmdLabelFontFunc(label, cellUse, transform, font)
 #define SETLABEL_ROTATE		6
 #define SETLABEL_STICKY		7
 #define SETLABEL_LAYER		8
+#define SETLABEL_HELP		9
 
 void
 CmdSetLabel(w, cmd)
@@ -1757,6 +1807,7 @@ CmdSetLabel(w, cmd)
     TxCommand *cmd;
 {
     int pos = -1, font = -1, size = 0, rotate = 0, flags = 0;
+    char **msg;
     Point offset;
     TileType ttype;
     int option;
@@ -1764,7 +1815,9 @@ CmdSetLabel(w, cmd)
     Tcl_Obj *lobj;
 #endif
 
-    static char *cmdLabelYesNo[] = { "no", "false", "off", "yes", "true", "on", 0 };
+    static char *cmdLabelYesNo[] = { "no", "false", "off", "0",
+		"yes", "true", "on", "1", 0 };
+
     static char *cmdLabelSetOption[] =
     {
 	"text <text>		change/get label text",
@@ -1776,16 +1829,14 @@ CmdSetLabel(w, cmd)
 	"rotate <degrees>	change/get label rotation",
 	"sticky [true|false]	change/get sticky property",
 	"layer <type>		change/get layer type",
+	"help			print this help info",
 	NULL
     };
 
     if (cmd->tx_argc < 2 || cmd->tx_argc > 4)
-    {
-	TxError("%s <option> [<value>]\n", cmd->tx_argv[0]);
-	return;
-    }
-
-    option = Lookup(cmd->tx_argv[1], cmdLabelSetOption);
+	option = SETLABEL_HELP;
+    else
+	option = Lookup(cmd->tx_argv[1], cmdLabelSetOption);
 
     switch (option)
     {
@@ -1806,10 +1857,9 @@ CmdSetLabel(w, cmd)
 	case SETLABEL_TEXT:
 	    if (EditCellUse)
 	    {
-		SelEnumLabels(&DBAllTypeBits, FALSE, (bool *)NULL,
+		SelEnumLabels(&DBAllTypeBits, TRUE, (bool *)NULL,
 			cmdLabelTextFunc, (cmd->tx_argc == 3) ?
 			(ClientData)cmd->tx_argv[2] : (ClientData)NULL);
-		SelectTransform(&GeoIdentityTransform);
 	    }
 	    break;
 
@@ -1841,8 +1891,8 @@ CmdSetLabel(w, cmd)
 			float scale = 1.0;
 			if ((cmd->tx_argc == 4) && StrIsNumeric(cmd->tx_argv[3]))
 			    scale = (float)atof(cmd->tx_argv[3]);
-			if (DBLoadFont(cmd->tx_argv[2], scale) == 0)
-			    TxPrintf("%s\n", DBFontList[DBNumFonts - 1]->mf_name);
+			if (DBLoadFont(cmd->tx_argv[2], scale) != 0)
+			    TxError("Error loading font \"%s\"\n", cmd->tx_argv[2]);
 			font = DBNameToFont(cmd->tx_argv[2]);
 			if (font < -1) break;
 		    }
@@ -1850,10 +1900,9 @@ CmdSetLabel(w, cmd)
 	    
 		if (EditCellUse)
 		{
-		    SelEnumLabels(&DBAllTypeBits, FALSE, (bool *)NULL,
+		    SelEnumLabels(&DBAllTypeBits, TRUE, (bool *)NULL,
 				cmdLabelFontFunc, (cmd->tx_argc == 3) ?
 				(ClientData)&font : (ClientData)NULL);
-		    SelectTransform(&GeoIdentityTransform);
 		}
 	    }
 	    break;
@@ -1866,10 +1915,9 @@ CmdSetLabel(w, cmd)
 	    }
 	    if (EditCellUse)
 	    {
-		SelEnumLabels(&DBAllTypeBits, FALSE, (bool *)NULL,
+		SelEnumLabels(&DBAllTypeBits, TRUE, (bool *)NULL,
 			cmdLabelJustFunc, (cmd->tx_argc == 3) ?
 			(ClientData)&pos : (ClientData)NULL);
-		SelectTransform(&GeoIdentityTransform);
 	    }
 	    break;
 
@@ -1882,10 +1930,9 @@ CmdSetLabel(w, cmd)
 	    }
 	    if (EditCellUse)
 	    {
-		SelEnumLabels(&DBAllTypeBits, FALSE, (bool *)NULL,
+		SelEnumLabels(&DBAllTypeBits, TRUE, (bool *)NULL,
 			cmdLabelSizeFunc, (cmd->tx_argc == 3) ?
 			(ClientData)&size : (ClientData)NULL);
-		SelectTransform(&GeoIdentityTransform);
 	    }
 	    break;
 
@@ -1911,10 +1958,9 @@ CmdSetLabel(w, cmd)
 	    }	
 	    if (EditCellUse)
 	    {
-		SelEnumLabels(&DBAllTypeBits, FALSE, (bool *)NULL,
+		SelEnumLabels(&DBAllTypeBits, TRUE, (bool *)NULL,
 			cmdLabelOffsetFunc, (cmd->tx_argc != 2) ?
 			(ClientData)&offset : (ClientData)NULL);
-		SelectTransform(&GeoIdentityTransform);
 	    }
 	    break;
 
@@ -1926,10 +1972,9 @@ CmdSetLabel(w, cmd)
 	    }
 	    if (EditCellUse)
 	    {
-		SelEnumLabels(&DBAllTypeBits, FALSE, (bool *)NULL,
+		SelEnumLabels(&DBAllTypeBits, TRUE, (bool *)NULL,
 			cmdLabelRotateFunc, (cmd->tx_argc == 3) ?
 			(ClientData)&rotate : (ClientData)NULL);
-		SelectTransform(&GeoIdentityTransform);
 	    }
 	    break;
 
@@ -1942,14 +1987,13 @@ CmdSetLabel(w, cmd)
 		    TxError("Unknown sticky option \"%s\"\n", cmd->tx_argv[2]);
 		    break;
 		}
-		flags = (option < 3) ? 0 : LABEL_STICKY;
+		flags = (option <= 3) ? 0 : LABEL_STICKY;
 	    }
 	    if (EditCellUse)
 	    {
-		SelEnumLabels(&DBAllTypeBits, FALSE, (bool *)NULL,
+		SelEnumLabels(&DBAllTypeBits, TRUE, (bool *)NULL,
 			cmdLabelStickyFunc, (cmd->tx_argc == 3) ?
 			(ClientData)&flags : (ClientData)NULL);
-		SelectTransform(&GeoIdentityTransform);
 	    }
 	    break;
 
@@ -1966,13 +2010,19 @@ CmdSetLabel(w, cmd)
 	    }
 	    if (EditCellUse)
 	    {
-		SelEnumLabels(&DBAllTypeBits, FALSE, (bool *)NULL,
+		SelEnumLabels(&DBAllTypeBits, TRUE, (bool *)NULL,
 			cmdLabelLayerFunc, (cmd->tx_argc == 3) ?
 			(ClientData)&ttype : (ClientData)NULL);
-		SelectTransform(&GeoIdentityTransform);
 	    }
 	    break;
 
+	case SETLABEL_HELP:
+	    TxError("Usage:  setlabel [option], where [option] is one of:\n");
+	    for (msg = &(cmdLabelSetOption[0]); *msg != NULL; msg++)
+	    {
+	        TxError("    %s\n", *msg);
+	    }
+	    break;
 
 	default:
 	    TxError("Unknown setlabel option \"%s\"\n", cmd->tx_argv[1]);
@@ -2271,6 +2321,14 @@ CmdSimCmd(w, cmd)
  * ----------------------------------------------------------------------------
  */
 
+#define SNAP_OFF		0
+#define SNAP_INTERNAL		1
+#define SNAP_LAMBDA		2
+#define SNAP_GRID		3
+#define SNAP_USER		4
+#define SNAP_ON			5
+#define SNAP_LIST		6
+
 void
 CmdSnap(w, cmd)
     MagWindow *w;
@@ -2278,8 +2336,7 @@ CmdSnap(w, cmd)
 {
     static char *names[] = { "off", "internal", "lambda", "grid", "user", "on",
 		"list", 0 };
-    int n = -1;
-    int mingrid;
+    int n = SNAP_LIST;
     DBWclientRec *crec;
 
     if (cmd->tx_argc < 2) goto printit;
@@ -2292,19 +2349,19 @@ CmdSnap(w, cmd)
     }
     switch (n)
     {
-	case 0: case 1:
+	case SNAP_OFF: case SNAP_INTERNAL:
 	    DBWSnapToGrid = DBW_SNAP_INTERNAL;
-	    break;
-	case 2:
+	    return;
+	case SNAP_LAMBDA:
 	    DBWSnapToGrid = DBW_SNAP_LAMBDA;
-	    break;
-	case 3: case 4: case 5:
+	    return;
+	case SNAP_GRID: case SNAP_USER: case SNAP_ON:
 	    DBWSnapToGrid = DBW_SNAP_USER;
-	    break;
+	    return;
     }
 
 printit:
-    if (n == 6)  /* list */
+    if (n == SNAP_LIST)  /* list */
 #ifdef MAGIC_WRAPPER
 	Tcl_SetResult(magicinterp, 
 		(DBWSnapToGrid == DBW_SNAP_INTERNAL) ? "internal" :

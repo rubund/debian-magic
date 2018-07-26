@@ -188,7 +188,7 @@ dbCellTileSrFunc(scx, fp)
     if (!DBDescendSubcell(scx->scx_use, fp->tf_xmask))
 	return 0;
     if ((def->cd_flags & CDAVAILABLE) == 0)
-	if (!DBCellRead(def, (char *) NULL, TRUE)) return 0;
+	if (!DBCellRead(def, (char *) NULL, TRUE, NULL)) return 0;
 
     context.tc_scx = scx;
     context.tc_filter = fp;
@@ -307,7 +307,7 @@ dbCellUniqueTileSrFunc(scx, fp)
     if (!DBDescendSubcell(scx->scx_use, fp->tf_xmask))
 	return 0;
     if ((def->cd_flags & CDAVAILABLE) == 0)
-	if (!DBCellRead(def, (char *) NULL, TRUE)) return 0;
+	if (!DBCellRead(def, (char *) NULL, TRUE, NULL)) return 0;
 
     context.tc_scx = scx;
     context.tc_filter = fp;
@@ -418,7 +418,7 @@ DBNoTreeSrTiles(scx, mask, xMask, func, cdarg)
 	return 0;
 
     if ((def->cd_flags & CDAVAILABLE) == 0)
-	if (!DBCellRead(def, (char *) NULL, TRUE)) return 0;
+	if (!DBCellRead(def, (char *) NULL, TRUE, NULL)) return 0;
 
     filter.tf_func = func;
     filter.tf_arg = cdarg;
@@ -526,14 +526,49 @@ DBTreeSrLabels(scx, mask, xMask, tpath, flags, func, cdarg)
     ASSERT(def != (CellDef *) NULL, "DBTreeSrLabels");
     if (!DBDescendSubcell(cellUse, xMask)) return 0;
     if ((def->cd_flags & CDAVAILABLE) == 0)
-	if (!DBCellRead(def, (char *) NULL, TRUE)) return 0;
+	if (!DBCellRead(def, (char *) NULL, TRUE, NULL)) return 0;
 
     for (lab = def->cd_labels; lab; lab = lab->lab_next)
     {
 	if (SigInterruptPending) break;
 	is_touching = FALSE;
+
 	if ((lab->lab_font < 0) || (flags & TF_LABEL_ATTACH))
-	    is_touching = GEO_TOUCH(&lab->lab_rect, r);
+	{
+	    /* For non-manhattan searches, label must be in or	*/
+	    /* touch the triangle.  (to-do:  needs a proper	*/
+	    /* insideness test)					*/
+	
+	    if (flags & TF_LABEL_ATTACH_CORNER)
+	    {
+		Rect r1 = *r;
+		Rect r2 = *r;
+		if (flags & TF_LABEL_ATTACH_NOT_NE)
+		{
+		    r1.r_ytop = r->r_ybot;
+		    r2.r_xtop = r->r_xbot;
+		}
+		else if (flags & TF_LABEL_ATTACH_NOT_NW)
+		{
+		    r1.r_ytop = r->r_ybot;
+		    r2.r_xbot = r->r_xtop;
+		}
+		else if (flags & TF_LABEL_ATTACH_NOT_SE)
+		{
+		    r1.r_ybot = r->r_ytop;
+		    r2.r_xtop = r->r_xbot;
+		}
+		else if (flags & TF_LABEL_ATTACH_NOT_SW)
+		{
+		    r1.r_ybot = r->r_ytop;
+		    r2.r_xbot = r->r_xtop;
+		}
+		is_touching = GEO_TOUCH(&lab->lab_bbox, &r1) ||
+			  GEO_TOUCH(&lab->lab_bbox, &r2);
+	    }
+	    else
+		is_touching = GEO_TOUCH(&lab->lab_rect, r);
+	}
 	if (!is_touching && (flags & TF_LABEL_DISPLAY) && (lab->lab_font >= 0))
 	    is_touching = GEO_TOUCH(&lab->lab_bbox, r);
 
@@ -592,7 +627,7 @@ dbCellLabelSrFunc(scx, fp)
     ASSERT(def != (CellDef *) NULL, "dbCellLabelSrFunc");
     if (!DBDescendSubcell(scx->scx_use, fp->tf_xmask)) return 0;
     if ((def->cd_flags & CDAVAILABLE) == 0)
-	if (!DBCellRead(def, (char *) NULL, TRUE)) return 0;
+	if (!DBCellRead(def, (char *) NULL, TRUE, NULL)) return 0;
     
     if (fp->tf_tpath != (TerminalPath *) NULL)
     {
@@ -706,7 +741,7 @@ DBTreeSrCells(scx, xMask, func, cdarg)
     if (!DBDescendSubcell(cellUse, xMask))
 	return 0;
     if ((cellUse->cu_def->cd_flags & CDAVAILABLE) == 0)
-	if (!DBCellRead(cellUse->cu_def, (char *) NULL, TRUE))
+	if (!DBCellRead(cellUse->cu_def, (char *) NULL, TRUE, NULL))
 	    return 0;
 
     context.tc_scx = scx;
@@ -752,7 +787,7 @@ dbTreeCellSrFunc(scx, fp)
     else
     {
 	if ((use->cu_def->cd_flags & CDAVAILABLE) == 0)
-	    if (!DBCellRead(use->cu_def, (char *) NULL, TRUE))
+	    if (!DBCellRead(use->cu_def, (char *) NULL, TRUE, NULL))
 		return 0;
 	result = DBCellSrArea(scx, dbTreeCellSrFunc, (ClientData) fp);
     }
@@ -1004,7 +1039,7 @@ DBCellSrArea(scx, func, cdarg)
     context.tc_scx = scx;
 
     if ((scx->scx_use->cu_def->cd_flags & CDAVAILABLE) == 0)
-	if (!DBCellRead(scx->scx_use->cu_def, (char *) NULL, TRUE))
+	if (!DBCellRead(scx->scx_use->cu_def, (char *) NULL, TRUE, NULL))
 	    return 0;
     
     /* In order to make this work with zero-size areas, we first expand
@@ -1180,7 +1215,7 @@ DBCellEnum(cellDef, func, cdarg)
     filter.tf_func = func;
     filter.tf_arg = cdarg;
     if ((cellDef->cd_flags & CDAVAILABLE) == 0)
-	if (!DBCellRead(cellDef, (char *) NULL, TRUE)) return 0;
+	if (!DBCellRead(cellDef, (char *) NULL, TRUE, NULL)) return 0;
     if (TiSrArea((Tile *) NULL, cellDef->cd_planes[PL_CELL],
 		&TiPlaneRect, dbEnumFunc, (ClientData) &filter))
 	return 1;
@@ -1418,6 +1453,9 @@ void
 DBScaleEverything(scalen, scaled)
     int scalen, scaled;
 {
+    void ToolScaleBox();
+    void DBWScaleCrosshair();
+
     int dbCellDefEnumFunc();
     LinkedCellDef *lhead, *lcd;
 
@@ -1448,6 +1486,12 @@ DBScaleEverything(scalen, scaled)
 
     /* Recovery of global plane pointers */
     MZAttachHintPlanes();
+
+    /* Modify root box */
+    ToolScaleBox(scalen, scaled);
+
+    /* Modify crosshair position */
+    DBWScaleCrosshair(scalen, scaled);
 
     SigEnableInterrupts();
 }
@@ -1750,9 +1794,9 @@ dbScaleCell(cellDef, scalen, scaled)
 
 		DBScalePoint(&lab->lab_bbox.r_ll, scalen, scaled);
 		DBScalePoint(&lab->lab_bbox.r_ur, scalen, scaled);
-
+		
 		for (i = 0; i < 4; i++)
-                    DBScalePoint(&lab->lab_corners[i], scalen, scaled);
+		    DBScalePoint(&lab->lab_corners[i], scalen, scaled);
 	    }
 	}
     }

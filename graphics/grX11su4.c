@@ -68,7 +68,7 @@ GrX11EnableTablet()
 
 /*
  * ----------------------------------------------------------------------------
- * grxGetCursorPos:
+ * grx11GetCursorPos:
  * 	Read the cursor position in magic coordinates.
  *
  * Results:
@@ -97,6 +97,41 @@ grx11GetCursorPos (mw, p)
 		  &x, &y, &buttons);
     p->p_x = x;
     p->p_y = grMagicToX(y);
+
+    return TRUE;
+}
+
+/*
+ * ----------------------------------------------------------------------------
+ * grx11GetCursorRootPos:
+ * 	Read the cursor position in screen root coordinates.
+ *
+ * Results:
+ *	TRUE is returned if the coordinates were succesfully read, FALSE
+ *	otherwise.
+ *
+ * Side effects:
+ *	The parameter is filled in with the cursor position, in the form of
+ *	a point in screen coordinates.
+ * ----------------------------------------------------------------------------
+ */
+
+bool
+grx11GetCursorRootPos (mw, p)
+    MagWindow *mw;
+    Point *p;		/* point to be filled in with root coordinates */
+{
+    int x, y, x1, y1;
+    unsigned int buttons;
+    Window win1, win2;
+    
+    if (mw == (MagWindow *)NULL) mw = grCurrent.mw;
+
+    XQueryPointer(grXdpy, (Window)mw->w_grdata,
+		  &win1, &win2, &x1, &y1,
+		  &x, &y, &buttons);
+    p->p_x = x1;
+    p->p_y = y1;
 
     return TRUE;
 }

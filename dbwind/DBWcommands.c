@@ -55,7 +55,7 @@ extern void CmdShell(), CmdSnap();
 extern void CmdStretch(), CmdStraighten();
 extern void CmdTech(), CmdTool(), CmdUnexpand();
 extern void CmdUpsidedown(), CmdWhat(), CmdWire(), CmdWriteall();
-extern void CmdGoto(), CmdFlatten(), CmdXload();
+extern void CmdGoto(), CmdFlatten(), CmdXload(), CmdXor();
 
 /*
  * Nonmanhattan geometry extensions
@@ -463,6 +463,10 @@ DBWInitCommands()
     WindAddCommand(DBWclientID,
 	"xload [cellname]	load a cell into a window unexpanded",
 	CmdXload, FALSE);
+    WindAddCommand(DBWclientID,
+	"xor destname		flatten current top level cell into destname\n\
+			and xor with existing contents",
+	CmdXor, FALSE);
 
 #ifdef CIF_MODULE
     /* Add the CIF extension commands */

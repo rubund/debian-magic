@@ -69,7 +69,7 @@ DBTechNameType(typename)
     int plane;
     LayerInfo *lp;
 
-    slash = index(typename, '/');
+    slash = strchr(typename, '/');
     if (slash != NULL) *slash = 0;
     type = (TileType)(spointertype) dbTechNameLookup(typename, &dbTypeNameLists);
     if (type < 0)
@@ -127,7 +127,7 @@ DBTechNameTypeExact(typename)
     char *slash;
     ClientData result;
 
-    slash = index(typename, '/');
+    slash = strchr(typename, '/');
     if (slash != NULL) return (TileType)(-1);
 
     result = dbTechNameLookupExact(typename, &dbTypeNameLists);
@@ -158,7 +158,7 @@ DBTechNameTypes(typename, bitmask)
     LayerInfo *lp;
 
     TTMaskZero(bitmask);
-    slash = index(typename, '/');
+    slash = strchr(typename, '/');
     if (slash != NULL) *slash = 0;
     type = (TileType)(spointertype) dbTechNameLookup(typename, &dbTypeNameLists);
     if (type < 0)
@@ -436,7 +436,8 @@ DBTechPrintTypes(mask, dolist)
 {
     TileType i;
     NameList *p;
-    bool first;
+    bool firstline = TRUE;
+    bool firstname;
     DefaultType *dtp;
     char *keepname;
 
@@ -446,7 +447,7 @@ DBTechPrintTypes(mask, dolist)
     for (i = TT_TECHDEPBASE; i < DBNumUserLayers; i++)
     {
 	if (!TTMaskHasType(mask, i)) continue;
-	first = TRUE;
+	firstname = TRUE;
 	for (p = dbTypeNameLists.sn_next; p != &dbTypeNameLists;
 		p = p->sn_next)
 	{
@@ -454,27 +455,42 @@ DBTechPrintTypes(mask, dolist)
 	    {
 		if (dolist) 
 		{
-		    if (first) keepname = p->sn_name;
+		    if (firstname) keepname = p->sn_name;
 		    else if (strlen(p->sn_name) > strlen(keepname))
 			keepname = p->sn_name;
 		}
 		else
 		{
-		    if (first) TxPrintf("    %s", p->sn_name);
+		    if (firstname) TxPrintf("    %s", p->sn_name);
 		    else TxPrintf(" or %s", p->sn_name);
 		}
-		first = FALSE;
+		firstname = FALSE;
 	    }
 	}
+
+	if (!firstline)
+	{
+	    if (dolist)
+	    {
+#ifdef MAGIC_WRAPPER
+		Tcl_AppendResult(magicinterp, " ", (char *)NULL);
+#else
+		TxPrintf(" ", keepname);
+#endif
+	    }
+	}
+
 	if (dolist)
 	{
 #ifdef MAGIC_WRAPPER
-	    Tcl_AppendResult(magicinterp, keepname, " ", (char *)NULL);
+	    Tcl_AppendResult(magicinterp, keepname, (char *)NULL);
 #else
-	    TxPrintf("%s ", keepname);
+	    TxPrintf("%s", keepname);
 #endif
 	}
-	else if (!first) TxPrintf("\n");
+	else TxPrintf("\n");
+
+	firstline = FALSE;
     }
 
     /* List built-in types that are normally painted by name */
@@ -483,7 +499,7 @@ DBTechPrintTypes(mask, dolist)
 	if (!TTMaskHasType(mask, dtp->dt_type)) continue;
 	if (dtp->dt_print)
 	{
-	    first = TRUE;
+	    firstname = TRUE;
 	    for (p = dbTypeNameLists.sn_next; p != &dbTypeNameLists;
 		p = p->sn_next)
 	    {
@@ -491,73 +507,43 @@ DBTechPrintTypes(mask, dolist)
 		{
 		    if (dolist) 
 		    {
-		        if (first) keepname = p->sn_name;
+		        if (firstname) keepname = p->sn_name;
 		        else if (strlen(p->sn_name) > strlen(keepname))
 			    keepname = p->sn_name;
 		    }
 		    else
 		    {
-		        if (first) TxPrintf("    %s", p->sn_name);
+		        if (firstname) TxPrintf("    %s", p->sn_name);
 		        else TxPrintf(" or %s", p->sn_name);
 		    }
-		    first = FALSE;
+		    firstname = FALSE;
 		}
 	    }
+
+	    if (!firstline)
+	    {
+		if (dolist)
+		{
+#ifdef MAGIC_WRAPPER
+		    Tcl_AppendResult(magicinterp, " ", (char *)NULL);
+#else
+		    TxPrintf(" ", keepname);
+#endif
+		}
+	    }
+
 	    if (dolist)
 	    {
 #ifdef MAGIC_WRAPPER
-		Tcl_AppendResult(magicinterp, keepname, " ", (char *)NULL);
+		Tcl_AppendResult(magicinterp, keepname, (char *)NULL);
 #else
-		TxPrintf("%s ", keepname);
+		TxPrintf("%s", keepname);
 #endif
 	    }
-	    else if (!first) TxPrintf("\n");
+	    else TxPrintf("\n");
+
+	    firstline = FALSE;
 	}
-    }
-}
-
-/*
- * ----------------------------------------------------------------------------
- *
- * DBTechPrintCanonicalType --
- *
- *	Takes a name which may be an abbreviation of any of the designated
- *	aliases for a layer type, and returns the "canonical" type name;
- *	i.e., the name printed by DBTechPrintTypes list
- *
- * Results:
- *	None.  In the Tcl version, the canonical type name is returned
- *	as a Tcl result.
- * ----------------------------------------------------------------------------
- */
-
-void
-DBTechPrintCanonicalType(layername)
-    char *layername;
-{
-    int i = DBTechNameType(layername);
-    bool first = TRUE;
-    char *keepname;
-    NameList *p;
-
-    if (i >= 0)
-    {
-	for (p = dbTypeNameLists.sn_next; p != &dbTypeNameLists;
-		p = p->sn_next)
-	{
-	    if (((TileType)(spointertype) p->sn_value) == i)
-	    {
-		if (first) keepname = p->sn_name;
-		else if (strlen(p->sn_name) > strlen(keepname))
-		    keepname = p->sn_name;
-		first = FALSE;
-	    }
-	}
-#ifdef MAGIC_WRAPPER
-	Tcl_SetResult(magicinterp, keepname, NULL);
-#else
-	TxPrintf("Layer canonical name is %s\n", keepname);
-#endif
     }
 }
 
@@ -606,9 +592,10 @@ DBTechPrintCanonicalType(layername)
  */
 
 PlaneMask
-DBTechNoisyNameMask(layers, mask)
+DBTechNameMask0(layers, mask, noisy)
     char *layers;			/* String to be parsed. */
     TileTypeBitMask *mask;		/* Where to store the layer mask. */
+    bool noisy;				/* Whether or not to output errors */
 {
     char *p, *p2, c;
     TileTypeBitMask m2;        /* Each time around the loop, we will
@@ -666,7 +653,7 @@ DBTechNoisyNameMask(layers, mask)
 	    }
 	    save = *p2;
 	    *p2 = 0;
-	    planemask |= DBTechNoisyNameMask(p, &m2);
+	    planemask |= DBTechNameMask0(p, &m2, noisy);
 	    *p2 = save;
 	    if (save == ')') p = p2 + 1;
 	    else p = p2;
@@ -714,7 +701,10 @@ DBTechNoisyNameMask(layers, mask)
 			p++;
 		    }
 
-		    t = DBTechNoisyNameType(p);
+		    if (noisy)
+			t = DBTechNoisyNameType(p);
+		    else
+			t = DBTechNameType(p);
 		    if (t >= 0)
 			m2 = DBLayerTypeMaskTbl[t];
 
@@ -757,7 +747,10 @@ DBTechNoisyNameMask(layers, mask)
 	    while ((*p2 != 0) && (*p2 != ',')) p2 += 1;
 	    save = *p2;
 	    *p2 = 0;
-    	    plane = DBTechNoisyNamePlane(p+1);
+	    if (noisy)
+    		plane = DBTechNoisyNamePlane(p+1);
+	    else
+    		plane = DBTechNamePlane(p+1);
 	    *p2 = save;
 	    p = p2;
 	    if (plane > 0)
@@ -789,3 +782,20 @@ DBTechNoisyNameMask(layers, mask)
     return planemask;
 }
 
+/* Wrappers for DBTechNameMask0() */
+
+PlaneMask
+DBTechNoisyNameMask(layers, mask)
+    char *layers;			/* String to be parsed. */
+    TileTypeBitMask *mask;		/* Where to store the layer mask. */
+{
+    return DBTechNameMask0(layers, mask, TRUE);
+}
+
+PlaneMask
+DBTechNameMask(layers, mask)
+    char *layers;			/* String to be parsed. */
+    TileTypeBitMask *mask;		/* Where to store the layer mask. */
+{
+    return DBTechNameMask0(layers, mask, FALSE);
+}

@@ -9,7 +9,7 @@
 # revision C: Adds a layer manager toolbar on the left side
 # revision D: Adds a menubar on top with cell and tech manager tools
 
-global windowsopen
+global lwindow
 global tk_version
 global Glyph
 global Opts
@@ -39,6 +39,9 @@ set Glyph(right) [image create bitmap \
 set Glyph(zoom) [image create bitmap \
 	-file ${CAD_ROOT}/magic/tcl/bitmaps/zoom.xbm \
 	-background gray -foreground steelblue]
+set Glyph(lock) [image create bitmap \
+	-file ${CAD_ROOT}/magic/tcl/bitmaps/lock.xbm \
+	-background gray80 -foreground steelblue4]
 
 # Menu button callback functions
 
@@ -130,11 +133,13 @@ proc magic::promptsave {type} {
 		magic::gds write $Layoutfilename
 	    }
 	  }
+      force -
       magic {
 	    set CellList [ magic::cellname list window ]
 	    if {[lsearch $CellList "(UNNAMED)"] >= 0} {
 	       set Layoutfilename [ tk_getSaveFile -filetypes \
-		   {{Magic {.mag {.mag}}} {"All files" {*}}}]
+		   {{Magic {.mag {.mag}}} {"All files" {*}}} \
+		   -title "Save cell (UNNAMED) as:" ]
 	       if {$Layoutfilename != ""} {
 		   set cellpath [file dirname $Layoutfilename]
 		   if {$cellpath == [pwd]} {
@@ -145,9 +150,64 @@ proc magic::promptsave {type} {
 		   magic::save $Layoutfilename
 	       }
 	    }
-	    magic::writeall
+	    if {$type == "force"} {
+	       magic::writeall force
+	    } else {
+	       magic::writeall
+	    }
 	  }
    }
+}
+
+# Window to prompt for a new cell
+
+proc magic::prompt_dialog { type } {
+   global Opts
+
+   if {[catch {toplevel .dialog}]} {
+      foreach child [winfo children .dialog] {
+         destroy $child
+      }
+   }
+
+   frame .dialog.titlebar
+   frame .dialog.text
+   frame .dialog.bbar
+
+   switch $type {
+      new {
+         label .dialog.titlebar.title -text "Create new cell" -foreground blue
+         button .dialog.bbar.okay -text "Okay" -command {load $Opts(cell_name); \
+		lower .dialog}
+         set Opts(cell_name) "(UNNAMED)"
+      }
+      save {
+         label .dialog.titlebar.title -text "Save cell as..." -foreground blue
+         button .dialog.bbar.okay -text "Okay" -command {save $Opts(cell_name); \
+		lower .dialog}
+         set Opts(cell_name) [cellname list window]
+      }
+   }
+   pack .dialog.titlebar.title
+
+   label .dialog.text.tlabel -text "Cell name:" -foreground brown
+   entry .dialog.text.tentry -background white -textvariable Opts(cell_name)
+
+   pack .dialog.text.tlabel -side left
+   pack .dialog.text.tentry -side left
+
+   button .dialog.bbar.cancel -text "Cancel" -command "lower .dialog"
+
+   pack .dialog.bbar.okay -side left
+   pack .dialog.bbar.cancel -side right
+
+   pack .dialog.titlebar -side top -ipadx 2 -ipady 2
+   pack .dialog.text -side top -fill both -expand true
+   pack .dialog.bbar -side top -fill x -ipadx 5
+
+   bind .dialog.text.tentry <Return> {.dialog.bbar.okay invoke}
+
+   raise .dialog
 }
 
 # Callback functions used by the DRC.
@@ -166,6 +226,7 @@ proc magic::drcstate { status } {
    set winlist [*bypass windownames layout]
    foreach lwin $winlist {
       set framename [winfo parent $lwin]
+      if {$framename == "."} {return}
       switch $status {
          idle { 
 		set dct [*bypass drc list count total]
@@ -301,6 +362,10 @@ proc magic::maketechmanager { mgrpath } {
 # Generate the cell manager
 
 catch {source ${CAD_ROOT}/magic/tcl/cellmgr.tcl}
+
+# Generate the library manager
+
+catch {source ${CAD_ROOT}/magic/tcl/libmgr.tcl}
 
 # Generate the text helper
 
@@ -450,13 +515,14 @@ magic::tag findbox "magic::scrollupdate %W"
 magic::tag see "magic::toolupdate %W %1 %2"
 magic::tag tech "magic::techrebuild %W %1; magic::captions %1"
 magic::tag drc "magic::drcupdate %1"
-magic::tag path "magic::techmanager update"
+magic::tag path "[magic::tag path]; magic::techmanager update"
 magic::tag cellname "magic::mgrupdate %W %1"
 magic::tag cif      "magic::mgrupdate %W %1"
 magic::tag gds      "magic::mgrupdate %W %1"
 
 # This should be a list. . . do be done later
-set windowsopen 0
+set lwindow 0
+set owindow 0
 
 set Opts(techmgr) 0
 set Opts(target)  default
@@ -464,7 +530,11 @@ set Opts(netlist) 0
 set Opts(colormap) 0
 set Opts(wind3d) 0
 set Opts(crosshair) 0
+set Opts(hidelocked) 0
+set Opts(hidespecial) 0
+set Opts(toolbar) 0
 set Opts(drc) 1
+set Opts(autobuttontext) 1
 
 # Update cell and tech managers in response to a cif or gds read command
 
@@ -532,19 +602,20 @@ proc magic::boxview {win {cmdstr ""}} {
       }
 
       set framename [winfo parent $win]
-      set lambda [${win} tech lambda]
-      set lr [expr {(0.0 + [lindex $lambda 0]) / [lindex $lambda 1]}]
+      if {$framename == "."} {return}
+      if {[catch {set cr [cif scale out]}]} {return}
       set bval [${win} box values]
-      set bllx [expr {[lindex $bval 0] * $lr }]
-      set blly [expr {[lindex $bval 1] * $lr }]
-      set burx [expr {[lindex $bval 2] * $lr }]
-      set bury [expr {[lindex $bval 3] * $lr }]
+      set bllx [expr {[lindex $bval 0] * $cr }]
+      set blly [expr {[lindex $bval 1] * $cr }]
+      set burx [expr {[lindex $bval 2] * $cr }]
+      set bury [expr {[lindex $bval 3] * $cr }]
       if {[expr {$bllx == int($bllx)}]} {set bllx [expr {int($bllx)}]}
       if {[expr {$blly == int($blly)}]} {set blly [expr {int($blly)}]}
       if {[expr {$burx == int($burx)}]} {set burx [expr {int($burx)}]}
       if {[expr {$bury == int($bury)}]} {set bury [expr {int($bury)}]}
-      ${framename}.titlebar.pos configure -text \
-		"box ($bllx, $blly) to ($burx, $bury) lambda"
+      set titletext [format "box (%+g %+g) to (%+g %+g) microns" \
+			$bllx $blly $burx $bury]
+      ${framename}.titlebar.pos configure -text $titletext
    }
 }
 
@@ -554,29 +625,33 @@ proc magic::cursorview {win} {
       return
    }
    set framename [winfo parent $win]
-   set lambda [${win} tech lambda]
-   if {[llength $lambda] != 2} {return}
-   set lr [expr {(0.0 + [lindex $lambda 0]) / [lindex $lambda 1]}]
-   set olst [${win} cursor lambda]
-   set olstx [lindex $olst 0]
-   set olsty [lindex $olst 1]
+   if {[catch {set cr [cif scale out]}]} {return}
+   if {$cr == 0} {return}
+   set olst [${win} cursor internal]
+
+   set olstx [expr [lindex $olst 0]]
+   set olsty [expr [lindex $olst 1]]
 
    if {$Opts(crosshair)} {
-      *bypass crosshair ${olstx}l ${olsty}l
+      *bypass crosshair ${olstx}i ${olsty}i
    }
+
+   # Use catch, because occasionally this fails on startup
+   if {[catch {
+      set olstx [expr $olstx * $cr]
+      set olsty [expr $olsty * $cr]
+   }]} {return}
 
    if {[${win} box exists]} {
       set dlst [${win} box position]
-      set dx [expr {$olstx - ([lindex $dlst 0]) * $lr }]
-      set dy [expr {$olsty - ([lindex $dlst 1]) * $lr }]
+      set dx [expr {$olstx - ([lindex $dlst 0]) * $cr }]
+      set dy [expr {$olsty - ([lindex $dlst 1]) * $cr }]
       if {[expr {$dx == int($dx)}]} {set dx [expr {int($dx)}]}
       if {[expr {$dy == int($dy)}]} {set dy [expr {int($dy)}]}
-      if {$dx >= 0} {set dx "+$dx"}
-      if {$dy >= 0} {set dy "+$dy"}
-      set titletext [format "(%g %g) %g %g lambda" $olstx $olsty $dx $dy]
+      set titletext [format "(%+g %+g) %+g %+g microns" $olstx $olsty $dx $dy]
       ${framename}.titlebar.pos configure -text $titletext
    } else {
-      set titletext [format "(%g %g) lambda" $olstx $olsty]
+      set titletext [format "(%+g %+g) microns" $olstx $olsty]
       ${framename}.titlebar.pos configure -text $titletext
    }
 }
@@ -584,7 +659,6 @@ proc magic::cursorview {win} {
 proc magic::toolupdate {win {yesno "yes"} {layerlist "none"}} {
    global Winopts
 
-   # For NULL window, get current window
    if {$win == {}} {
       set win [magic::windownames]
    }
@@ -594,10 +668,11 @@ proc magic::toolupdate {win {yesno "yes"} {layerlist "none"}} {
       return
    }
 
+   set topname [winfo toplevel $win]
    set framename [winfo parent $win]
 
    # Don't do anything if toolbar is not present
-   if { $Winopts(${framename},toolbar) == 0 } { return }
+   if { $Winopts(${topname},toolbar) == 0 } { return }
 
    if {$layerlist == "none"} {
 	set layerlist $yesno
@@ -606,27 +681,72 @@ proc magic::toolupdate {win {yesno "yes"} {layerlist "none"}} {
    if {$layerlist == "*"} {
       set layerlist [magic::tech layer "*"]
    }
+
+   # Change from comma-separated list to Tcl list
+   set layerlist [string map {, " "} $layerlist]
+
    foreach layer $layerlist {
       switch $layer {
-	 none {}
+	 none {set canon ""}
+	 allSame {set canon ""}
+	 "*" {set canon ""}
+	 "$" {set canon ""}
+	 connect {set canon ""}
 	 errors {set canon $layer}
 	 subcell {set canon $layer}
 	 labels {set canon $layer}
 	 default {set canon [magic::tech layer $layer]}
       }
-      if {$layer != "none"} {
+
+      # Layers may not be in the toolbar if "hidelocked" or
+      # "hidespecial" is used, so catch each configure command.
+
+      if {$canon != ""} {
          if {$yesno == "yes"} {
-	    ${framename}.toolbar.b$canon configure -image img_$canon 
+	    catch {${framename}.toolbar.b$canon configure -image img_$canon}
+	    catch {${framename}.toolbar.p$canon configure -image pale_$canon}
          } else {
-	    ${framename}.toolbar.b$canon configure -image img_space
+	    catch {${framename}.toolbar.b$canon configure -image img_space}
+	    catch {${framename}.toolbar.p$canon configure -image img_space}
 	 }
       }
    }
 }
 
+# Generate the toolbar images for a technology
+
+proc magic::maketoolimages {} {
+
+   # Generate a layer image for "space" that will be used when layers are
+   # invisible.
+
+   image create layer img_space -name none
+
+   set all_layers [concat {errors labels subcell} [magic::tech layer "*"]]
+
+   foreach layername $all_layers {
+      image create layer img_$layername -name $layername
+      image create layer pale_$layername -name $layername \
+		-disabled true -icon 23
+    }
+}
+
 # Generate the toolbar for the wrapper
 
 proc magic::maketoolbar { framename } {
+   global Opts
+   global Winopts
+
+   # Don't do anything if in suspend mode
+   set topname [winfo toplevel $framename]
+   if {[info exists Winopts(${topname},suspend)]} {
+      if { $Winopts(${topname},suspend) > 0} { return }
+   }
+
+   if {$Opts(toolbar) == 0} {
+      magic::maketoolimages
+      set Opts(toolbar) 1
+   }
 
    # Destroy any existing toolbar before starting
    set alltools [winfo children ${framename}.toolbar]
@@ -637,23 +757,19 @@ proc magic::maketoolbar { framename } {
    # All toolbar commands will be passed to the appropriate window
    set win ${framename}.magic
 
-   # Make sure that window has been created so we will get the correct
-   # height value.
-
-   update idletasks
-   set winheight [expr {[winfo height ${framename}] - \
-		[winfo height ${framename}.titlebar]}]
-
-   # Generate a layer image for "space" that will be used when layers are
-   # invisible.
-
-   image create layer img_space -name none
-
    # Generate layer images and buttons for toolbar
+   if {$Opts(hidespecial) == 0} {
+       set special_layers {errors labels subcell}
+   } else {
+       set special_layers {}
+   }
 
-   set all_layers [concat {errors labels subcell} [magic::tech layer "*"]]
+   if {$Opts(hidelocked) == 0} {
+       set all_layers [concat $special_layers [magic::tech layer "*"]]
+   } else {
+       set all_layers [concat $special_layers [magic::tech unlocked]]
+   }
    foreach layername $all_layers {
-      image create layer img_$layername -name $layername
       button ${framename}.toolbar.b$layername -image img_$layername -command \
 		"$win see $layername"
 
@@ -685,24 +801,61 @@ proc magic::maketoolbar { framename } {
 		"$win select less area $layername"
    }
 
+   # Create an additional set of layers and buttons in the "disabled" style
+   # These buttons can be swapped in place of the regular buttons when the
+   # layer is locked.  They define no bindings except "u" for "unlock",
+   # and the button bindings (see, see no)
+
+   foreach layername $all_layers {
+      button ${framename}.toolbar.p$layername -image pale_$layername -command \
+		"$win see $layername"
+      bind ${framename}.toolbar.p$layername <ButtonPress-3> \
+		"$win see no $layername"
+      bind ${framename}.toolbar.p$layername <Enter> \
+		[subst {focus %W ; ${framename}.titlebar.message configure \
+		 -text "$layername (locked)"}]
+      bind ${framename}.toolbar.p$layername <Leave> \
+		[subst {${framename}.titlebar.message configure -text ""}]
+   }
+
    # Figure out how many columns we need to fit all the layer buttons inside
    # the toolbar without going outside the window area.
 
-   set ncols 1
+   set locklist [tech locked]
+   set ncols 0
    while {1} {
       incr ncols
       set i 0
       set j 0
       foreach layername $all_layers {
-         grid ${framename}.toolbar.b$layername -row $i -column $j -sticky news
+	 if {[lsearch $locklist $layername] >= 0} {
+            grid ${framename}.toolbar.p$layername -row $i -column $j -sticky news
+	 } else {
+            grid ${framename}.toolbar.b$layername -row $i -column $j -sticky news
+	 }
+	 bind ${framename}.toolbar.p$layername <KeyPress-u> \
+		"$win tech unlock $layername ; \
+		grid forget ${framename}.toolbar.p$layername ; \
+		grid ${framename}.toolbar.b$layername \
+		-row $i -column $j -sticky news"
+	 bind ${framename}.toolbar.b$layername <KeyPress-l> \
+		"$win tech lock $layername ; \
+		grid forget ${framename}.toolbar.b$layername ; \
+		grid ${framename}.toolbar.p$layername \
+		-row $i -column $j -sticky news"
          incr j
          if {$j == $ncols} {
 	    set j 0
 	    incr i
          }
       }
-      # tkwait visibility ${framename}.toolbar
+
+      # Make sure that window has been created so we will get the correct
+      # height value.
+
       update idletasks
+      set winheight [expr {[winfo height ${framename}] - \
+		[winfo height ${framename}.titlebar]}]
       set toolheight [lindex [grid bbox ${framename}.toolbar] 3]
       if {$toolheight <= $winheight} {break}
    }
@@ -712,6 +865,7 @@ proc magic::maketoolbar { framename } {
 # command.
 
 proc magic::techrebuild {winpath {cmdstr ""}} {
+   global Opts
 
    # For NULL window, find all layout windows and apply update to each.
    if {$winpath == {}} {
@@ -724,8 +878,11 @@ proc magic::techrebuild {winpath {cmdstr ""}} {
 
    set framename [winfo parent $winpath]
    if {${cmdstr} == "load"} {
+      set Opts(toolbar) 0
       maketoolbar ${framename}
       magic::techmanager init
+   } elseif {${cmdstr} == "lock" || ${cmdstr} == "unlock" || ${cmdstr} == "revert"} {
+      maketoolbar ${framename}
    }
 }
 
@@ -738,10 +895,12 @@ proc magic::setscrollvalues {win} {
    set svalues [${win} view get]
    set bvalues [${win} view bbox]
 
+   set framename [winfo parent ${win}]
+   if {$framename == "."} {return}
+
    set bwidth [expr {[lindex $bvalues 2] - [lindex $bvalues 0]}]
    set bheight [expr {[lindex $bvalues 3] - [lindex $bvalues 1]}]
 
-   set framename [winfo parent ${win}]
    set wwidth [winfo width ${framename}.xscroll.bar]  ;# horizontal scrollbar
    set wheight [winfo height ${framename}.yscroll.bar]  ;# vertical scrollbar
 
@@ -893,10 +1052,28 @@ proc magic::makescrollbar { fname orient win } {
    ${fname}.bar bind centre <B1-Motion> "magic::dragscroll %W %$orient $orient"
 }
 
+# Save all and quit.  If something bad happens like an attempt to
+# write cells into an unwriteable directory, then "cellname list modified"
+# will contain a list of cells, so prompt to quit with the option to cancel.
+# If there are no remaining modified and unsaved cells, then just exit.
+# Because cell "(UNNAMED)" is not written by "writeall force", if that is
+# the only modified cell, then prompt to change its name and save; then quit.
+
+proc magic::saveallandquit {} {
+   magic::promptsave force
+   set modlist [magic::cellname list modified]
+   if {$modlist == {}} {
+      magic::quit -noprompt
+   } else {
+      magic::quit
+   }
+}
+
 # Create the wrapper and open up a layout window in it.
 
 proc magic::openwrapper {{cell ""} {framename ""}} {
-   global windowsopen
+   global lwindow
+   global owindow
    global tk_version
    global Glyph
    global Opts
@@ -904,58 +1081,105 @@ proc magic::openwrapper {{cell ""} {framename ""}} {
    
    # Disallow scrollbars and title caption on windows---we'll do these ourselves
 
-   if {$windowsopen == 0} {
+   if {$lwindow == 0} {
       windowcaption off
       windowscrollbars off
       windowborder off
    }
 
-   incr windowsopen 
    if {$framename == ""} {
-      set framename .layout${windowsopen}
+      incr lwindow 
+      set framename .layout${lwindow}
    }
-   set winname ${framename}.magic
+   set winname ${framename}.pane.top.magic
    
    toplevel $framename
    tkwait visibility $framename
 
-   frame ${framename}.xscroll -height 13
-   frame ${framename}.yscroll -width 13
+   # Resize the window
+   if {[catch {wm geometry ${framename} $Winopts(${framename},geometry)}]} {
+      catch {wm geometry ${framename} $Opts(geometry)}
+   }
 
-   magic::makescrollbar ${framename}.xscroll x ${winname}
-   magic::makescrollbar ${framename}.yscroll y ${winname}
-   button ${framename}.zb -image $Glyph(zoom) -borderwidth 1 -command "${winname} zoom 2"
+   # Create a paned window top--bottom inside the top level window to accomodate
+   # a resizable command entry window at the bottom.  Sashwidth is zero by default
+   # but is resized by enabling the command entry window.
+
+   panedwindow ${framename}.pane -orient vertical -sashrelief groove -sashwidth 6
+
+   frame ${framename}.pane.top
+   frame ${framename}.pane.bot
+
+   set layoutframe ${framename}.pane.top
+
+   ${framename}.pane add ${framename}.pane.top
+   ${framename}.pane add ${framename}.pane.bot
+   ${framename}.pane paneconfigure ${framename}.pane.top -stretch always
+   ${framename}.pane paneconfigure ${framename}.pane.bot -hide true
+
+   pack ${framename}.pane -side top -fill both -expand true
+
+   frame ${layoutframe}.xscroll -height 13
+   frame ${layoutframe}.yscroll -width 13
+
+   magic::makescrollbar ${layoutframe}.xscroll x ${winname}
+   magic::makescrollbar ${layoutframe}.yscroll y ${winname}
+   button ${layoutframe}.zb -image $Glyph(zoom) -borderwidth 1 -command "${winname} zoom 2"
 
    # Add bindings for mouse buttons 2 and 3 to the zoom button
-   bind ${framename}.zb <Button-3> "${winname} zoom 0.5"
-   bind ${framename}.zb <Button-2> "${winname} view"
+   bind ${layoutframe}.zb <Button-3> "${winname} zoom 0.5"
+   bind ${layoutframe}.zb <Button-2> "${winname} view"
 
-   frame ${framename}.titlebar
-   label ${framename}.titlebar.caption -text "Loaded: none Editing: none Tool: box" \
+   frame ${layoutframe}.titlebar
+   label ${layoutframe}.titlebar.caption -text "Loaded: none Editing: none Tool: box" \
 	-foreground white -background sienna4 -anchor w -padx 15
-   label ${framename}.titlebar.message -text "" -foreground white \
+   label ${layoutframe}.titlebar.message -text "" -foreground white \
 	-background sienna4 -anchor w -padx 5
-   label ${framename}.titlebar.pos -text "" -foreground white \
+   label ${layoutframe}.titlebar.pos -text "" -foreground white \
 	-background sienna4 -anchor w -padx 5
 
    # Menu buttons
-   frame ${framename}.titlebar.mbuttons
+   frame ${layoutframe}.titlebar.mbuttons
 
-   menubutton ${framename}.titlebar.mbuttons.file -text File -relief raised \
-		-menu ${framename}.titlebar.mbuttons.file.filemenu -borderwidth 2
-   menubutton ${framename}.titlebar.mbuttons.edit -text Edit -relief raised \
-		-menu ${framename}.titlebar.mbuttons.edit.editmenu -borderwidth 2
-   menubutton ${framename}.titlebar.mbuttons.view -text View -relief raised \
-		-menu ${framename}.titlebar.mbuttons.view.viewmenu -borderwidth 2
-   menubutton ${framename}.titlebar.mbuttons.opts -text Options -relief raised \
-		-menu ${framename}.titlebar.mbuttons.opts.optsmenu -borderwidth 2
-   pack ${framename}.titlebar.mbuttons.file -side left
-   pack ${framename}.titlebar.mbuttons.edit -side left
-   pack ${framename}.titlebar.mbuttons.view -side left
-   pack ${framename}.titlebar.mbuttons.opts -side left
+# File
+   menubutton ${layoutframe}.titlebar.mbuttons.file -text File -relief raised \
+		-menu ${layoutframe}.titlebar.mbuttons.file.toolmenu -borderwidth 2
+# Edit
+   menubutton ${layoutframe}.titlebar.mbuttons.edit -text Edit -relief raised \
+		-menu ${layoutframe}.titlebar.mbuttons.edit.toolmenu -borderwidth 2
+# Cell
+   menubutton ${layoutframe}.titlebar.mbuttons.cell -text Cell -relief raised \
+		-menu ${layoutframe}.titlebar.mbuttons.cell.toolmenu -borderwidth 2
+# Window
+   menubutton ${layoutframe}.titlebar.mbuttons.win -text Window -relief raised \
+		-menu ${layoutframe}.titlebar.mbuttons.win.toolmenu -borderwidth 2
+# Layers
+   menubutton ${layoutframe}.titlebar.mbuttons.layers -text Layers -relief raised \
+		-menu ${layoutframe}.titlebar.mbuttons.layers.toolmenu -borderwidth 2
+# DRC
+   menubutton ${layoutframe}.titlebar.mbuttons.drc -text Drc -relief raised \
+		-menu ${layoutframe}.titlebar.mbuttons.drc.toolmenu -borderwidth 2
+# Netlist
+#   menubutton ${layoutframe}.titlebar.mbuttons.netlist -text Neltist -relief raised \
+#		-menu ${layoutframe}.titlebar.mbuttons.netlist.netlistmenu -borderwidth 2
+# Help
+#   menubutton ${layoutframe}.titlebar.mbuttons.help -text Help -relief raised \
+#		-menu ${layoutframe}.titlebar.mbuttons.help.helpmenu -borderwidth 2
+# Options
+   menubutton ${layoutframe}.titlebar.mbuttons.opts -text Options -relief raised \
+		-menu ${layoutframe}.titlebar.mbuttons.opts.toolmenu -borderwidth 2
+   pack ${layoutframe}.titlebar.mbuttons.file   -side left
+   pack ${layoutframe}.titlebar.mbuttons.edit   -side left
+   pack ${layoutframe}.titlebar.mbuttons.cell   -side left
+   pack ${layoutframe}.titlebar.mbuttons.win    -side left
+   pack ${layoutframe}.titlebar.mbuttons.layers -side left
+   pack ${layoutframe}.titlebar.mbuttons.drc    -side left
+#   pack ${layoutframe}.titlebar.mbuttons.netlist -side left
+#   pack ${layoutframe}.titlebar.mbuttons.help    -side left
+   pack ${layoutframe}.titlebar.mbuttons.opts    -side left
 
    # DRC status button
-   checkbutton ${framename}.titlebar.drcbutton -text "DRC" -anchor w \
+   checkbutton ${layoutframe}.titlebar.drcbutton -text "DRC" -anchor w \
 	-borderwidth 2 -variable Opts(drc) \
 	-foreground white -background sienna4 -selectcolor green \
 	-command [subst { if { \$Opts(drc) } { drc on } else { drc off } }]
@@ -965,28 +1189,28 @@ proc magic::openwrapper {{cell ""} {framename ""}} {
    # Create toolbar frame.  Make sure it has the same visual and depth as
    # the layout window, so there will be no problem using the GCs from the
    # layout window to paint into the toolbar.
-   frame ${framename}.toolbar \
+   frame ${layoutframe}.toolbar \
 	-visual "[winfo visual ${winname}] [winfo depth ${winname}]"
 
    # Repaint to magic colors
-   magic::repaintwrapper ${framename}
+   magic::repaintwrapper ${layoutframe}
 
-   grid ${framename}.titlebar -row 0 -column 0 -columnspan 3 -sticky news
-   grid ${framename}.yscroll -row 1 -column 0 -sticky ns
+   grid ${layoutframe}.titlebar -row 0 -column 0 -columnspan 3 -sticky news
+   grid ${layoutframe}.yscroll -row 1 -column 0 -sticky ns
    grid $winname -row 1 -column 1 -sticky news
-   grid ${framename}.zb -row 2 -column 0
-   grid ${framename}.xscroll -row 2 -column 1 -sticky ew
+   grid ${layoutframe}.zb -row 2 -column 0
+   grid ${layoutframe}.xscroll -row 2 -column 1 -sticky ew
    # The toolbar is not attached by default
 
-   grid rowconfigure ${framename} 1 -weight 1
-   grid columnconfigure ${framename} 1 -weight 1
+   grid rowconfigure ${layoutframe} 1 -weight 1
+   grid columnconfigure ${layoutframe} 1 -weight 1
 
-   grid ${framename}.titlebar.mbuttons -row 0 -column 0 -sticky news
-   grid ${framename}.titlebar.drcbutton -row 0 -column 1 -sticky news
-   grid ${framename}.titlebar.caption -row 0 -column 2 -sticky news
-   grid ${framename}.titlebar.message -row 0 -column 3 -sticky news
-   grid ${framename}.titlebar.pos -row 0 -column 4 -sticky news
-   grid columnconfigure ${framename}.titlebar 2 -weight 1
+   grid ${layoutframe}.titlebar.mbuttons -row 0 -column 0 -sticky news
+   grid ${layoutframe}.titlebar.drcbutton -row 0 -column 1 -sticky news
+   grid ${layoutframe}.titlebar.caption -row 0 -column 2 -sticky news
+   grid ${layoutframe}.titlebar.message -row 0 -column 3 -sticky news
+   grid ${layoutframe}.titlebar.pos -row 0 -column 4 -sticky news
+   grid columnconfigure ${layoutframe}.titlebar 2 -weight 1
 
    bind $winname <Enter> "focus %W ; set Opts(focus) $framename"
 
@@ -999,89 +1223,158 @@ proc magic::openwrapper {{cell ""} {framename ""}} {
    bind ${winname} <Motion> "*bypass setpoint %x %y ${winname}; \
 	magic::cursorview ${winname}"
 
-   # Resize the window
-   if {[catch {wm geometry ${framename} $Winopts(${framename},geometry)}]} {
-      catch {wm geometry ${framename} $Opts(geometry)}
-   }
-
-   set Winopts(${framename},toolbar) 0
+   set Winopts(${framename},toolbar) 1
    set Winopts(${framename},cmdentry) 0
 
-   # Generate the file menu
+# #################################
+# File
+# #################################
+   set m [menu ${layoutframe}.titlebar.mbuttons.file.toolmenu -tearoff 0]
+   $m add command -label "Open..."      -command {magic::promptload magic}
+   # $m add command -label "Save"       -command {magic::save }
+   $m add command -label "Save..."      -command {magic::promptsave magic}
+   # $m add command -label "Save as..." -command {echo "not implemented"}
+   # $m add command -label "Save selection..." -command {echo "not implemented"}
+   $m add separator
+   $m add command -label "Flush changes" -command {magic::flush}
+   $m add separator
+   # $m add command -label "Read CIF" -command {magic::promptload cif}
+   $m add command -label "Read GDS"    -command {magic::promptload gds}
+   # $m add separator
+   # $m add command -label "Write CIF" -command {magic::promptsave cif}
+   $m add command -label "Write GDS"   -command {magic::promptsave gds}
+   # $m add separator
+   # $m add command -label "Print..."  -command {echo "not implemented"}
+   $m add separator
+   $m add command -label "Save All and Quit" -command {magic::saveallandquit}
+   $m add command -label "Quit"              -command {magic::quit}
 
-   set m [menu ${framename}.titlebar.mbuttons.file.filemenu -tearoff 0]
-   $m add command -label "New window" -command "magic::openwrapper \
-		[${winname} cellname list window]"
-   $m add command -label "Close" -command "magic::closewrapper ${framename}"
-   $m add separator
-   $m add command -label "Place Cell" -command {magic::promptload getcell}
-   $m add separator
-   $m add command -label "Load layout" -command {magic::promptload magic}
-   $m add command -label "Read CIF" -command {magic::promptload cif}
-   $m add command -label "Read GDS" -command {magic::promptload gds}
-   $m add separator
-   $m add command -label "Save layout" -command {magic::promptsave magic}
-   $m add command -label "Write CIF" -command {magic::promptsave cif}
-   $m add command -label "Write GDS" -command {magic::promptsave gds}
-   $m add separator
-   $m add command -label "Flush current" -command {magic::flush}
-   $m add command -label "Delete current" -command {magic::cellname delete \
-		[magic::cellname list window]}
-   $m add separator
-   $m add command -label "Quit" -command {magic::quit}
+# #################################
+# Edit
+# #################################
 
-   # Generate the edit menu
-
-   set m [menu ${framename}.titlebar.mbuttons.edit.editmenu -tearoff 0]
-   $m add command -label "Undo          (u)" -command {magic::undo}
-   $m add command -label "Redo          (U)" -command {magic::redo}
+   set m [menu ${layoutframe}.titlebar.mbuttons.edit.toolmenu -tearoff 0]
+   # $m add command -label "Cut" -command {echo "not implemented"}
+   # $m add command -label "Copy" -command {echo "not implemented"}
+   # $m add command -label "Paste" -command {echo "not implemented"}
+   $m add command -label "Delete" -command {delete}
    $m add separator
-   $m add command -label "Rotate 90 degree " -command {magic::clock}
-   $m add command -label "Flip Horizontal" -command {magic::sideways}
-   $m add command -label "Flip Vertical"   -command {magic::upsidedown}
+   $m add command -label "Select Area" -command {select area}
+   $m add command -label "Select Clear" -command {select clear}
+   $m add separator
+   $m add command -label "Undo" -command {magic::undo}
+   $m add command -label "Redo" -command {magic::redo}
+   # $m add command -label "Repeat Last" -command {echo "not implemented"}
+   $m add separator
+   $m add command -label "Rotate 90 degree" -command {magic::clock}
+   $m add command -label "Mirror   Up/Down"  -command {magic::upsidedown}
+   $m add command -label "Mirror Left/Right" -command {magic::sideways}
+   $m add separator
+   $m add command -label "Move Right" -command {move right 1}
+   $m add command -label "Move Left" -command {move left 1}
+   $m add command -label "Move Up" -command {move up 1}
+   $m add command -label "Move Down" -command {move down 1}
+   $m add separator
+   $m add command -label "Stretch Right" -command {stretch right 1}
+   $m add command -label "Stretch Left" -command {stretch left 1}
+   $m add command -label "Stretch Up" -command {stretch up 1}
+   $m add command -label "Stretch Down" -command {stretch down 1}
    $m add separator
    $m add command -label "Text ..." \
-		-command [subst { magic::update_texthelper; \
-		wm deiconify .texthelper ; raise .texthelper } ]
-   $m add separator
-   $m add command -label "Lock   Cell      " -command {magic::instance lock}
-   $m add command -label "Unlock Cell      " -command {magic::instance unlock}
-   $m add separator
-   $m add command -label "Unlock Base Layers" -command {magic::tech layer unlock *}
+		-command [subst {magic::update_texthelper; \
+		wm deiconify .texthelper ; raise .texthelper}]
 
-   # Generate the view menu
-
-   set m [menu ${framename}.titlebar.mbuttons.view.viewmenu -tearoff 0]
-   $m add command -label "Zoom In   " -command {magic::zoom 0.5}
-   $m add command -label "Zoom Out      (Z)" -command {magic::zoom 2}
-   $m add command -label "Zoom Sel      (z)" -command {magic::findbox zoom}
-   $m add command -label "Full" -command {magic::select top cell ; findbox zoom}
+# #################################
+# Cell
+# #################################
+   set m [menu ${layoutframe}.titlebar.mbuttons.cell.toolmenu -tearoff 0]
+   $m add command -label "New..." -command {magic::prompt_dialog new}
+   $m add command -label "Save as..." -command {magic::prompt_dialog save}
+   $m add command -label "Select" -command {magic::select cell}
+   $m add command -label "Place Instance" -command {magic::promptload getcell}
+   # $m add command -label "Rename" -command {echo "not implemented"}
    $m add separator
-   $m add command -label "Grid 0.10u        " -command {magic::setgrid 0.1}
-   $m add command -label "Grid 0.20u        " -command {magic::setgrid 0.2}
-   $m add command -label "Grid 0.25u        " -command {magic::setgrid 0.25}
-   $m add command -label "Grid 0.40u        " -command {magic::setgrid 0.4}
-   $m add command -label "Grid 0.5u        " -command {magic::setgrid 0.5}
-   $m add command -label "Grid 1.0u        " -command {magic::setgrid 1}
-   $m add command -label "Grid 2.0u        " -command {magic::setgrid 2}
-   $m add command -label "Grid 4.0u        " -command {magic::setgrid 4}
-   $m add command -label "Grid 5.0u        " -command {magic::setgrid 5}
-   $m add command -label "Grid 10.0u        " -command {magic::setgrid 10}
-   $m add command -label "Grid 50.0u        " -command {magic::setgrid 50}
+   $m add command -label "Down hierarchy" -command {magic::pushstack}
+   $m add command -label "Up   hierarchy" -command {magic::popstack}
    $m add separator
-   $m add command -label "Expand Toggle (/)" -command {magic::expand toggle}
-   $m add command -label "Expand        (x)" -command {magic::expand }
-   $m add command -label "Unexpand      (X)" -command {magic::unexpand }
+   $m add command -label "Edit" -command {magic::edit}
+   $m add separator
+   $m add command -label "Delete" -command \
+		{magic::cellname delete [magic::cellname list window]}
+   $m add separator
+   $m add command -label "Expand Toggle" -command {magic::expand toggle}
+   $m add command -label "Expand" -command {magic::expand}
+   $m add command -label "Unexpand" -command {magic::unexpand}
+   $m add separator
+   $m add command -label "Lock   Cell" -command {magic::instance lock}
+   $m add command -label "Unlock Cell" -command {magic::instance unlock}
 
-   # Generate the options menu
+# #################################
+# Window
+# #################################
+   set m [menu ${layoutframe}.titlebar.mbuttons.win.toolmenu -tearoff 0]
+   $m add command -label "Clone" -command \
+		{magic::openwrapper [magic::cellname list window]}
+   $m add command -label "New" -command "magic::openwrapper"
+   $m add command -label "Set Editable" -command \
+		"pushbox ; select top cell ; edit ; popbox"
+   $m add command -label "Close" -command "closewrapper ${framename}"
+   $m add separator
+   $m add command -label "Full View" -command {magic::view}
+   $m add command -label "Redraw" -command {magic::redraw}
+   $m add command -label "Zoom Out" -command {magic::zoom 2}
+   $m add command -label "Zoom In" -command {magic::zoom 0.5}
+   $m add command -label "Zoom Box" -command {magic::findbox zoom}
+   $m add separator
+   $m add command -label "Grid on" -command {magic::grid on}
+   $m add command -label "Grid off" -command {magic::grid off}
+   $m add command -label "Snap-to-grid on" -command {magic::snap on}
+   $m add command -label "Snap-to-grid off" -command {magic::snap off}
+   $m add command -label "Measure box" -command {magic::box }
+   $m add separator
+   $m add command -label "Set grid 0.05um" -command {magic::grid 0.05um}
+   $m add command -label "Set grid 0.10um" -command {magic::grid 0.10um}
+   $m add command -label "Set grid 0.50um" -command {magic::grid 0.50um}
+   $m add command -label "Set grid 1.00um" -command {magic::grid 1.00um}
+   $m add command -label "Set grid 5.00um" -command {magic::grid 5.00um}
+   $m add command -label "Set grid 10.0um" -command {magic::grid 10.0um}
+   # $m add command -label "Set grid ..." -command {echo "not implemented"}
 
-   set m [menu ${framename}.titlebar.mbuttons.opts.optsmenu -tearoff 0]
+# #################################
+# Layers
+# #################################
+   set m [menu ${layoutframe}.titlebar.mbuttons.layers.toolmenu -tearoff 0]
+   $m add command -label "Protect Base Layers" -command {magic::tech revert}
+   $m add command -label "Unlock  Base Layers" -command {magic::tech unlock *}
+   $m add separator
+   $m add command -label "Clear Feedback" -command {magic::feedback clear}
+   $m add separator
+
+# #################################
+# DRC
+# #################################
+   set m [menu ${layoutframe}.titlebar.mbuttons.drc.toolmenu -tearoff 0]
+   # $m add command -label "DRC On" -command {drc on}
+   # $m add command -label "DRC Off" -command {drc off}
+   # $m add separator
+   $m add command -label "DRC update" -command {drc check; drc why}
+   $m add command -label "DRC report" -command {drc why}
+   $m add command -label "DRC Find next error" -command {drc find; findbox zoom}
+   $m add separator
+   $m add command -label "DRC Fast"     -command {drc style drc(fast)}
+   $m add command -label "DRC Complete" -command {drc style drc(full)}
+
+   set m [menu ${layoutframe}.titlebar.mbuttons.opts.toolmenu -tearoff 0]
    $m add check -label "Toolbar" -variable Winopts(${framename},toolbar) \
 	-command [subst {if { \$Winopts(${framename},toolbar) } { \
-		magic::maketoolbar ${framename} ; \
-		grid ${framename}.toolbar -row 1 -column 2 -rowspan 2 -sticky new ; \
+		magic::maketoolbar ${layoutframe} ; \
+		grid ${layoutframe}.toolbar -row 1 -column 2 -rowspan 2 -sticky new ; \
 		} else { \
-		grid forget ${framename}.toolbar } }]
+		grid forget ${layoutframe}.toolbar } }]
+
+   $m add check -label "Toolbar Hide Locked" \
+	-variable Opts(hidelocked) \
+	-command "magic::maketoolbar ${layoutframe}"
 
    .winmenu add radio -label ${framename} -variable Opts(target) -value ${winname}
    if {$tk_version >= 8.5} {
@@ -1094,7 +1387,16 @@ proc magic::openwrapper {{cell ""} {framename ""}} {
       .winmenu entryconfigure last -command ".cellmgr.target.list configure \
          -text ${framename}"
    }
-
+   if {$tk_version >= 8.5} {
+     $m add check -label "Library Manager" -variable Opts(libmgr) \
+	-command [subst { magic::libmanager create; \
+	if { \$Opts(libmgr) } { \
+	   wm deiconify .libmgr ; raise .libmgr \
+	} else { \
+	   wm withdraw .libmgr } }]
+      .winmenu entryconfigure last -command ".libmgr.target.list configure \
+         -text ${framename}"
+   }
    $m add check -label "Tech Manager" -variable Opts(techmgr) \
 	-command [subst { magic::techmanager create; \
 		if { \$Opts(techmgr) } { \
@@ -1134,7 +1436,7 @@ proc magic::openwrapper {{cell ""} {framename ""}} {
 
    $m add check -label "Crosshair" \
 	-variable Opts(crosshair) \
-	-command "if {$Opts(crosshair) == 0} {crosshair off}"
+	-command {if {$Opts(crosshair) == 0} {crosshair off}}
 
    catch {addmazehelper $m}
 
@@ -1145,18 +1447,33 @@ proc magic::openwrapper {{cell ""} {framename ""}} {
 
    magic::captions
 
+   # If the toolbar is turned on, invoke the toolbar button
+   if { $Winopts(${framename},toolbar) == 1} {
+      magic::maketoolbar ${layoutframe}
+      grid ${layoutframe}.toolbar -row 1 -column 2 -rowspan 2 -sticky new
+   }
+
    # Remove "open" and "close" macros so they don't generate non-GUI
    # windows or (worse) blow away the window inside the GUI frame
+
    if {[magic::macro list o] == "openwindow"} {
-      magic::macro o "openwrapper"
+      magic::macro o \
+	   "incr owindow ;\
+	   set rpt \[cursor screen\] ;\
+	   set rptx \[lindex \$rpt 0\] ;\
+	   set rpty \[lindex \$rpt 1\] ;\
+	   set Winopts(.owindow\$owindow,geometry) 500x500+\$rptx+\$rpty ;\
+	   openwrapper \[\$Opts(focus)*.magic cellname list window\] \
+	   .owindow\$owindow ;\
+	   .owindow\$owindow*.magic view \[box values\]"
    }
    if {[magic::macro list O] == "closewindow"} {
-      magic::macro O {closewrapper $Opts(focus)}
+      magic::macro O "closewrapper \$Opts(focus)"
    }
 
    # Make sure that closing from the window manager is equivalent to
    # the command "closewrapper"
-   wm protocol ${framename} WM_DELETE_WINDOW "closewrapper $framename"
+   wm protocol ${framename} WM_DELETE_WINDOW "closewrapper ${framename}"
 
    # If the variable $Opts(callback) is defined, then attempt to execute it.
    catch {eval $Opts(callback)}
@@ -1164,6 +1481,14 @@ proc magic::openwrapper {{cell ""} {framename ""}} {
    # If the variable $Winopts(callback) is defined, then attempt to execute it.
    catch {eval $Winopts(${framename}, callback)}
 
+   # Since one purpose of the window callback is to customize the menus,
+   # run the automatic generation of accelerator key text at the end.
+   # This can be subverted by setting Opts(autobuttontext) to 0, e.g.,
+   # to put it at the top of the Winopts callback and then generate
+   # override values for specific buttons.
+   if {$Opts(autobuttontext)} {
+      catch {magic::button_auto_bind_text $layoutframe}
+   }
    return ${winname}
 }
 
@@ -1176,7 +1501,8 @@ proc magic::closewrapper { framename } {
    # Remove this window from the target list in .winmenu
    # (used by, e.g., cellmanager)
 
-   if { $Opts(target) == "${framename}.magic" } {
+   set layoutframe ${framename}.pane.top
+   if { $Opts(target) == "${layoutframe}.magic" } {
       set Opts(target) "default"
       if {$tk_version >= 8.5} {
 	 if {![catch {wm state .cellmgr}]} {
@@ -1188,7 +1514,7 @@ proc magic::closewrapper { framename } {
    set idx [.winmenu index $framename]
    .winmenu delete $idx
 
-   ${framename}.magic magic::closewindow
+   ${layoutframe}.magic magic::closewindow
    destroy $framename
 }
 
@@ -1196,22 +1522,43 @@ proc magic::closewrapper { framename } {
 # a wrapper window (rudimentary functionality---incomplete)
 
 proc magic::addcommandentry { framename } {
-   if {![winfo exists ${framename}.eval]} {
-      tkshell::YScrolled_Text ${framename}.eval -height 5
-      tkshell::MakeEvaluator ${framename}.eval.text \
-		"${framename}> " "${framename}.magic "
-      tkshell::MainInit
+   set commandframe ${framename}.pane.bot
+   if {![winfo exists ${commandframe}.eval]} {
+      tkshell::YScrolled_Text ${commandframe}.eval -height 5
+      tkshell::MakeEvaluator ${commandframe}.eval.text \
+		"${framename}>" ${framename}.pane.top.magic
+      pack ${commandframe}.eval -side top -fill both -expand true
+      ${framename}.pane paneconfigure ${framename}.pane.bot -stretch never
+      ${framename}.pane paneconfigure ${framename}.pane.bot -minsize 50
    }
-   set rc [grid size ${framename}]  
-   set cols [lindex $rc 0]
-   grid ${framename}.eval -row 3 -column 0 -columnspan $cols -sticky ew
-   bind ${framename}.eval.text <Enter> {focus %W}
+   set entercmd [bind ${framename}.pane.top.magic <Enter>]
+   set bindstr "$entercmd ; macro XK_colon \"set Opts(redirect) 1;\
+		focus ${commandframe}.eval.text\";\
+		alias puts tkshell::PutsTkShell"
+   bind ${commandframe}.eval <Enter> \
+	"focus ${commandframe}.eval.text ; set Opts(focus) $framename ;\
+	catch {unset Opts(redirect)}"
+   bind ${framename}.pane.top.magic <Enter> $bindstr
+   # Make command entry window visible
+   ${framename}.pane paneconfigure ${framename}.pane.bot -hide false
 }
 
 # Remove the command entry window from the bottom of a frame.
 
 proc magic::deletecommandentry { framename } {
-   grid forget ${framename}.eval
+   set commandframe ${framename}.pane.bot
+   ::grid forget ${commandframe}.eval
+   # Remove the last bindings for <Enter>
+   set bindstr [bind ${framename}.pane.top.magic <Enter>]
+   set i [string first "; macro" $bindstr]
+   set bindstr [string range $bindstr 0 $i-1]
+   bind ${framename}.pane.top.magic <Enter> $bindstr
+   # Restore the keybinding for colon
+   imacro XK_colon ":"
+   # Restore the alias for "puts"
+   alias puts ::tkcon_puts
+   # Make command entry window invisible
+   ${framename}.pane paneconfigure ${framename}.pane.bot -hide true
 }
 
 namespace import magic::openwrapper

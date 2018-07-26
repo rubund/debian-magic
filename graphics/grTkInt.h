@@ -58,6 +58,7 @@ extern GR_DISPLAY grDisplay;
 extern GC grGCFill, grGCText, grGCDraw, grGCCopy, grGCGlyph;
 
 extern bool grtkGetCursorPos();
+extern bool grtkGetCursorRootPos();
 extern bool grtkDrawGrid();
 extern void GrTkEnableTablet();
 extern void GrTkDisableTablet();

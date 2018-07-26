@@ -78,6 +78,7 @@ extern void GrSetStuff();
 extern void GrDrawFastBox();
 extern void GrGuessDisplayType();
 extern int  GrGetStyleFromName();
+extern bool GrDrawGlyphNum();
 
 #define GrFastBox(x)	GrDrawFastBox(x, 0)
 
@@ -117,6 +118,9 @@ extern int (*GrWindowIdPtr)(); 		/* Get the window ID from a window name
 extern char *(*GrWindowNamePtr)(); 	/* Get the window name from a MagWin ptr.
 					 */
 extern bool (*GrGetCursorPosPtr)(); 	/* Get the current cursor position
+					 */
+extern bool (*GrGetCursorRootPosPtr)();	/* Get the current cursor position
+					 * in root (screen) coordinates
 					 */
 
 /* Backing store mechanism (added 4/2/05) */
@@ -177,6 +181,7 @@ extern int GrStyleNames[];
 #define GrEnableTablet (*GrEnableTabletPtr)
 #define GrDisableTablet (*GrDisableTabletPtr)
 #define GrGetCursorPos (*GrGetCursorPosPtr)
+#define GrGetCursorRootPos (*GrGetCursorRootPosPtr)
 #define GrGetButtons (*GrGetButtonsPtr)
 #define GrSetCursor (*GrSetCursorPtr)
 

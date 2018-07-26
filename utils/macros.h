@@ -32,6 +32,7 @@
 typedef struct {
    char *macrotext;
    bool interactive;
+   char *helptext;
 } macrodef;
 
 /* macro directory */
@@ -40,8 +41,10 @@ extern HashTable MacroClients;
 /* procedures */
 extern void MacroInit();
 extern void MacroDefine();
+extern void MacroDefineHelp();
 extern void MacroDefineInt();
 extern char *MacroRetrieve();	/* returns a malloc'ed string */
+extern char *MacroRetrieveHelp(); /* returns a malloc'ed string */
 extern char *MacroSubstitute();	/* returns a malloc'ed string */
 extern void MacroDelete();
 extern char *MacroName();	/* returns a malloc'ed string */

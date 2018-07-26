@@ -98,6 +98,21 @@ GR_STYLE_LINE *GrStyleTable;
 
 
 
+bool
+GrDrawGlyphNum(num, xoff, yoff)
+    int num;
+    int xoff;
+    int yoff;
+{
+    Point p;
+
+    p.p_x = xoff;
+    p.p_y = yoff;
+    if (num >= grCursorGlyphs->gr_num) return FALSE;
+    GrDrawGlyph(grCursorGlyphs->gr_glyph[num], &p);
+    return TRUE;
+}
+
 /*
  * ----------------------------------------------------------------------------
  *
@@ -509,6 +524,12 @@ char *libPath;
 		}
 		else
 		{
+		    if (StrIsInt(sectionName))
+		    {
+			TxError("Unexpected empty line in .dstyle file.\n");
+			newSection = FALSE;
+			goto recovery;
+		    }
 		    TxError("Bad section name \"%s\" in .dstyle file.\n",
 			sectionName);
 		    section = IGNORE;
@@ -520,6 +541,7 @@ char *libPath;
 	    {
 		int newres = TRUE;
 
+recovery:
 		switch (section)
 		{
 		    case LAYOUT_STYLES:

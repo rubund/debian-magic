@@ -207,7 +207,7 @@ CIFScaleCoord(cifCoord, snap_type)
 	remain = abs(remain) / lgcf;
 	denom = scale / lgcf;
 
-	if (CIFTechLimitScale(1, denom)) snap_type = COORD_ANY;
+	if (CIFReadTechLimitScale(1, denom)) snap_type = COORD_ANY;
 
 	switch (snap_type)
 	{
@@ -876,6 +876,8 @@ path_intersect(pathHead, start, respt)
 		    }
 		}
 	    }
+	    else if (diagonal == FALSE)
+		continue;
 	}
 	else if (diagonal == FALSE)
 	    continue;

@@ -131,8 +131,9 @@ bool efConnInitSubs();
  */
 
 void
-efBuildNode(def, nodeName, nodeCap, x, y, layerName, av, ac)
+efBuildNode(def, isSubsnode, nodeName, nodeCap, x, y, layerName, av, ac)
     Def *def;		/* Def to which this connection is to be added */
+    bool isSubsnode;	/* TRUE if the node is the substrate */
     char *nodeName;	/* One of the names for this node */
     double nodeCap;	/* Capacitance of this node to ground */
     int x; int y;	/* Location of a point inside this node */
@@ -173,7 +174,7 @@ efBuildNode(def, nodeName, nodeCap, x, y, layerName, av, ac)
     /* New node itself */
     size = sizeof (EFNode) + (efNumResistClasses - 1) * sizeof (PerimArea);
     newnode = (EFNode *) mallocMagic((unsigned)(size));
-    newnode->efnode_flags = 0;
+    newnode->efnode_flags = (isSubsnode == TRUE) ? EF_SUBS_NODE : 0;
     newnode->efnode_cap = nodeCap;
     newnode->efnode_attrs = (EFAttr *) NULL;
     newnode->efnode_loc.r_xbot = x;
@@ -202,8 +203,40 @@ efBuildNode(def, nodeName, nodeCap, x, y, layerName, av, ac)
     newnode->efnode_prev = (EFNodeHdr *) &def->def_firstn;
     def->def_firstn.efnode_next->efnhdr_prev = (EFNodeHdr *) newnode;
     def->def_firstn.efnode_next = (EFNodeHdr *) newnode;
+
+    /* If isSubsnode was TRUE, then turn off backwards compatibility mode */
+    if (isSubsnode == TRUE) EFCompat = FALSE;
 }
-
+
+/*
+ * Process a "subcap" line by adding the specified adjustment
+ * value to the indicated node's substrate capacitance.
+ */
+
+void
+efAdjustSubCap(def, nodeName, nodeCapAdjust)
+    Def *def;			/* Def to which this connection is to be added */
+    char *nodeName;		/* One of the names for this node */
+    double nodeCapAdjust;	/* Substrate capacitance adjustment */
+{
+    EFNodeName *nodename;
+    EFNode *node;
+    HashEntry *he;
+
+    he = HashFind(&def->def_nodes, nodeName);
+    if (nodename = (EFNodeName *) HashGetValue(he))
+    {
+	node = nodename->efnn_node;
+	node->efnode_cap += (EFCapValue) nodeCapAdjust;
+	return;
+    }
+    else
+    {
+	if (efWarn)
+	    efReadError("Error: subcap has unknown node %s\n", nodeName);
+    }
+}
+
 /*
  * ----------------------------------------------------------------------------
  *
@@ -235,8 +268,8 @@ efBuildAttr(def, nodeName, r, layerName, text)
     EFAttr *ap;
     int size;
 
-    he = HashFind(&def->def_nodes, nodeName);
-    if (HashGetValue(he) == NULL)
+    he = HashLookOnly(&def->def_nodes, nodeName);
+    if (he == NULL || HashGetValue(he) == NULL)
     {
 	efReadError("Attribute for nonexistent node %s ignored\n", nodeName);
 	return;
@@ -410,7 +443,8 @@ efBuildEquiv(def, nodeName1, nodeName2)
 	{
 	    if (efWarn)
 		efReadError("Creating new node %s\n", nodeName1);
-	    efBuildNode(def, nodeName1, (double)0, 0, 0,
+	    efBuildNode(def, FALSE,
+		    nodeName1, (double)0, 0, 0,
 		    (char *) NULL, (char **) NULL, 0);
 	    nn1 = (EFNodeName *) HashGetValue(he1);
 	}
@@ -512,7 +546,18 @@ efBuildDeviceParams(name, argc, argv)
 	else
 	    newparm->parm_scale = 1.0;
 
-	newparm->parm_name = StrDup((char **)NULL, pptr + 1);
+	// For parameters defined for cell defs, copy the whole
+	// expression verbatim into parm_name.  parm_type is
+	// reassigned to be a numerical order.
+
+	if (name[0] == ':')
+	{
+	    newparm->parm_name = StrDup((char **)NULL, argv[n]);
+	    newparm->parm_type[1] = '0' + n / 10;
+	    newparm->parm_type[0] = '0' + n % 10;
+	}
+	else
+	    newparm->parm_name = StrDup((char **)NULL, pptr + 1);
 	newparm->parm_next = plist;
 	plist = newparm;
     }
@@ -556,12 +601,12 @@ efBuildDevice(def, class, type, r, argc, argv)
     int n, nterminals, pn;
     DevTerm *term;
     Dev *newdev, devtmp;
+    DevParam *newparm, *devp, *sparm;
     char ptype, *pptr, **av;
     int argstart = 1;	/* start of terminal list in argv[] */
     bool hasModel = strcmp(type, "None") ? TRUE : FALSE;
 
     int area, perim;	/* Total area, perimeter of primary type (i.e., channel) */
-    char *substrate;	/* Name of node to which substrate is connected */
 
     devtmp.dev_subsnode = NULL;
     devtmp.dev_cap = 0.0;
@@ -570,6 +615,7 @@ efBuildDevice(def, class, type, r, argc, argv)
     devtmp.dev_perim = 0;
     devtmp.dev_length = 0;
     devtmp.dev_width = 0;
+    devtmp.dev_params = NULL;
 
     switch (class)
     {
@@ -580,10 +626,13 @@ efBuildDevice(def, class, type, r, argc, argv)
 	    argstart = 3;
 	    break;
 	case DEV_DIODE:
+	case DEV_NDIODE:
+	case DEV_PDIODE:
 	    argstart = 0;
 	    break;
 	case DEV_RES:
 	case DEV_CAP:
+	case DEV_CAPREV:
 	    if (hasModel)
 		argstart = 2;
 	    break;
@@ -591,51 +640,75 @@ efBuildDevice(def, class, type, r, argc, argv)
 	case DEV_MSUBCKT:
 	case DEV_RSUBCKT:
 	    argstart = 0;
+    }
 
-	    /* Parse initial arguments for parameters */
-	    while ((pptr = strchr(argv[argstart], '=')) != NULL)
-	    {
-		pptr++;
-		switch(*argv[argstart])
+    devp = efGetDeviceParams(type);
+
+    /* Parse initial arguments for parameters */
+    while ((pptr = strchr(argv[argstart], '=')) != NULL)
+    {
+	// Check if this parameter is in the table.
+	// If so, handle appropriately.  Otherwise, the
+	// parameter gets saved verbatim locally.  The
+	// "parameters" line comes before any "device" line
+	// in the .ext file, so the table should be complete.
+
+	*pptr = '\0';
+	for (sparm = devp; sparm; sparm = sparm->parm_next)
+	    if (!strcasecmp(sparm->parm_type, argv[argstart]))
+		break;
+	*pptr = '=';
+	if (sparm == NULL)
+	{
+	    /* Copy the parameter into dev_params */
+	    /* (parm_type and parm_scale records are not used) */
+	    newparm = (DevParam *)mallocMagic(sizeof(DevParam));
+	    newparm->parm_name = StrDup((char **)NULL, argv[argstart]);
+	    newparm->parm_next = devtmp.dev_params;
+	    devtmp.dev_params = newparm;
+	    argstart++;
+	    continue;
+	}
+
+	pptr++;
+	switch(*argv[argstart])
+	{
+	    case 'a':
+		if ((pptr - argv[argstart]) == 2)
+		    devtmp.dev_area = atoi(pptr);
+		else
 		{
-		    case 'a':
-			if ((pptr - argv[argstart]) == 2)
-			    devtmp.dev_area = atoi(pptr);
-			else
-			{
-			    pn = *(argv[argstart] + 1) - '0';
-			    if (pn == 0)
-				devtmp.dev_area = atoi(pptr);
-			    /* Otherwise, punt */
-			}
-			break;
-		    case 'p':
-			if ((pptr - argv[argstart]) == 2)
-			    devtmp.dev_perim = atoi(pptr);
-			else
-			{
-			    pn = *(argv[argstart] + 1) - '0';
-			    if (pn == 0)
-				devtmp.dev_perim = atoi(pptr);
-			    /* Otherwise, punt */
-			}
-			break;
-		    case 'l':
-			devtmp.dev_length = atoi(pptr);
-			break;
-		    case 'w':
-			devtmp.dev_width = atoi(pptr);
-			break;
-		    case 'c':
-			devtmp.dev_cap = (float)atof(pptr);
-			break;
-		    case 'r':
-			devtmp.dev_res = (float)atof(pptr);
-			break;
+		    pn = *(argv[argstart] + 1) - '0';
+		    if (pn == 0)
+			devtmp.dev_area = atoi(pptr);
+		    /* Otherwise, punt */
 		}
-		argstart++;
-	    }
-	    break;
+		break;
+	    case 'p':
+		if ((pptr - argv[argstart]) == 2)
+		    devtmp.dev_perim = atoi(pptr);
+		else
+		{
+		    pn = *(argv[argstart] + 1) - '0';
+		    if (pn == 0)
+			devtmp.dev_perim = atoi(pptr);
+		    /* Otherwise, use verbatim */
+		}
+		break;
+	    case 'l':
+		devtmp.dev_length = atoi(pptr);
+		break;
+	    case 'w':
+		devtmp.dev_width = atoi(pptr);
+		break;
+	    case 'c':
+		devtmp.dev_cap = (float)atof(pptr);
+		break;
+	    case 'r':
+		devtmp.dev_res = (float)atof(pptr);
+		break;
+	}
+	argstart++;
     }
 
     /* Check for optional substrate node */
@@ -644,10 +717,13 @@ efBuildDevice(def, class, type, r, argc, argv)
     {
 	case DEV_RES:
 	case DEV_CAP:
+	case DEV_CAPREV:
 	case DEV_RSUBCKT:
 	case DEV_MSUBCKT:
 	case DEV_SUBCKT:
 	case DEV_DIODE:
+	case DEV_NDIODE:
+	case DEV_PDIODE:
 	    n = argc - argstart;
 	    if ((n % 3) == 1)
 	    {
@@ -673,7 +749,7 @@ efBuildDevice(def, class, type, r, argc, argv)
     newdev->dev_perim = devtmp.dev_perim;
     newdev->dev_length = devtmp.dev_length;
     newdev->dev_width = devtmp.dev_width;
-    newdev->dev_params = NULL;
+    newdev->dev_params = devtmp.dev_params;
 
     newdev->dev_nterm = nterminals;
     newdev->dev_rect = *r;
@@ -727,6 +803,7 @@ efBuildDevice(def, class, type, r, argc, argv)
 
 	    break;
 	case DEV_CAP:
+	case DEV_CAPREV:
 	    if (hasModel && StrIsInt(argv[0]) && StrIsInt(argv[1]))
 	    {
 		newdev->dev_length = atoi(argv[0]);
@@ -817,7 +894,8 @@ efBuildPortNode(def, name, idx, x, y, layername)
     if (nn == (EFNodeName *) NULL)
     {
 	/* Create node if it doesn't already exist */
-	efBuildNode(def, name, (double)0, x, y, layername, (char **) NULL, 0);
+	efBuildNode(def, FALSE, name, (double)0, x, y,
+			layername, (char **) NULL, 0);
 
 	nn = (EFNodeName *) HashGetValue(he);
     }
@@ -916,7 +994,7 @@ efBuildDevNode(def, name, isSubsNode)
 	/* Create node if it doesn't already exist */
 	if (efWarn && !isSubsNode)
 	    efReadError("Node %s doesn't exist so creating it\n", name);
-	efBuildNode(def, name, (double)0, 0, 0,
+	efBuildNode(def, isSubsNode, name, (double)0, 0, 0,
 		(char *) NULL, (char **) NULL, 0);
 
 	nn = (EFNodeName *) HashGetValue(he);
@@ -924,20 +1002,12 @@ efBuildDevNode(def, name, isSubsNode)
 	{
 	    if (!EFHNIsGlob(nn->efnn_hier))
 	    {
-#ifdef MAGIC_WRAPPER
-		if ((name[0] == '$') && (name[1] != '$'))
-		    efReadError("Substrate node is an undefined Tcl variable.\n");
-		// else
-#endif
-		//    efReadError("Default device substrate node"
-		//		" \"%s\" is not a global\n", name);
-
 		/* This node is declared to be an implicit port */
 		nn->efnn_node->efnode_flags |= EF_SUBS_PORT;
 		nn->efnn_port = -1;
 		def->def_flags |= DEF_SUBSNODES;
 	    }
-	    nn->efnn_node->efnode_flags |= EF_DEVTERM;
+	    nn->efnn_node->efnode_flags |= (EF_DEVTERM | EF_SUBS_NODE);
 	}
     }
     return nn->efnn_node;
@@ -1040,7 +1110,7 @@ efBuildUse(def, subDefName, subUseId, ta, tb, tc, td, te, tf)
     def->def_uses = newuse;
 
     /* Set the use identifier and array information */
-    if ((cp = index(subUseId, '[')) == NULL)
+    if ((cp = strchr(subUseId, '[')) == NULL)
     {
 	newuse->use_id = StrDup((char **) NULL, subUseId);
 	newuse->use_xlo = newuse->use_xhi = 0;
@@ -1131,7 +1201,7 @@ efBuildResistor(def, nodeName1, nodeName2, resistance)
     Def *def;		/* Def to which this connection is to be added */
     char *nodeName1;	/* Name of first node in resistor */
     char *nodeName2;	/* Name of second node in resistor */
-    int resistance;	/* Resistor value */
+    float resistance;	/* Resistor value */
 {
     Connection *conn;
 
@@ -1278,7 +1348,7 @@ efConnBuildName(cnp, name)
     cp = name;
     /* Make sure it's an array subscript range before treating it specially */
 again:
-    if ((cp = index(cp, '[')) == NULL)
+    if ((cp = strchr(cp, '[')) == NULL)
     {
 	cnp->cn_name = StrDup((char **) NULL, name);
 	return TRUE;
@@ -1540,12 +1610,18 @@ efNodeMerge(node1, node2)
 	node1->efnode_flags &= ~EF_DEVTERM;
 
     /*
-     * If node2 has the EF_PORT flag set but node1 does not,
-     * then copy the port record in the flags to node1.
+     * If node2 has the EF_PORT flag set, then copy the port
+     * record in the flags to node1.
      */
-    if ((node2->efnode_flags & EF_PORT) &&
-		!(node1->efnode_flags & EF_PORT))
+    if (node2->efnode_flags & EF_PORT)
 	node1->efnode_flags |= EF_PORT;
+
+    /*
+     * If node2 has the EF_SUBS_NODE flag set, then copy the port
+     * record in the flags to node1.
+     */
+    if (node2->efnode_flags & EF_SUBS_NODE)
+	node1->efnode_flags |= EF_SUBS_NODE;
 
     /* Get rid of node2 */
     freeMagic((char *) node2);

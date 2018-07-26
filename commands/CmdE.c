@@ -130,7 +130,7 @@ CmdEdit(w, cmd)
 	return;
     }
     else if (!(EditCellUse->cu_def->cd_flags & CDAVAILABLE))
-	DBCellRead(EditCellUse->cu_def, (char *)NULL, TRUE);
+	DBCellRead(EditCellUse->cu_def, (char *)NULL, TRUE, NULL);
 
     if (EditCellUse->cu_def->cd_flags & CDNOEDIT)
     {
@@ -869,14 +869,18 @@ cmdExpandFunc(use, windowMask)
 #define	LENDRIVER	1
 #define	LENRECEIVER	2
 
+#define UNIQALL		0
+#define UNIQTAGGED	1
+#define UNIQNOPORTS	2
+
 void
 CmdExtract(w, cmd)
     MagWindow *w;
     TxCommand *cmd;
 {
     char **msg, *namep, *arg;
-    int option, warn, len, n;
-    bool no, all;
+    int option, warn, len, n, all;
+    bool no;
     CellUse *selectedUse;
     CellDef	*selectedDef;
     bool dolist = FALSE;
@@ -909,6 +913,13 @@ CmdExtract(w, cmd)
 	"receiver termName(s)	identify a receiving (input) terminal",
 	NULL
     };
+    static char *cmdExtUniq[] =
+    {
+	"all			extract matching labels as unique nodes",
+	"#			extract tagged labels as unique nodes",
+	"noports		ignore ports when making labels unique",
+	NULL
+    };
     static char *cmdExtCmd[] =
     {	
 	"all			extract root cell and all its children",
@@ -920,7 +931,7 @@ CmdExtract(w, cmd)
 	"parents		extract selected cell and all its parents",
 	"showparents		show all parents of selected cell",
 	"style [stylename]	set current extraction parameter style",
-	"unique [#]	generate unique names when different nodes\n\
+	"unique [option]	generate unique names when different nodes\n\
 			have the same name",
 	"warn [ [no] option]	enable/disable reporting of non-fatal errors",
 	NULL
@@ -977,16 +988,24 @@ CmdExtract(w, cmd)
     switch (option)
     {
 	case EXTUNIQUE:
-	    all = TRUE;
-	    if (argc > 2)
+	    if (argc < 3)
+		all = UNIQALL;
+	    else
 	    {
-		if (argc != 3) goto wrongNumArgs;
-		if (strcmp(argv[2], "#") != 0)
+		arg = argv[2];
+		all = Lookup(arg, cmdExtUniq);
+	    }
+	    if (all < 0)
+	    {
+		TxError("Usage: extract unique [option]\n");
+		TxPrintf("where option is one of:\n");
+		for (msg = &(cmdExtUniq[0]); *msg != NULL; msg++)
 		{
-		    TxError("Usage: extract unique [#]\n");
-		    return;
+		    if (**msg == '*') continue;
+		    TxPrintf("  %s\n", *msg);
 		}
-		all = FALSE;
+		TxPrintf("No option is equivalent to option \"all\"\n");
+		return;
 	    }
 	    ExtUnique(selectedUse, all);
 	    break;

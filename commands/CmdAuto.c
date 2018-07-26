@@ -60,7 +60,7 @@ CmdAutoExtToSim(w, cmd)
     /* Call function which was originally intended */
 
     if (result == TCL_OK)
-	WindSendCommand(w, cmd);
+	WindSendCommand(w, cmd, FALSE);
 }
 #endif /* EXT2SIM_AUTO */
 
@@ -95,7 +95,7 @@ CmdAutoExtToSpice(w, cmd)
     /* Call function which was originally intended */
 
     if (result == TCL_OK)
-	WindSendCommand(w, cmd);
+	WindSendCommand(w, cmd, FALSE);
 }
 #endif /* EXT2SPICE_AUTO */
 
@@ -131,7 +131,7 @@ CmdAutoRoute(w, cmd)
     /* Call function which was originally intended */
 
     if (result == TCL_OK)
-	WindSendCommand(w, cmd);
+	WindSendCommand(w, cmd, FALSE);
 }
 #endif  /* ROUTE_AUTO */
 
@@ -166,7 +166,7 @@ CmdAutoPlot(w, cmd)
     /* Call function which was originally intended */
 
     if (result == TCL_OK)
-	WindSendCommand(w, cmd);
+	WindSendCommand(w, cmd, FALSE);
 }
 #endif  /* PLOT_AUTO */
 
@@ -201,7 +201,7 @@ CmdAutoLef(w, cmd)
     /* Call function which was originally intended */
 
     if (result == TCL_OK)
-	WindSendCommand(w, cmd);
+	WindSendCommand(w, cmd, FALSE);
 }
 #endif	/* LEF_AUTO */
 

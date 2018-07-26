@@ -197,10 +197,12 @@ drcCifWidth(argc, argv)
 
     scalefactor = drcCifStyle->cs_scaleFactor;
     centidistance *= drcCifStyle->cs_expander;		// BSI
+
     dpnext = drcCifRules[thislayer][DRC_CIF_SPACE];
     dpnew = (DRCCookie *) mallocMagic((unsigned) (sizeof (DRCCookie)));
     drcAssign(dpnew, centidistance, dpnext, &CIFSolidBits,
-    		&CIFSolidBits, why, centidistance, DRC_FORWARD, thislayer, 0);
+    		&CIFSolidBits, why, centidistance,
+		DRC_FORWARD, thislayer, 0);
     drcCifRules[thislayer][DRC_CIF_SPACE] = dpnew;
 
     return ((centidistance+scalefactor-1)/scalefactor);
@@ -293,16 +295,34 @@ drcCifSpacing(argc, argv)
     drcAssign(dpnew, centidistance, dpnext, &DBSpaceBits,
     		&cmask, why, centidistance, DRC_FORWARD, layer[1], 0);
     drcCifRules[layer[0]][DRC_CIF_SOLID] = dpnew;
+    if (needReverse) dpnew->drcc_flags |= DRC_BOTHCORNERS;
+
+    // Add rule in reverse direction
+    dpnext = drcCifRules[layer[0]][DRC_CIF_SPACE];
+    dpnew = (DRCCookie *) mallocMagic((unsigned) sizeof (DRCCookie));
+    drcAssign(dpnew, centidistance, dpnext, &DBSpaceBits,
+    		&cmask, why, centidistance, DRC_REVERSE, layer[1], 0);
+    drcCifRules[layer[0]][DRC_CIF_SPACE] = dpnew;
     
     if (needReverse)
     {
+	 // This is not so much "reverse" as it is just the
+	 // rule for b->a spacing that matches the a->b spacing.
+
          dpnew->drcc_flags |= DRC_BOTHCORNERS;
          dpnext = drcCifRules[layer[1]][DRC_CIF_SOLID];
          dpnew = (DRCCookie *) mallocMagic((unsigned) (sizeof (DRCCookie)));
          drcAssign(dpnew, centidistance, dpnext, &DBSpaceBits, &cmask,
 		why, centidistance, DRC_FORWARD|DRC_BOTHCORNERS, layer[0], 0);
          drcCifRules[layer[1]][DRC_CIF_SOLID] = dpnew;
-	 
+
+	 // Add rule in reverse direction
+	 dpnext = drcCifRules[layer[1]][DRC_CIF_SPACE];
+	 dpnew = (DRCCookie *) mallocMagic((unsigned) sizeof (DRCCookie));
+	 drcAssign(dpnew, centidistance, dpnext, &DBSpaceBits, &cmask,
+		why, centidistance, DRC_REVERSE|DRC_BOTHCORNERS, layer[0], 0);
+	 drcCifRules[layer[1]][DRC_CIF_SPACE] = dpnew;
+    
 	 if (layer[0] == layer[1])
 	 {
               dpnext = drcCifRules[layer[1]][DRC_CIF_SPACE];
@@ -1148,7 +1168,7 @@ drcCheckCifArea(starttile, arg, cptr)
     DRCCookie	 *cptr;
 {
      int		arealimit = cptr->drcc_cdist;
-     int		area=0;
+     long		area = 0L;
      TileTypeBitMask	*oktypes = &cptr->drcc_mask;
      Tile		*tile,*tp;
      Rect		*cliprect = arg->dCD_rect;
@@ -1165,7 +1185,7 @@ drcCheckCifArea(starttile, arg, cptr)
     {
 	tile = (Tile *) STACKPOP(DRCstack);
 	if (tile->ti_client != (ClientData)DRC_PENDING) continue;
-	area += (RIGHT(tile)-LEFT(tile))*(TOP(tile)-BOTTOM(tile));
+	area += (long)(RIGHT(tile)-LEFT(tile))*(TOP(tile)-BOTTOM(tile));
 	tile->ti_client = (ClientData)DRC_PROCESSED;
 	/* are we at the clip boundary? If so, skip to the end */
 	if (RIGHT(tile) == cliprect->r_xtop ||
@@ -1173,7 +1193,7 @@ drcCheckCifArea(starttile, arg, cptr)
 	    BOTTOM(tile) == cliprect->r_ybot ||
 	    TOP(tile) == cliprect->r_ytop) goto forgetit;
 
-         if (area >= arealimit) goto forgetit;
+         if (area >= (long)arealimit) goto forgetit;
 
 	/* Top */
 	for (tp = RT(tile); RIGHT(tp) > LEFT(tile); tp = BL(tp))
@@ -1191,7 +1211,7 @@ drcCheckCifArea(starttile, arg, cptr)
 	for (tp = TR(tile); TOP(tp) > BOTTOM(tile); tp = LB(tp))
 	    if (TTMaskHasType(oktypes, TiGetType(tp))) PUSHTILE(tp);
      }
-     if (area <arealimit)
+     if (area < (long)arealimit)
      {
 	 Rect	rect;
 	 TiToRect(starttile,&rect);

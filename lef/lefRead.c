@@ -334,8 +334,11 @@ LefError(char *fmt, ...)
  *	against the latter case, "match" should be NULL.
  *
  * Results:
- *	TRUE if the line matches the expected end statement,
- *	FALSE if not. 
+ *	1 if the line matches the expected end statement,
+ *	0 if not.  Return -1 if the last token read was
+ *	"END", indicating to the caller that either an
+ *	error has occurred or, in the case of a section
+ *	skip, the routine needs to be called again.
  *
  * Side effects:
  *	None.
@@ -343,7 +346,7 @@ LefError(char *fmt, ...)
  *------------------------------------------------------------
  */
 
-bool
+int
 LefParseEndStatement(f, match)
     FILE *f;
     char *match;
@@ -352,6 +355,12 @@ LefParseEndStatement(f, match)
     int keyword, words;
     char *match_name[2];
 
+    static char *end_section[] = {
+	"END",
+	"ENDEXT",
+	NULL
+    };
+
     match_name[0] = match;
     match_name[1] = NULL;
 
@@ -359,19 +368,26 @@ LefParseEndStatement(f, match)
     if (token == NULL)
     {
 	LefError("Bad file read while looking for END statement\n");
-	return FALSE;
+	return 0;
     }
 
     /* END or ENDEXT */
-    if ((*token == '\n') && (match == NULL)) return TRUE;
+    if ((*token == '\n') && (match == NULL)) return 1;
 
     /* END <section_name> */
     else {
 	keyword = LookupFull(token, match_name);
 	if (keyword == 0)
-	    return TRUE;
+	    return 1;
 	else
-	    return FALSE;
+	{
+	    /* Check for END followed by END */
+	    keyword = LookupFull(token, end_section);
+	    if (keyword == 0)
+		return -1;
+	    else
+		return 0;
+	}
     }
 }
 
@@ -403,7 +419,7 @@ LefSkipSection(f, section)
     char *section;
 {
     char *token;
-    int keyword;
+    int keyword, result;
     static char *end_section[] = {
 	"END",
 	"ENDEXT",
@@ -414,8 +430,12 @@ LefSkipSection(f, section)
     {
 	if ((keyword = Lookup(token, end_section)) == 0)
 	{
-	    if (LefParseEndStatement(f, section))
-		return;
+	    result = -1;
+	    while (result == -1)
+	    {
+		result = LefParseEndStatement(f, section);
+		if (result == 1) return;
+	    }
 	}
 	else if (keyword == 1)
 	{
@@ -432,6 +452,11 @@ LefSkipSection(f, section)
  *------------------------------------------------------------
  *
  * lefFindCell --
+ *
+ *	Search for an existing cell of the given name.  If
+ *	it exists, return a pointer to the cell def.  If not,
+ *	create a new cell def with the given name and return
+ *	a pointer to it.
  *
  *------------------------------------------------------------
  */
@@ -506,7 +531,7 @@ LefRedefined(lefl, redefname)
 {
     lefLayer *slef, *newlefl;
     char *altName;
-    linkedRect *viaLR;
+    LinkedRect *viaLR;
     HashSearch hs;
     HashEntry *he;
     int records;
@@ -533,7 +558,7 @@ LefRedefined(lefl, redefname)
 	/* Only one name associated with the record, so	*/
 	/* just clear all the allocated information.	*/
 
-	for (viaLR = lefl->info.via.lr; viaLR != NULL; viaLR = viaLR->rect_next)
+	for (viaLR = lefl->info.via.lr; viaLR != NULL; viaLR = viaLR->r_next)
 	    freeMagic(viaLR);
 	newlefl = lefl;
     }
@@ -556,7 +581,7 @@ LefRedefined(lefl, redefname)
     newlefl->obsType = -1;
     newlefl->info.via.area = GeoNullRect;
     newlefl->info.via.cell = (CellDef *)NULL;
-    newlefl->info.via.lr = (linkedRect *)NULL;
+    newlefl->info.via.lr = (LinkedRect *)NULL;
 
     return newlefl;
 }
@@ -798,7 +823,7 @@ LefReadPolygon(f, curlayer, oscale, ppoints)
     float oscale;
     int *ppoints;
 {
-    linkedRect *lr = NULL, *newRect;
+    LinkedRect *lr = NULL, *newRect;
     Point *plist = NULL;
     char *token;
     float px, py;
@@ -832,10 +857,10 @@ LefReadPolygon(f, curlayer, oscale, ppoints)
 	/* use the r_ll point of the rect to store each point	*/
 	/* as we read it in.					*/
 
-	newRect = (linkedRect *)mallocMagic(sizeof(linkedRect));
-	newRect->area.r_xbot = (int)roundf(px / oscale);
-	newRect->area.r_ybot = (int)roundf(py / oscale);
-	newRect->rect_next = lr;
+	newRect = (LinkedRect *)mallocMagic(sizeof(LinkedRect));
+	newRect->r_r.r_xbot = (int)roundf(px / oscale);
+	newRect->r_r.r_ybot = (int)roundf(py / oscale);
+	newRect->r_next = lr;
 	lr = newRect;
 	lpoints++;
     }
@@ -843,17 +868,17 @@ LefReadPolygon(f, curlayer, oscale, ppoints)
     *ppoints = lpoints;
     if (lpoints == 0) return NULL;
 
-    /* Convert linkedRect structure into a simple point list */
+    /* Convert LinkedRect structure into a simple point list */
 
     plist = (Point *)mallocMagic(lpoints * sizeof(Point));
     lpoints = 0;
     while (lr != NULL)
     {
-	plist[*ppoints - lpoints - 1].p_x = lr->area.r_xbot;
-	plist[*ppoints - lpoints - 1].p_y = lr->area.r_ybot;
+	plist[*ppoints - lpoints - 1].p_x = lr->r_r.r_xbot;
+	plist[*ppoints - lpoints - 1].p_y = lr->r_r.r_ybot;
 	freeMagic(lr);
 	lpoints++;
-	lr = lr->rect_next;
+	lr = lr->r_next;
     }	
     return plist;	
 }
@@ -867,15 +892,17 @@ LefReadPolygon(f, curlayer, oscale, ppoints)
  *------------------------------------------------------------
  */
 
-void
-LefPaintPolygon(lefMacro, pointList, points, curlayer)
+LinkedRect *
+LefPaintPolygon(lefMacro, pointList, points, curlayer, keep)
     CellDef *lefMacro;
     Point *pointList;
     int points;
     TileType curlayer;
+    bool keep;
 {
     int pNum;
     PaintUndoInfo ui;
+    LinkedRect *rlist = NULL, *rptr;
 
     ui.pu_def = lefMacro;
     for (pNum = PL_PAINTBASE; pNum < DBNumPlanes; pNum++)
@@ -883,10 +910,16 @@ LefPaintPolygon(lefMacro, pointList, points, curlayer)
 	if (DBPaintOnPlane(curlayer, pNum))
 	{
 	    ui.pu_pNum = pNum;
-	    PaintPolygon(pointList, points, lefMacro->cd_planes[pNum],
-			DBStdPaintTbl(curlayer, pNum), &ui);
+	    rlist = PaintPolygon(pointList, points, lefMacro->cd_planes[pNum],
+			DBStdPaintTbl(curlayer, pNum), &ui, keep);
+
+	    /* Annotate each rectangle in the list with the type painted */
+	    if (keep)
+		for (rptr = rlist; rptr; rptr = rptr->r_next)
+		    rptr->r_type = curlayer;
 	}
     }
+    return rlist;
 }
 
 /*
@@ -915,9 +948,10 @@ LefPaintPolygon(lefMacro, pointList, points, curlayer)
  */
 
 enum lef_geometry_keys {LEF_LAYER = 0, LEF_WIDTH, LEF_PATH,
-	LEF_RECT, LEF_POLYGON, LEF_VIA, LEF_GEOMETRY_END};
+	LEF_RECT, LEF_POLYGON, LEF_VIA, LEF_PORT_CLASS,
+	LEF_GEOMETRY_END};
 
-linkedRect *
+LinkedRect *
 LefReadGeometry(lefMacro, f, oscale, do_list)
     CellDef *lefMacro;
     FILE *f;
@@ -928,7 +962,7 @@ LefReadGeometry(lefMacro, f, oscale, do_list)
 
     char *token;
     int keyword;
-    linkedRect *newRect, *rectList;
+    LinkedRect *newRect, *rectList;
     Point *pointList;
     int points;
     Rect *paintrect, *contact;
@@ -940,6 +974,7 @@ LefReadGeometry(lefMacro, f, oscale, do_list)
 	"RECT",
 	"POLYGON",
 	"VIA",
+	"CLASS",
 	"END",
 	NULL
     };
@@ -999,10 +1034,10 @@ LefReadGeometry(lefMacro, f, oscale, do_list)
 		    /* Remember the area and layer */
 		    if (do_list)
 		    {
-			newRect = (linkedRect *)mallocMagic(sizeof(linkedRect));
-			newRect->type = curlayer;
-			newRect->area = *paintrect;
-			newRect->rect_next = rectList;
+			newRect = (LinkedRect *)mallocMagic(sizeof(LinkedRect));
+			newRect->r_type = curlayer;
+			newRect->r_r = *paintrect;
+			newRect->r_next = rectList;
 			rectList = newRect;
 		    }
 		}
@@ -1014,7 +1049,23 @@ LefReadGeometry(lefMacro, f, oscale, do_list)
 		{
 		    if (lefMacro)
 		    {
-			LefPaintPolygon(lefMacro, pointList, points, curlayer);
+			LinkedRect *rectNew, *rectTest;
+
+			rectNew = LefPaintPolygon(lefMacro, pointList, points,
+					curlayer, TRUE);
+
+			// Add the new list of rectangles to the current list
+			// of rectangles to be made into port labels.
+
+			if (rectList != NULL)
+			{
+			    for (rectTest = rectList; rectTest && rectTest->r_next;
+					rectTest = rectTest->r_next);
+			    rectTest->r_next = rectNew;
+			}
+			else
+			    rectList = rectNew;
+
 			if ((!do_list) && (otherlayer != -1))
 			    LefPaintPolygon(lefMacro, pointList, points, otherlayer);
 		    }
@@ -1024,8 +1075,11 @@ LefReadGeometry(lefMacro, f, oscale, do_list)
 	    case LEF_VIA:
 		LefEndStatement(f);
 		break;
+	    case LEF_PORT_CLASS:
+		LefEndStatement(f);
+		break;
 	    case LEF_GEOMETRY_END:
-		if (!LefParseEndStatement(f, NULL))
+		if (LefParseEndStatement(f, NULL) == 0)
 		{
 		    LefError("Geometry (PORT or OBS) END statement missing.\n");
 		    keyword = -1;
@@ -1064,7 +1118,7 @@ LefReadPort(lefMacro, f, pinName, pinNum, pinDir, pinUse, oscale)
     float oscale;
 {
     Label *newlab;
-    linkedRect *rectList;
+    LinkedRect *rectList;
 
     rectList = LefReadGeometry(lefMacro, f, oscale, TRUE);
 
@@ -1073,7 +1127,7 @@ LefReadPort(lefMacro, f, pinName, pinNum, pinDir, pinUse, oscale)
 	if (pinNum >= 0)
 	{
 	    /* Label this area */
-	    DBPutLabel(lefMacro, &rectList->area, -1, pinName, rectList->type, 0);
+	    DBPutLabel(lefMacro, &rectList->r_r, -1, pinName, rectList->r_type, 0);
 
 	    /* Set this label to be a port */
 
@@ -1091,7 +1145,7 @@ LefReadPort(lefMacro, f, pinName, pinNum, pinDir, pinUse, oscale)
 	}
 
 	freeMagic((char *)rectList);
-	rectList = rectList->rect_next;
+	rectList = rectList->r_next;
     }
 }
 
@@ -1112,7 +1166,9 @@ LefReadPort(lefMacro, f, pinName, pinNum, pinDir, pinUse, oscale)
  */
 
 enum lef_pin_keys {LEF_DIRECTION = 0, LEF_USE, LEF_PORT, LEF_CAPACITANCE,
-	LEF_PIN_END};
+	LEF_ANTENNADIFF, LEF_ANTENNAGATE, LEF_ANTENNAMOD,
+	LEF_ANTENNAPAR, LEF_ANTENNAPARSIDE, LEF_ANTENNAMAX, LEF_ANTENNAMAXSIDE,
+	LEF_SHAPE, LEF_NETEXPR, LEF_PIN_END};
 
 void
 LefReadPin(lefMacro, f, pinname, pinNum, oscale)
@@ -1132,6 +1188,15 @@ LefReadPin(lefMacro, f, pinname, pinNum, oscale)
 	"USE",
 	"PORT",
 	"CAPACITANCE",
+	"ANTENNADIFFAREA",
+	"ANTENNAGATEAREA",
+	"ANTENNAMODEL",
+	"ANTENNAPARTIALMETALAREA",
+	"ANTENNAPARTIALMETALSIDEAREA",
+	"ANTENNAMAXAREACAR",
+	"ANTENNAMAXSIDEAREACAR",
+	"SHAPE",
+	"NETEXPR",
 	"END",
 	NULL
     };
@@ -1139,8 +1204,8 @@ LefReadPin(lefMacro, f, pinname, pinNum, oscale)
     static char *pin_classes[] = {
 	"DEFAULT",
 	"INPUT",
-	"OUTPUT TRISTATE",
 	"OUTPUT",
+	"OUTPUT TRISTATE",
 	"INOUT",
 	"FEEDTHRU",
 	NULL
@@ -1149,8 +1214,8 @@ LefReadPin(lefMacro, f, pinname, pinNum, oscale)
     static int lef_class_to_bitmask[] = {
 	PORT_CLASS_DEFAULT,
 	PORT_CLASS_INPUT,
-	PORT_CLASS_TRISTATE,
 	PORT_CLASS_OUTPUT,
+	PORT_CLASS_TRISTATE,
 	PORT_CLASS_BIDIRECTIONAL,
 	PORT_CLASS_FEEDTHROUGH
     };
@@ -1207,10 +1272,19 @@ LefReadPin(lefMacro, f, pinname, pinNum, oscale)
 		LefReadPort(lefMacro, f, pinname, pinNum, pinDir, pinUse, oscale);
 		break;
 	    case LEF_CAPACITANCE:
+	    case LEF_ANTENNADIFF:
+	    case LEF_ANTENNAGATE:
+	    case LEF_ANTENNAMOD:
+	    case LEF_ANTENNAPAR:
+	    case LEF_ANTENNAPARSIDE:
+	    case LEF_ANTENNAMAX:
+	    case LEF_ANTENNAMAXSIDE:
+	    case LEF_SHAPE:
+	    case LEF_NETEXPR:
 		LefEndStatement(f);	/* Ignore. . . */
 		break;
 	    case LEF_PIN_END:
-		if (!LefParseEndStatement(f, pinname))
+		if (LefParseEndStatement(f, pinname) == 0)
 		{
 		    LefError("Pin END statement missing.\n");
 		    keyword = -1;
@@ -1308,14 +1382,32 @@ LefReadMacro(f, mname, oscale, importForeign)
 	}
 	LefError("Cell \"%s\" was already defined in this file.  "
 		"Renaming this cell \"%s\"\n", mname, newname);
-	lefMacro = lefFindCell(newname);
+        lefMacro = DBCellLookDef(newname);
+        if (lefMacro == NULL)
+	{
+	    lefMacro = lefFindCell(newname);
+	    DBCellClearDef(lefMacro);
+	    DBCellSetAvail(lefMacro);
+	    HashSetValue(he, lefMacro);
+	    is_imported = FALSE;
+	}
+	else
+	    is_imported = TRUE;
     }
     else
-	lefMacro = lefFindCell(mname);
-
-    DBCellClearDef(lefMacro);
-    DBCellSetAvail(lefMacro);
-    HashSetValue(he, lefMacro);
+    {
+        lefMacro = DBCellLookDef(mname);
+	if (lefMacro == NULL)
+	{
+	    lefMacro = lefFindCell(mname);
+	    DBCellClearDef(lefMacro);
+	    DBCellSetAvail(lefMacro);
+	    HashSetValue(he, lefMacro);
+	    is_imported = FALSE;
+	}
+	else
+	    is_imported = TRUE;
+    }
 
     /* Initial values */
     pinNum = 1;
@@ -1337,7 +1429,7 @@ LefReadMacro(f, mname, oscale, importForeign)
 	    case LEF_CLASS:
 		token = LefNextToken(f, TRUE);
 		if (*token != '\n')
-		    DBPropPut(lefMacro, "LEFclass", token);
+		    DBPropPut(lefMacro, "LEFclass", StrDup((char **)NULL, token));
 		LefEndStatement(f);
 		break;
 	    case LEF_SIZE:
@@ -1377,21 +1469,25 @@ origin_error:
 		LefEndStatement(f);
 		break;
 	    case LEF_SYMMETRY:
+		strcpy(tsave, "");
 		token = LefNextToken(f, TRUE);
-		if (*token != '\n')
-		    DBPropPut(lefMacro, "LEFsymmetry", token + strlen(token) + 1);
-		LefEndStatement(f);
+		while (*token != ';')
+		{
+		    sprintf(tsave + strlen(tsave), " %s", token);
+		    token = LefNextToken(f, TRUE);
+		}
+		DBPropPut(lefMacro, "LEFsymmetry", StrDup((char **)NULL, tsave + 1));
 		break;
 	    case LEF_SOURCE:
 		token = LefNextToken(f, TRUE);
 		if (*token != '\n')
-		    DBPropPut(lefMacro, "LEFsource", token);
+		    DBPropPut(lefMacro, "LEFsource", StrDup((char **)NULL, token));
 		LefEndStatement(f);
 		break;
 	    case LEF_SITE:
 		token = LefNextToken(f, TRUE);
 		if (*token != '\n')
-		    DBPropPut(lefMacro, "LEFsite", token);
+		    DBPropPut(lefMacro, "LEFsite", StrDup((char **)NULL, token));
 		LefEndStatement(f);
 		break;
 	    case LEF_PIN:
@@ -1425,23 +1521,12 @@ origin_error:
 		    token = LefNextToken(f, TRUE);
 		    sprintf(tsave, "%.127s", token);
 
-		    /* Attempt to read a .mag file of this name */
-
-		    DBCellClearAvail(lefMacro);
-		    if (DBCellRead(lefMacro, tsave, TRUE))
-			is_imported = TRUE;
-		    else
-		    {
-			TxError("   Cannot find magic file %s.mag "
-				"to import.\n", tsave);
-			TxError("   Filling cell with geometry from "
-				"the LEF file.\n");
-		    }
+		    /* To do:  Read and apply X and Y offsets */
 		}
 		LefEndStatement(f);
 		break;
 	    case LEF_MACRO_END:
-		if (!LefParseEndStatement(f, mname))
+		if (LefParseEndStatement(f, mname) == 0)
 		{
 		    LefError("Macro END statement missing.\n");
 		    keyword = -1;
@@ -1454,7 +1539,16 @@ origin_error:
     /* Finish up creating the cell */
 
     if (is_imported)
-	DBReComputeBbox(lefMacro);
+    {
+	/* Redefine cell bounding box to match the LEF macro	*/
+	/* Leave "extended" to mark the original bounding box	*/
+
+	if (has_size)
+	{
+	    lefMacro->cd_bbox = lefBBox;
+	    lefMacro->cd_flags |= CDFIXEDBBOX;
+	}
+    }
     else
     {
 	DBAdjustLabelsNew(lefMacro, &TiPlaneRect, 1);
@@ -1466,6 +1560,9 @@ origin_error:
 	}
 	else
 	{
+            char *propstr = (char *)mallocMagic(64);
+	    int reducer = DBCellFindScale(lefMacro);
+
 	    lefMacro->cd_bbox = lefBBox;
 	    lefMacro->cd_extended = lefBBox;
 	}
@@ -1475,6 +1572,11 @@ origin_error:
 
 	DRCCheckThis(lefMacro, TT_CHECKPAINT, &lefMacro->cd_bbox);
     }
+
+    /* Note:  The value here is ignored, setting to "TRUE".	*/
+    /* The "extract" command only cares that the key exists.	*/
+
+    DBPropPut(lefMacro, "LEFview", StrDup((char **)NULL, "TRUE"));
     DBWAreaChanged(lefMacro, &lefMacro->cd_bbox, DBW_ALLWINDOWS,
 		&DBAllButSpaceBits);
 }
@@ -1504,7 +1606,7 @@ LefAddViaGeometry(f, lefl, curlayer, oscale)
     float oscale;		/* output scaling	*/
 {
     Rect *currect;
-    linkedRect *viaLR;
+    LinkedRect *viaLR;
 
     /* Rectangles for vias are read in units of 1/2 lambda */
     currect = LefReadRect(f, curlayer, (oscale / 2));
@@ -1571,18 +1673,18 @@ LefAddViaGeometry(f, lefl, curlayer, oscale)
     }
     else 
     {
-	viaLR = (linkedRect *)mallocMagic(sizeof(linkedRect));
-	viaLR->rect_next = lefl->info.via.lr;
+	viaLR = (LinkedRect *)mallocMagic(sizeof(LinkedRect));
+	viaLR->r_next = lefl->info.via.lr;
 	lefl->info.via.lr = viaLR;
-	viaLR->type = curlayer;
-	viaLR->area = *currect;
+	viaLR->r_type = curlayer;
+	viaLR->r_r = *currect;
 
 	/* Make sure that the primary record is a contact type. */
 	if (DBIsContact(curlayer) && !DBIsContact(lefl->type))
 	{
-	    viaLR->type = lefl->type;
+	    viaLR->r_type = lefl->type;
 	    lefl->type = curlayer;
-	    viaLR->area = lefl->info.via.area;
+	    viaLR->r_r = lefl->info.via.area;
 	    lefl->info.via.area = *currect;
 	}
     }
@@ -1604,10 +1706,20 @@ LefAddViaGeometry(f, lefl, curlayer, oscale)
  *------------------------------------------------------------
  */
 
-enum lef_layer_keys {LEF_LAYER_TYPE=0, LEF_LAYER_WIDTH, LEF_LAYER_SPACING,
+enum lef_layer_keys {LEF_LAYER_TYPE=0, LEF_LAYER_WIDTH,
+	LEF_LAYER_MAXWIDTH, LEF_LAYER_AREA,
+	LEF_LAYER_SPACING, LEF_LAYER_SPACINGTABLE,
 	LEF_LAYER_PITCH, LEF_LAYER_DIRECTION, LEF_LAYER_OFFSET,
+	LEF_LAYER_WIREEXT,
+	LEF_LAYER_RES, LEF_LAYER_CAP, LEF_LAYER_EDGECAP,
+	LEF_LAYER_THICKNESS, LEF_LAYER_HEIGHT,
+	LEF_LAYER_MINDENSITY, LEF_LAYER_ANTENNADIFF,
+	LEF_LAYER_ANTENNASIDE,
 	LEF_VIA_DEFAULT, LEF_VIA_LAYER, LEF_VIA_RECT,
-	LEF_VIARULE_VIA, LEF_LAYER_END};
+	LEF_VIA_ENCLOSURE, LEF_VIA_PREFERENCLOSURE,
+	LEF_VIARULE_OVERHANG,
+	LEF_VIARULE_METALOVERHANG, LEF_VIARULE_VIA,
+	LEF_VIARULE_GENERATE, LEF_LAYER_END};
 
 void
 LefReadLayerSection(f, lname, mode, lefl)
@@ -1634,15 +1746,38 @@ LefReadLayerSection(f, lname, mode, lefl)
     static char *layer_keys[] = {
 	"TYPE",
 	"WIDTH",
+	"MAXWIDTH",
+	"AREA",
 	"SPACING",
+	"SPACINGTABLE",
 	"PITCH",
 	"DIRECTION",
 	"OFFSET",
+	"WIREEXTENSION",
+	"RESISTANCE",
+	"CAPACITANCE",
+	"EDGECAPACITANCE",
+	"THICKNESS",
+	"HEIGHT",
+	"MINIMUMDENSITY",
+	"ANTENNADIFFAREARATIO",
+	"ANTENNASIDEAREARATIO",
 	"DEFAULT",
 	"LAYER",
 	"RECT",
+	"ENCLOSURE",
+	"PREFERENCLOSURE",
+	"OVERHANG",
+	"METALOVERHANG",
 	"VIA",
+	"GENERATE",
 	"END",
+	NULL
+    };
+
+    static char *spacing_keys[] = {
+	"RANGE",
+	";",
 	NULL
     };
 
@@ -1670,9 +1805,15 @@ LefReadLayerSection(f, lname, mode, lefl)
 				"ignoring.\n", token);
 		}
 		if (lefl->lefClass != typekey)
-		    LefError("Attempt to reclassify layer %s from %s to %s\n",
-				lname, layer_type_keys[lefl->lefClass],
-				layer_type_keys[typekey]);
+		{
+		    /* ROUTE and VIA are taken from techfile lef section */
+		    /* and so having a different TYPE is an error.	 */
+		    /* Otherwise just ignore the type.			 */
+		    if (typekey == CLASS_ROUTE || typekey == CLASS_VIA)
+			LefError("Attempt to reclassify layer %s from %s to %s\n",
+					lname, layer_type_keys[lefl->lefClass],
+					layer_type_keys[typekey]);
+		}
 		LefEndStatement(f);
 		break;
 	    case LEF_LAYER_WIDTH:
@@ -1682,11 +1823,21 @@ LefReadLayerSection(f, lname, mode, lefl)
 		    lefl->info.route.width = (int)roundf(fvalue / oscale);
 		LefEndStatement(f);
 		break;
+	    case LEF_LAYER_MAXWIDTH:
+	    case LEF_LAYER_AREA:
+		/* Not handled */
+		LefEndStatement(f);
+		break;
 	    case LEF_LAYER_SPACING:
+		/* To do:  Handle RANGE */
 		token = LefNextToken(f, TRUE);
 		sscanf(token, "%f", &fvalue);
 		if (lefl->lefClass == CLASS_ROUTE)
 		    lefl->info.route.spacing = (int)roundf(fvalue / oscale);
+		LefEndStatement(f);
+		break;
+	    case LEF_LAYER_SPACINGTABLE:
+		/* To do:  Handle spacing tables */
 		LefEndStatement(f);
 		break;
 	    case LEF_LAYER_PITCH:
@@ -1704,9 +1855,19 @@ LefReadLayerSection(f, lname, mode, lefl)
 		LefEndStatement(f);
 		break;
 	    case LEF_LAYER_OFFSET:
+	    case LEF_LAYER_RES:
+	    case LEF_LAYER_CAP:
+	    case LEF_LAYER_EDGECAP:
+	    case LEF_LAYER_THICKNESS:
+	    case LEF_LAYER_HEIGHT:
+	    case LEF_LAYER_MINDENSITY:
+	    case LEF_LAYER_ANTENNADIFF:
+	    case LEF_LAYER_ANTENNASIDE:
+	    case LEF_LAYER_WIREEXT:
 		LefEndStatement(f);
 		break;
 	    case LEF_VIA_DEFAULT:
+	    case LEF_VIARULE_GENERATE:
 		/* Do nothing; especially, don't look for end-of-statement! */
 		break;
 	    case LEF_VIA_LAYER:
@@ -1718,10 +1879,14 @@ LefReadLayerSection(f, lname, mode, lefl)
 		LefEndStatement(f);
 		break;
 	    case LEF_VIARULE_VIA:
+	    case LEF_VIA_ENCLOSURE:
+	    case LEF_VIA_PREFERENCLOSURE:
+	    case LEF_VIARULE_OVERHANG:
+	    case LEF_VIARULE_METALOVERHANG:
 		LefEndStatement(f);
 		break;
 	    case LEF_LAYER_END:
-		if (!LefParseEndStatement(f, lname))
+		if (LefParseEndStatement(f, lname) == 0)
 		{
 		    LefError("Layer END statement missing.\n");
 		    keyword = -1;
@@ -1749,7 +1914,10 @@ LefReadLayerSection(f, lname, mode, lefl)
  *------------------------------------------------------------
  */
 
-enum lef_sections {LEF_VERSION = 0, LEF_NAMESCASESENSITIVE,
+enum lef_sections {LEF_VERSION = 0,
+	LEF_BUSBITCHARS, LEF_DIVIDERCHAR, LEF_MANUFACTURINGGRID,
+	LEF_USEMINSPACING, LEF_CLEARANCEMEASURE,
+	LEF_NAMESCASESENSITIVE,
 	LEF_PROPERTYDEFS, LEF_UNITS, LEF_SECTION_LAYER,
 	LEF_SECTION_VIA, LEF_SECTION_VIARULE,
 	LEF_SECTION_SPACING, LEF_SECTION_SITE, LEF_PROPERTY,
@@ -1773,6 +1941,11 @@ LefRead(inName, importForeign)
 
     static char *sections[] = {
 	"VERSION",
+	"BUSBITCHARS",
+	"DIVIDERCHAR",
+	"MANUFACTURINGGRID",
+	"USEMINSPACING",
+	"CLEARANCEMEASURE",
 	"NAMESCASESENSITIVE",
 	"PROPERTYDEFINITIONS",
 	"UNITS",
@@ -1812,7 +1985,7 @@ LefRead(inName, importForeign)
     }
 
     TxPrintf("Reading LEF data from file %s.\n", filename);
-    TxPrintf("This action is undoable.\n");
+    TxPrintf("This action cannot be undone.\n");
     UndoDisable();
 
     /* Initialize */
@@ -1832,6 +2005,10 @@ LefRead(inName, importForeign)
 	switch (keyword)
 	{
 	    case LEF_VERSION:
+	    case LEF_BUSBITCHARS:
+	    case LEF_DIVIDERCHAR:
+	    case LEF_CLEARANCEMEASURE:
+	    case LEF_MANUFACTURINGGRID:
 		LefEndStatement(f);
 		break;
 	    case LEF_NAMESCASESENSITIVE:
@@ -1859,7 +2036,7 @@ LefRead(inName, importForeign)
 		    lefl->lefClass = CLASS_VIA;
 		    lefl->info.via.area = GeoNullRect;
 		    lefl->info.via.cell = (CellDef *)NULL;
-		    lefl->info.via.lr = (linkedRect *)NULL;
+		    lefl->info.via.lr = (LinkedRect *)NULL;
 		    HashSetValue(he, lefl);
 		    LefReadLayerSection(f, tsave, keyword, lefl);
 		    lefl->canonName = (char *)he->h_key.h_name;
@@ -1889,8 +2066,8 @@ LefRead(inName, importForeign)
 			mtype = DBTechNameType(LefLower(token));
 		    if (mtype < 0)
 		    {
-			LefError("Layer %s cannot be mapped to any magic layer!\n",
-				token);
+			/* Ignore.  This is probably a masterslice or	*/
+			/* overlap, but that hasn't been parsed yet.	*/
 			LefSkipSection(f, tsave);
 			break;
 		    }
@@ -1975,7 +2152,7 @@ LefRead(inName, importForeign)
 		LefReadMacro(f, tsave, oscale, importForeign);
 		break;
 	    case LEF_END:
-		if (!LefParseEndStatement(f, "LIBRARY"))
+		if (LefParseEndStatement(f, "LIBRARY") == 0)
 		{
 		    LefError("END statement out of context.\n");
 		    keyword = -1;

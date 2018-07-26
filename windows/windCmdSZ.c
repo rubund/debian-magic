@@ -427,6 +427,8 @@ windSpecialOpenCmd(w, cmd)
     if ((wc == (WindClient) NULL) || (client[0] == '*')) goto usage;
 
     if (haveCoords) {
+	windCheckOnlyWindow(&w, wc);
+
 	area.r_xbot = atoi(cmd->tx_argv[1]);
 	area.r_ybot = atoi(cmd->tx_argv[2]);
 	area.r_xtop = MAX(atoi(cmd->tx_argv[3]), area.r_xbot + WIND_MIN_WIDTH);
@@ -490,6 +492,12 @@ windNamesCmd(w, cmd)
     {
 	if (!strncmp(cmd->tx_argv[1], "all", 3))
 	    doforall = TRUE;
+#ifndef THREE_D
+	else if (!strncmp(cmd->tx_argv[1], "wind3d", 6))
+	{
+	    return;	// do nothing
+	}
+#endif 	/* THREE_D */
 	else
 	{
 	    wc = WindGetClient(cmd->tx_argv[1], FALSE);
@@ -843,6 +851,34 @@ windViewCmd(w, cmd)
 	    Tcl_SetObjResult(magicinterp, listxy);
 #endif
 	}
+	else
+	{
+	    char *sptr, *pptr;
+	    Rect r;
+
+	    // Parse out coordinates where all coordinates have been
+	    // put into a single string argument, as happens when the
+	    // coordinates are a Tcl list, e.g., from "[box values]"
+
+	    sptr = cmd->tx_argv[1];
+	    if ((pptr = strchr(sptr, ' ')) == NULL) return;
+	    *pptr++ = '\0';
+	    r.r_xbot = cmdParseCoord(w, sptr, FALSE, TRUE);
+
+	    sptr = pptr;
+	    if ((pptr = strchr(sptr, ' ')) == NULL) return;
+	    *pptr++ = '\0';
+	    r.r_ybot = cmdParseCoord(w, sptr, FALSE, TRUE);
+
+	    sptr = pptr;
+	    if ((pptr = strchr(sptr, ' ')) == NULL) return;
+	    *pptr++ = '\0';
+	    r.r_xtop = cmdParseCoord(w, sptr, FALSE, TRUE);
+	    r.r_ytop = cmdParseCoord(w, pptr, FALSE, TRUE);
+
+	    /* Redisplay */
+	    WindMove(w, &r);
+	}
     }
     else if (cmd->tx_argc == 5)
     {
@@ -1027,7 +1063,7 @@ windSendCmd(w, cmd)
     }
     newcmd.tx_wid = WIND_UNKNOWN_WINDOW;
     if (toWindow != NULL) newcmd.tx_wid = toWindow->w_wid;
-    (void) WindSendCommand(toWindow, &newcmd);
+    (void) WindSendCommand(toWindow, &newcmd, FALSE);
     return;
 
     usage:

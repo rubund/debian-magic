@@ -315,7 +315,7 @@ LefTechLine(sectionName, argc, argv)
 			newlefl->lefClass = CLASS_VIA;
 			newlefl->info.via.area = GeoNullRect;
 			newlefl->info.via.cell = (CellDef *)NULL;
-			newlefl->info.via.lr = (linkedRect *)NULL;
+			newlefl->info.via.lr = (LinkedRect *)NULL;
 			newlefl->info.via.obsType = mtype2;
 			break;
 		    case LEFTECH_CONTACT:
@@ -325,7 +325,7 @@ LefTechLine(sectionName, argc, argv)
 			newlefl->info.via.area.r_xbot = -newlefl->info.via.area.r_xtop;
 			newlefl->info.via.area.r_ybot = -newlefl->info.via.area.r_ytop;
 			newlefl->info.via.cell = (CellDef *)NULL;
-			newlefl->info.via.lr = (linkedRect *)NULL;
+			newlefl->info.via.lr = (LinkedRect *)NULL;
 			newlefl->info.via.obsType = mtype2;
 			break;
 		    case LEFTECH_ROUTE:

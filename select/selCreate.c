@@ -840,11 +840,12 @@ SelectNet(scx, type, xMask, pArea, less)
     }
 
     TTMaskZero(&mask);
-    TTMaskSetType(&mask, type);
 
-    /* Clear out the temporary selection cell and yank all of the
-     * connected paint into it.
-     */
+    // Make sure that SelectNet() matches connection-compatible
+    // types with the type passed to the routine.
+
+    // TTMaskSetType(&mask, type);
+    TTMaskSetMask(&mask, &DBConnectTbl[type]);
 
     UndoDisable();
     DBCellClearDef(Select2Def);
@@ -948,6 +949,7 @@ SelectCell(use, rootDef, trans, replace)
 	(void) DBCellDeleteUse(selectLastUse);
 	SelRememberForUndo(FALSE, SelectRootDef, &area);
 	DBWHLRedraw(SelectRootDef, &area, TRUE);
+	selectLastUse = (CellUse *)NULL;
     }
 
     /* When creating a new use, try to re-use the id from the old
@@ -1018,6 +1020,7 @@ SelectAndCopy1()
 {
     SearchContext scx;
     Rect editArea;
+    TileTypeBitMask mask;
 
     /* Just copy the information in Select2Def twice, once into the
      * edit cell and once into the main selection cell.
@@ -1026,10 +1029,10 @@ SelectAndCopy1()
     scx.scx_use = SelectUse;
     scx.scx_area = SelectUse->cu_bbox;
     GeoTransTrans(&SelectUse->cu_transform, &RootToEditTransform, &scx.scx_trans);
-    (void) DBCellCopyAllPaint(&scx, &DBAllButSpaceAndDRCBits, CU_DESCEND_SPECIAL,
-		EditCellUse);
-    (void) DBCellCopyAllLabels(&scx, &DBAllTypeBits, CU_DESCEND_SPECIAL, EditCellUse,
-		(Rect *) NULL);
+    TTMaskAndMask3(&mask, &DBAllButSpaceAndDRCBits, &DBActiveLayerBits);
+    (void) DBCellCopyAllPaint(&scx, &mask, CU_DESCEND_SPECIAL, EditCellUse);
+    (void) DBCellCopyAllLabels(&scx, &DBActiveLayerBits, CU_DESCEND_SPECIAL,
+		EditCellUse, (Rect *) NULL);
     (void) DBCellCopyAllCells(&scx, CU_DESCEND_SPECIAL, EditCellUse, (Rect *) NULL);
     GeoTransRect(&scx.scx_trans, &scx.scx_area, &editArea);
     DBAdjustLabels(EditCellUse->cu_def, &editArea);

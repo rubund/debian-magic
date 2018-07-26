@@ -349,17 +349,16 @@ CmdLoad(w, cmd)
     int d = 1;
     int locargc = cmd->tx_argc;
     bool ignoreTech = FALSE;
+    bool noWindow = FALSE;
     int keepGoing();			/* forward declaration */
-
-    windCheckOnlyWindow(&w, DBWclientID);
-    if (w == (MagWindow *) NULL)
-    {
-	TxError("Point to a window first.\n");
-	return;
-    }
 
     if (locargc > 2)
     {
+	if (!strncmp(cmd->tx_argv[locargc - 1], "-nowindow", 8))
+	{
+	    locargc--;
+	    noWindow = TRUE;
+	}
 	if (!strncmp(cmd->tx_argv[locargc - 1], "-force", 6))
 	{
 	    locargc--;
@@ -380,11 +379,18 @@ CmdLoad(w, cmd)
 	    DBLambda[1] *= n;
 	    ReduceFraction(&DBLambda[0], &DBLambda[1]);
 	}
-	else if (!ignoreTech)
+	else if (!ignoreTech && !noWindow)
 	{
 	    TxError("Usage: %s [name [scaled n [d]]]\n", cmd->tx_argv[0]);
 	    return;
 	}
+    }
+
+    windCheckOnlyWindow(&w, DBWclientID);
+    if ((w == (MagWindow *) NULL) && (noWindow == FALSE))
+    {
+	TxError("Point to a window first.\n");
+	return;
     }
 
     if (locargc > 1)
@@ -399,7 +405,8 @@ CmdLoad(w, cmd)
 	    *(cmd->tx_argv[1] + strlen(cmd->tx_argv[1]) - 1) = '\0';
 	}
 #endif
-	DBWloadWindow(w, cmd->tx_argv[1], ignoreTech, FALSE);
+	DBWloadWindow((noWindow == TRUE) ? NULL : w, cmd->tx_argv[1],
+			ignoreTech, FALSE);
 
 	if ((n > 1) || (d > 1))
 	{
@@ -979,7 +986,7 @@ CmdPolygon(w, cmd)
 	{
 	    ui.pu_pNum = pNum;
 	    PaintPolygon(plist, points, def->cd_planes[pNum],
-			DBStdPaintTbl(type, pNum), &ui);
+			DBStdPaintTbl(type, pNum), &ui, FALSE);
 	}
     }
 
@@ -996,6 +1003,60 @@ CmdPolygon(w, cmd)
     freeMagic(plist);
 }
 
+/*----------------------------------------------------------------------*/
+/* portFindLabel ---							*/
+/*									*/
+/* Find a label in the cell editDef.					*/
+/*									*/
+/* If "port" is true, then search only for labels that are ports.	*/
+/* If "unique" is true, then return a label only if exactly one label	*/
+/* is found in the edit box.						*/ 
+/*----------------------------------------------------------------------*/
+
+Label *
+portFindLabel(editDef, port, unique)
+    CellDef *editDef;
+    bool unique;
+    bool port;
+{
+    bool found;
+    Label *lab, *sl;
+    Rect editBox;
+
+    /*
+     * Check for unique label in box area
+     */
+
+    ToolGetEditBox(&editBox);
+    found = FALSE;
+    lab = NULL;
+    for (sl = editDef->cd_labels; sl != NULL; sl = sl->lab_next)
+    {
+	if (GEO_OVERLAP(&editBox, &sl->lab_rect))
+	{
+	    if (found == TRUE)
+	    {
+		/* Let's do this again with the GEO_SURROUND function	*/
+		/* and see if we come up with only one label.		*/
+
+		found = FALSE;
+		for (sl = editDef->cd_labels; sl != NULL; sl = sl->lab_next)
+		{
+		    if (GEO_SURROUND(&editBox, &sl->lab_rect))
+		    {
+			if (found == TRUE && unique == TRUE) return NULL;
+			lab = sl;
+			found = TRUE;
+		    }
+		}
+		break;
+	    }
+	    lab = sl;
+	    found = TRUE;
+	}
+    }
+    return lab;
+}
 /*
  * ----------------------------------------------------------------------------
  *
@@ -1007,9 +1068,9 @@ CmdPolygon(w, cmd)
  * usage, below).
  *
  * Usage:
- *	port [num] [connect_direction(s)]
+ *	port make|makeall [num] [connect_direction(s)]
  * or
- *	port class|use [value]
+ *	port [name|num] class|use|index [value]
  *
  * num is the index of the port, usually beginning with 1.  This indicates
  *	the order in which ports should be written to a subcircuit record
@@ -1040,11 +1101,14 @@ CmdPolygon(w, cmd)
 #define PORT_USE	1
 #define PORT_INDEX	2
 #define PORT_EQUIV	3
-#define PORT_CONNECT	4
-#define PORT_MAKE	5
-#define PORT_MAKEALL	6
-#define PORT_REMOVE	7
-#define PORT_HELP	8
+#define PORT_EXISTS	4
+#define PORT_CONNECT	5
+#define PORT_LAST	6
+#define PORT_MAKE	7
+#define PORT_MAKEALL	8
+#define PORT_NAME	9
+#define PORT_REMOVE	10
+#define PORT_HELP	11	
 
 void
 CmdPort(w, cmd)
@@ -1052,8 +1116,8 @@ CmdPort(w, cmd)
     TxCommand *cmd;
 {
     char **msg;
-    int posstart;
-    int i, idx, pos, type, option;
+    int argstart;
+    int i, idx, pos, type, option, argc;
     unsigned short dirmask;
     bool found;
     Label *lab, *sl;
@@ -1066,9 +1130,12 @@ CmdPort(w, cmd)
 	"use	[type]		get [set] port use type",
 	"index	[number]	get [set] port number",
 	"equivalent [number]	make port equivalent to another port",
+	"exists			report if a label is a port or not",
 	"connections [dir...]	get [set] port connection directions",
+	"last			report the highest port number used",
 	"make [index] [dir...]	turn a label into a port",
 	"makeall [index] [dir]	turn all labels into ports",
+	"name			report the port name",
 	"remove			turn a port back into a label",
 	"help			print this help information",
 	NULL
@@ -1122,76 +1189,170 @@ CmdPort(w, cmd)
 	PORT_USE_CLOCK
     };
 
-    if (cmd->tx_argc > 6)
+    argstart = 1;
+    argc = cmd->tx_argc;
+    if (argc > 6 || argc == 1)
+        goto portWrongNumArgs;
+    else
     {
-	TxError("Usage: %s [num] [connect_direction...]\n", cmd->tx_argv[0]);
-	return;
-    }
+	/* Handle syntax "port <name>|<index> [option ...]"	*/
+	/* Does not require a selection.			*/
 
-    option = Lookup(cmd->tx_argv[1], cmdPortOption);
-    if (option < 0 || option == PORT_HELP) goto portWrongNumArgs;
-
-    /*
-     * Check for unique label in box area
-     */
-
-    ToolGetEditBox(&editBox);
-    found = FALSE;
-    for (sl = editDef->cd_labels; sl != NULL; sl = sl->lab_next)
-    {
-	if (GEO_OVERLAP(&editBox, &sl->lab_rect))
-	{
-	    if (found == TRUE)
+	lab = NULL;
+	if (argc > 2) {
+	    option = Lookup(cmd->tx_argv[2], cmdPortOption);
+	    if (option >= 0 && option != PORT_HELP)
 	    {
-		/* Let's do this again with the GEO_SURROUND function	*/
-		/* and see if we come up with only one label.		*/
+		char *portname;
 
-		found = FALSE;
-		for (sl = editDef->cd_labels; sl != NULL; sl = sl->lab_next)
+		if (StrIsInt(cmd->tx_argv[1]))
 		{
-		    if (GEO_SURROUND(&editBox, &sl->lab_rect))
-		    {
-			if (found == TRUE)
-			{
-			    TxError("Only one label may be present "
-					"under the cursor box.\n");
-			    return;
-			}
-			lab = sl;
-			found = TRUE;
-		    }
+		    int portidx = atoi(cmd->tx_argv[1]);
+		    for (sl = editDef->cd_labels; sl != NULL; sl = sl->lab_next)
+			if (sl && ((sl->lab_flags & PORT_DIR_MASK) != 0))
+			    if ((sl->lab_flags & PORT_NUM_MASK) == portidx)
+			    {
+				lab = sl;
+				break;
+			    }
 		}
-		break;
+		else
+		{
+
+ 		    portname = cmd->tx_argv[1];
+		    for (sl = editDef->cd_labels; sl != NULL; sl = sl->lab_next)
+			if (!strcmp(portname, sl->lab_text))
+			{
+			    lab = sl;
+			    break;
+			}
+		}
+		if (lab == NULL)
+		{
+		    TxError("No label found with that name\n.");
+		    return;
+		}
+		argstart = 2;
+		argc--;
 	    }
-	    lab = sl;
-	    found = TRUE;
-	    if (option == PORT_MAKEALL) break;	// Found at least one
+	    else
+		option = Lookup(cmd->tx_argv[1], cmdPortOption);
 	}
-    }
-    if (found == FALSE)
-    {
-	TxError("The edit cell contains no labels inside the cursor box.\n");
-	return;
+	else
+	    option = Lookup(cmd->tx_argv[1], cmdPortOption);
+	if (option < 0 || option == PORT_HELP) goto portWrongNumArgs;
     }
 
-    posstart = 1;
     if (option >= 0)
     {
-	if ((option != PORT_MAKE) && (option != PORT_MAKEALL))
+	/* Check for options that require only one selected port */
+
+	if (option != PORT_LAST)
+	{
+	    if (lab == NULL)
+		lab = portFindLabel(editDef, TRUE, TRUE);
+
+	    if (option == PORT_EXISTS)
+	    {
+		if (lab && ((lab->lab_flags & PORT_DIR_MASK) != 0))
+#ifdef MAGIC_WRAPPER
+		    Tcl_SetObjResult(magicinterp, Tcl_NewBooleanObj(1));
+#else
+		    TxPrintf("true\n");
+#endif
+		else
+#ifdef MAGIC_WRAPPER
+		    Tcl_SetObjResult(magicinterp, Tcl_NewBooleanObj(0));
+#else
+		    TxPrintf("false\n");
+#endif
+		return;
+	    }
+
+	}
+	if ((option != PORT_LAST) && lab == NULL)
+	{
+	    /* Let "port remove" fail without complaining. */
+	    if (option != PORT_REMOVE)
+		TxError("Exactly one label may be present under the cursor box.\n");
+
+	    return;
+	}
+
+	/* Check for options that require label to be a port */
+
+	if ((option != PORT_MAKE) && (option != PORT_MAKEALL)
+		&& (option != PORT_EXISTS) && (option != PORT_LAST))
 	{
 	    /* label "lab" must already be a port */
 	    if (!(lab->lab_flags & PORT_DIR_MASK))
 	    {
-		TxError("The selected label is not a port.\n");
+		if (option != PORT_REMOVE)
+		    TxError("The selected label is not a port.\n");
 		return;
 	    }
 	}
 
-	/* All commands except the combined index + direction(s) */
+	/* Handle all command options */
 	switch (option)
 	{
+	    case PORT_LAST:
+		i = -1;
+		for (sl = editDef->cd_labels; sl != NULL; sl = sl->lab_next)
+		{
+		    idx = sl->lab_flags & PORT_NUM_MASK;
+		    if (idx > i) i = idx;
+		}
+#ifdef MAGIC_WRAPPER
+		Tcl_SetObjResult(magicinterp, Tcl_NewIntObj(i));
+#else
+		TxPrintf("%d\n", i);
+#endif
+		break;
+
+	    case PORT_EXISTS:
+		if (!(lab->lab_flags & PORT_DIR_MASK))
+		{
+#ifdef MAGIC_WRAPPER
+		    Tcl_SetObjResult(magicinterp, Tcl_NewBooleanObj(0));
+#else
+		    TxPrintf("false\n");
+#endif
+		}
+		else
+		{
+#ifdef MAGIC_WRAPPER
+		    Tcl_SetObjResult(magicinterp, Tcl_NewBooleanObj(1));
+#else
+		    TxPrintf("true\n");
+#endif
+		}
+		break;
+
+	    case PORT_NAME:
+		if (argc == 2)
+		{
+#ifdef MAGIC_WRAPPER
+		    Tcl_SetObjResult(magicinterp, Tcl_NewStringObj(lab->lab_text, -1));
+#else
+		    TxPrintf("Name = %s\n", lab->lab_text);
+#endif
+		}
+		else if (argc == 3)
+		{
+		    /* This is just a duplication of "setlabel text" */
+		    sl = DBPutFontLabel(editDef, &lab->lab_rect, lab->lab_font,
+				lab->lab_size, lab->lab_rotate,
+				&lab->lab_offset, lab->lab_just,
+				cmd->tx_argv[argstart + 1],
+				lab->lab_type, lab->lab_flags);
+		    DBEraseLabelsByContent(editDef, &lab->lab_rect, -1,
+				lab->lab_text);
+		    DBWLabelChanged(editDef, sl, DBW_ALLWINDOWS);
+		}
+		break;
 	    case PORT_CLASS:
-		if (cmd->tx_argc == 2)
+		if (argc == 2)
 		{
 		    type = lab->lab_flags & PORT_CLASS_MASK;
 		    for (idx = 0; cmdPortClassTypes[idx] != NULL; idx++)
@@ -1206,9 +1367,9 @@ CmdPort(w, cmd)
 			    break;
 			}
 		}
-		else if (cmd->tx_argc == 3)
+		else if (argc == 3)
 		{
-		    type = Lookup(cmd->tx_argv[2], cmdPortClassTypes);
+		    type = Lookup(cmd->tx_argv[argstart + 1], cmdPortClassTypes);
 		    if (type < 0)
 		    {
 		        TxError("Usage:  port class <type>, where <type> is one of:\n");
@@ -1228,7 +1389,7 @@ CmdPort(w, cmd)
 		    goto portWrongNumArgs;
 		break;
 	    case PORT_USE:
-		if (cmd->tx_argc == 2)
+		if (argc == 2)
 		{
 		    type = lab->lab_flags & PORT_USE_MASK;
 		    for (idx = 0; cmdPortUseTypes[idx] != NULL; idx++)
@@ -1243,9 +1404,9 @@ CmdPort(w, cmd)
 			    break;
 			}
 		}
-		else if (cmd->tx_argc == 3)
+		else if (argc == 3)
 		{
-		    type = Lookup(cmd->tx_argv[2], cmdPortUseTypes);
+		    type = Lookup(cmd->tx_argv[argstart + 1], cmdPortUseTypes);
 		    if (type < 0)
 		    {
 		        TxError("Usage:  port use <type>, where <type> is one of:\n");
@@ -1266,7 +1427,7 @@ CmdPort(w, cmd)
 		break;
 
 	    case PORT_INDEX:
-		if (cmd->tx_argc == 2)
+		if (argc == 2)
 		{
 		    idx = lab->lab_flags & PORT_NUM_MASK;
 #ifdef MAGIC_WRAPPER
@@ -1275,14 +1436,14 @@ CmdPort(w, cmd)
 		    TxPrintf("Index = %d\n", idx);
 #endif
 		}
-		else if (cmd->tx_argc == 3)
+		else if (argc == 3)
 		{
-		    if (!StrIsInt(cmd->tx_argv[2]))
+		    if (!StrIsInt(cmd->tx_argv[argstart + 1]))
 		        TxError("Usage:  port index <integer>\n");
 		    else
 		    {
 		        lab->lab_flags &= (~PORT_NUM_MASK);
-			lab->lab_flags |= atoi(cmd->tx_argv[2]);
+			lab->lab_flags |= atoi(cmd->tx_argv[argstart + 1]);
 			editDef->cd_flags |= (CDMODIFIED | CDGETNEWSTAMP);
 		    }
 		}
@@ -1291,7 +1452,7 @@ CmdPort(w, cmd)
 		break;
 
 	    case PORT_CONNECT:
-		if (cmd->tx_argc == 2)
+		if (argc == 2)
 		{
 		    char cdir[5];
 
@@ -1309,7 +1470,7 @@ CmdPort(w, cmd)
 		}
 		else
 		{
-		    posstart = 2;
+		    argstart++;
 		    goto parsepositions;
 		}
 		break;
@@ -1328,7 +1489,7 @@ CmdPort(w, cmd)
 		// Fall through. . .
 
 	    case PORT_MAKE:
-		posstart = 2;
+		argstart++;
 		goto parseindex;
 		break;
 
@@ -1357,9 +1518,9 @@ parseindex:
 	    return;
 	}
 
-	if ((cmd->tx_argc > posstart) && StrIsInt(cmd->tx_argv[posstart]))
+	if ((argc > argstart) && StrIsInt(cmd->tx_argv[argstart]))
 	{
-	    idx = atoi(cmd->tx_argv[posstart]);
+	    idx = atoi(cmd->tx_argv[argstart]);
 	    for (sl = editDef->cd_labels; sl != NULL; sl = sl->lab_next)
 	    {
 		if (sl == lab) continue;	/* don't consider self */
@@ -1375,7 +1536,7 @@ parseindex:
 		    }
 		}
 	    }
-	    posstart++;
+	    argstart++;
 	}
 	else
 	{
@@ -1409,7 +1570,7 @@ parseindex:
 parsepositions:
 
 	dirmask = 0;
-	if (cmd->tx_argc == posstart)
+	if (argc == argstart)
 	{
 	    /* Get position from label */
 
@@ -1449,7 +1610,7 @@ parsepositions:
 	{
 	    /* Parse one or more positions */
 
-	    for (i = posstart; i < cmd->tx_argc; i++)
+	    for (i = argstart; i < argc; i++)
 	    {
 		pos = GeoNameToPos(cmd->tx_argv[i], TRUE, TRUE);
 		if (pos < 0)

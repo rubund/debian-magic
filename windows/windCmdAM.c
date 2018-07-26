@@ -356,6 +356,8 @@ windCloseCmd(w, cmd)
  *	Run a magic command independently of the command line.  That is,
  *	if a command is being typed on the command line, the input
  *	redirection will not be reset by the execution of this command.
+ *	To avoid having such commands interfere with the selection
+ *	mechanism, save and restore the command count.
  *
  * Results:
  *	None.
@@ -371,6 +373,8 @@ windBypassCmd(w, cmd)
     MagWindow *w;
     TxCommand *cmd;
 {
+    int saveCount;
+
     if (cmd->tx_argc == 1)
     {
 	TxError("Usage:  *bypass <command>\n");
@@ -378,7 +382,9 @@ windBypassCmd(w, cmd)
     }
 
     /* Dispatch the referenced command */
-    TxTclDispatch((ClientData)w, cmd->tx_argc - 1, cmd->tx_argv + 1);
+    saveCount = TxCommandNumber;
+    TxTclDispatch((ClientData)w, cmd->tx_argc - 1, cmd->tx_argv + 1, FALSE);
+    TxCommandNumber = saveCount;
     if (TxInputRedirect == TX_INPUT_PENDING_RESET)
 	TxInputRedirect = TX_INPUT_REDIRECTED;
 }
@@ -468,10 +474,18 @@ windCursorCmd(w, cmd)
 	{
 	    resulttype = DBW_SNAP_MICRONS;
 	}
-	else if (*cmd->tx_argv[1] !=  'i')
+	else if (*cmd->tx_argv[1] == 'w')
+	{
+	    resulttype = -1;	// Use this value for "window"
+	}
+	else if (*cmd->tx_argv[1] == 's')
+	{
+	    resulttype = -2;	// Use this value for "screen"
+	}
+	else if (*cmd->tx_argv[1] != 'i')
 	{
 	    TxError("Usage: cursor glyphnum\n");
-	    TxError(" (or): cursor [internal | lambda | microns | user]\n");
+	    TxError(" (or): cursor [internal | lambda | microns | user | window]\n");
 	    return;
 	}
     }
@@ -479,15 +493,27 @@ windCursorCmd(w, cmd)
     if (GrGetCursorPosPtr == NULL)
 	return;
 
-    GrGetCursorPos(w, &p_in);
-    WindPointToSurface(w, &p_in, &p_out, (Rect *)NULL);
+    if (resulttype == -2)
+	GrGetCursorRootPos(w, &p_in);
+    else
+	GrGetCursorPos(w, &p_in);
 
-    /* Snap the cursor position if snap is in effect */
-    if (DBWSnapToGrid != DBW_SNAP_INTERNAL)
-	ToolSnapToGrid(w, &p_out, (Rect *)NULL);
+    if (resulttype >= 0)
+    {
+	WindPointToSurface(w, &p_in, &p_out, (Rect *)NULL);
+
+	/* Snap the cursor position if snap is in effect */
+	if (DBWSnapToGrid != DBW_SNAP_INTERNAL)
+	    ToolSnapToGrid(w, &p_out, (Rect *)NULL);
+    }
 
     /* Transform the result to declared units with option "lambda" or "grid" */ 
     switch (resulttype) {
+	case -2:
+	case -1:
+	    cursx = (double)p_in.p_x;
+	    cursy = (double)p_in.p_y;
+	    break;
 	case DBW_SNAP_INTERNAL:
 	    cursx = (double)p_out.p_x;
 	    cursy = (double)p_out.p_y;
@@ -959,17 +985,21 @@ windDoMacro(w, cmd, interactive)
     bool interactive;
 {
     char *cp, *cn;
+    char nulltext[] = "";
     char ch;
-    int ct, argstart;
+    int ct, argstart, verbose;
     bool any, iReturn;
     bool do_list = FALSE;
+    bool do_help = FALSE;
+    bool do_reverse = FALSE;
+    char *searchterm = NULL;
     macrodef *cMacro;
     HashTable *clienttable;
     HashEntry *h;
     HashSearch hs;
     WindClient wc;
 
-    /* If the second argument is a window name, we attempt to	*/
+    /* If the first argument is a window name, we attempt to	*/
     /* retrieve a client ID from it.  This overrides the actual	*/
     /* window the command was called from, so technically we	*/
     /* can define macros for clients from inside other clients.	*/
@@ -979,39 +1009,70 @@ windDoMacro(w, cmd, interactive)
     /* associated window.					*/
 
     argstart = 1;
-    if (cmd->tx_argc == 1) wc = DBWclientID;  /* Added by NP 11/15/04 */
-
-    if (cmd->tx_argc > 1)
-    {
+    if (cmd->tx_argc == 1)
+	wc = DBWclientID;  /* Added by NP 11/15/04 */
+    else if (cmd->tx_argc > 1)
 	wc = WindGetClient(cmd->tx_argv[1], TRUE);
-	if (wc == (WindClient)NULL)
-	    if (cmd->tx_argc == 4)
-	    {
-		/* This may look odd, but it has a reason.  If	*/
-		/* we don't register a client, such as wind3d 	*/
-		/* when running a non-OpenGL magic, then we	*/
-		/* shuffle off macros for that window type to	*/
-		/* a "fake" NULL client, where it won't be seen	*/
-		/* again, but won't cause an error.		*/
-		wc = 0;
-		argstart = 2;
-	    }
-	    else if (w != NULL)
-		wc = w->w_client;
-	    else
-		wc = DBWclientID;
-	else
-	    argstart = 2;
-    }
 
-    if (cmd->tx_argc > argstart)
+    while (cmd->tx_argc > argstart)
     {
 	if (!strcmp(cmd->tx_argv[argstart], "list"))
 	{
 	    do_list = TRUE;
 	    argstart++;
 	}
+	else if (!strcmp(cmd->tx_argv[argstart], "help"))
+	{
+	    do_help = TRUE;
+	    argstart++;
+	}
+	else if (!strcmp(cmd->tx_argv[argstart], "search"))
+	{
+	    if (cmd->tx_argc > (argstart + 1))
+	    {
+		argstart++;
+		searchterm = cmd->tx_argv[argstart];
+	    }
+	    argstart++;
+	}
+	else if (!strcmp(cmd->tx_argv[argstart], "-reverse"))
+	{
+	    do_reverse = TRUE;
+	    argstart++;
+	}
+	else break;
     }
+
+    /* If client wasn't specified, use window default, else use	*/
+    /* DBW client.						*/
+
+    if (wc == (WindClient)NULL)
+    {
+	if (w != NULL)
+	    wc = w->w_client;
+	else
+	    wc = DBWclientID;
+
+	if (cmd->tx_argc > (argstart + 1))
+	{
+	    /* The first argument, if there is one after resolving	*/
+	    /* all of the optional arugments, should be a key.		*/
+	    /* If it doesn't look like one, then check if the		*/
+	    /* next argument looks like a key, which would indicate	*/
+	    /* an unregistered client as the first argument.  A		*/
+	    /* macro retrieved from an unregistered client returns	*/
+	    /* nothing but does not generate an error.			*/
+
+	    if (MacroKey(cmd->tx_argv[argstart], &verbose) == 0)
+		if (MacroKey(cmd->tx_argv[argstart + 1], &verbose) != 0)
+		{
+		    wc = 0;
+		    argstart++;
+		}
+	}
+    }
+    else
+	argstart++;
 
     if (cmd->tx_argc == argstart)
     {
@@ -1038,14 +1099,37 @@ windDoMacro(w, cmd, interactive)
 	    cMacro = (macrodef *) HashGetValue(h);
 	    if (cMacro == (macrodef *)NULL) break;
 	    cn = MacroName((spointertype)h->h_key.h_ptr);
-	    cp = cMacro->macrotext;
+
+	    /* "imacro list" returns only interactive macros. */
+	    if (interactive && !cMacro->interactive) continue;
+
+	    if (do_help)
+		cp = cMacro->helptext;
+	    else
+		cp = cMacro->macrotext;
+
+	    if (cp == (char *)NULL) cp = (char *)(&nulltext[0]);
+
+	    if (searchterm != NULL)
+	    {
+		/* Refine results by keyword search */
+		if (!strstr(cp, searchterm)) continue;
+	    }
 
 	    if (do_list)
 	    {
 #ifdef MAGIC_WRAPPER
-		Tcl_AppendElement(magicinterp, cp);
+		// NOTE:  Putting cp before cn makes it easier to
+		// generate a reverse lookup hash table for matching
+		// against menu items, to automatically generate
+		// the "accelerator" text.
+		if (do_reverse)
+		    Tcl_AppendElement(magicinterp, cp);
+		Tcl_AppendElement(magicinterp, cn);
+		if (!do_reverse)
+		    Tcl_AppendElement(magicinterp, cp);
 #else
-		TxPrintf("%s\n", cp);
+		TxPrintf("%s = \"%s\"\n", cn, cp);
 #endif
 	    }
 	    else
@@ -1067,7 +1151,6 @@ windDoMacro(w, cmd, interactive)
     }
     else if (cmd->tx_argc == (argstart + 1))
     {
-	int verbose;
 	ct = MacroKey(cmd->tx_argv[argstart], &verbose);
 	if (ct == 0)
 	{
@@ -1075,7 +1158,10 @@ windDoMacro(w, cmd, interactive)
 		TxError("Unrecognized macro name %s\n", cmd->tx_argv[argstart]);
 	    return;
 	}
-	cp = MacroRetrieve(wc, ct, &iReturn);
+	if (do_help)
+	    cp = MacroRetrieveHelp(wc, ct);
+	else
+	    cp = MacroRetrieve(wc, ct, &iReturn);
 	if (cp != NULL)
 	{
 	    cn = MacroName(ct);
@@ -1117,10 +1203,32 @@ windDoMacro(w, cmd, interactive)
 	}
 	argstart++;
 	if (cmd->tx_argv[argstart][0] == '\0') MacroDelete(wc, ct);
-	else if (interactive) MacroDefine(wc, ct, cmd->tx_argv[argstart], TRUE);
-	else MacroDefine(wc, ct, cmd->tx_argv[argstart], FALSE);
+	else if (do_help)
+	    MacroDefineHelp(wc, ct, cmd->tx_argv[argstart]);
+	else if (interactive)
+	    MacroDefine(wc, ct, cmd->tx_argv[argstart], NULL, TRUE);
+	else 
+	    MacroDefine(wc, ct, cmd->tx_argv[argstart], NULL, FALSE);
+	return;
+    }
+    else if (cmd->tx_argc == (argstart + 3))
+    {
+	int verbose;
+	ct = MacroKey(cmd->tx_argv[argstart], &verbose);
+	if (ct == 0)
+	{
+	    if (verbose)
+		TxError("Unrecognized macro name %s\n", cmd->tx_argv[argstart]);
+	    return;
+	}
+	argstart++;
+	if (cmd->tx_argv[argstart][0] == '\0') MacroDelete(wc, ct);
+	else if (interactive) MacroDefine(wc, ct, cmd->tx_argv[argstart],
+		cmd->tx_argv[argstart + 1], TRUE);
+	else MacroDefine(wc, ct, cmd->tx_argv[argstart],
+		cmd->tx_argv[argstart + 1], FALSE);
 	return;
     }
 
-    TxError("Usage: %s [macro_name [string]]\n", cmd->tx_argv[0]);
+    TxError("Usage: %s [macro_name [string] [help_text]]\n", cmd->tx_argv[0]);
 }

@@ -39,7 +39,7 @@
 /* data structures */
 extern bool SigInterruptPending;
 extern bool SigIOReady;
-extern bool SigInterruptOnSigIO;
+extern char SigInterruptOnSigIO;
 extern bool SigGotSigWinch;
 
 /* procedures */

@@ -262,7 +262,8 @@ CIFPolyToRects(path, plane, resultTbl, ui)
 
     if (npts < 4)
     {
-	CIFReadError("polygon with fewer than 4 points.\n" );
+	if (npts > 0)
+	    CIFReadError("polygon with fewer than 4 points.\n" );
 	goto done;
     }
 

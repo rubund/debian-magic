@@ -19,7 +19,7 @@ EXTRA_LIBS = ${MAGICDIR}/cmwind/libcmwind.o ${MAGICDIR}/commands/libcommands.o \
 	    ${MAGICDIR}/plow/libplow.o ${MAGICDIR}/utils/libutils.o \
 	    ${MAIN_EXTRA_LIBS}
 
-BITMAPS = up.xbm down.xbm left.xbm right.xbm zoom.xbm
+BITMAPS = up.xbm down.xbm left.xbm right.xbm zoom.xbm lock.xbm
 DEST_XBM = $(BITMAPS:%=$(DESTDIR)${TCLDIR}/bitmaps/%)
 
 DFLAGS += -DMAGIC_DATE="\"`date`\""
@@ -35,7 +35,8 @@ tclmagic${SHDLIB_EXT}: ${EXTRA_LIBS}
 	@echo --- making magic Tcl library \(tclmagic${SHDLIB_EXT}\)
 	${RM} tclmagic${SHDLIB_EXT}
 	${CC} ${CFLAGS} ${CPPFLAGS} -o $@ ${LDDL_FLAGS} ${LD_RUN_PATH} \
-		${EXTRA_LIBS} -lc ${LIBS}
+		${EXTRA_LIBS} ${LD_EXTRA_LIBS} -lc ${LIBS} \
+		${LIB_SPECS} ${LDFLAGS}
 
 proto.magicrc: proto.magicrc.m4
 	sed -e /CAD_DIR/s%CAD_DIR%${LIBDIR}%g proto.magicrc.m4 | \
@@ -45,7 +46,7 @@ install: $(DESTDIR)${BINDIR}/${MODULE}${EXEEXT} $(DESTDIR)${SYSDIR}/.magicrc \
 	$(DESTDIR)${SYSDIR}/magicps.pro
 
 install-tcl: $(DESTDIR)${TCLDIR}/tclmagic${SHDLIB_EXT} $(DESTDIR)${SYSDIR}/.magicrc \
-	$(DESTDIR)${SYSDIR}/magicps.pro ${DEST_XBM}
+	$(DESTDIR)${SYSDIR}/.initrc $(DESTDIR)${SYSDIR}/magicps.pro ${DEST_XBM}
 
 $(DESTDIR)${TCLDIR}/tclmagic${SHDLIB_EXT}: tclmagic${SHDLIB_EXT}
 	${RM} $(DESTDIR)${TCLDIR}/tclmagic${SHDLIB_EXT}
@@ -58,6 +59,10 @@ $(DESTDIR)${TCLDIR}/bitmaps/%: bitmaps/%
 $(DESTDIR)${SYSDIR}/.magicrc: proto.magicrc
 	${RM} $(DESTDIR)${SYSDIR}/.magicrc
 	${CP} proto.magicrc $(DESTDIR)${SYSDIR}/.magicrc
+
+$(DESTDIR)${SYSDIR}/.initrc: proto.initrc
+	${RM} $(DESTDIR)${SYSDIR}/.initrc
+	${CP} proto.initrc $(DESTDIR)${SYSDIR}/.initrc
 
 $(DESTDIR)${SYSDIR}/magicps.pro: magicps.pro
 	${RM} $(DESTDIR)${SYSDIR}/magicps.pro

@@ -34,6 +34,8 @@ typedef unsigned char U_char;
 #define	EF_FLATRESISTS		0x04	/* Flatten resistors */
 #define	EF_FLATDISTS		0x08	/* Flatten distances */
 #define	EF_NOFLATSUBCKT		0x10	/* Don't flatten standard cells */
+#define	EF_NONAMEMERGE		0x20	/* Don't merge unconnected nets	*/
+					/* with the same name.		*/
 
 /* Flags to control output of node names.  Stored in EFTrimFlags */
 #define	EF_TRIMGLOB		0x01	/* Delete trailing '!' from names */
@@ -187,6 +189,11 @@ typedef struct efnhdr
      * nodes, which are not declared ports.
      */
 #define EF_SUBS_PORT	0x10
+    /*
+     * EF_SUBS_NODE is defined for substrate nodes defined in the
+     * .ext file.
+     */
+#define EF_SUBS_NODE	0x20
 
 extern int efNumResistClasses;	/* Number of resistance classes in efResists */
 
@@ -276,9 +283,12 @@ typedef struct dev
 
 /*
  * A big number, used for thresholds for capacitance and resistance
- * when no processing is desired.
+ * when no processing is desired (NOTE:  Probably should be using
+ * C99 "INFINITY" here instead).
  */
 #define	INFINITE_THRESHOLD	(((unsigned int) (~0)) >> 1)
+#define	INFINITE_THRESHOLD_F	((EFCapValue)(1.0E38))
+#define IS_FINITE_F(a)		(((EFCapValue)(a)) != INFINITE_THRESHOLD_F)
 
 /* Max filename length */
 #define	FNSIZE		1024
@@ -291,6 +301,7 @@ extern char *EFSearchPath;	/* Path to search for .ext files */
 extern char *EFLibPath;		/* Library search path */
 extern char *EFVersion;		/* Version of extractor we work with */
 extern char *EFArgTech;		/* Tech file given as command line argument */
+extern bool  EFCompat;		/* Subtrate backwards-compatibility mode */
 
     /*
      * Thresholds used by various extflat clients to filter out

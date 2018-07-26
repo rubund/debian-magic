@@ -18,12 +18,11 @@
  * table which contains the supplied character.
  */
 
+#include <string.h>
+
 #ifndef lint
 static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/utils/lookupany.c,v 1.1.1.1 2008/02/03 20:43:50 tim Exp $";
 #endif  /* not lint */
-#ifdef SYSV
-#define index strchr
-#endif
 
 
 /*
@@ -51,10 +50,9 @@ LookupAny(c, table)
     char **table;
 {
     char **tp;
-    char *index();
 
     for (tp = table; *tp; tp++)
-	if (index(*tp, c) != (char *) 0)
+	if (strchr(*tp, c) != (char *) 0)
 	    return (tp - table);
 
     return (-1);

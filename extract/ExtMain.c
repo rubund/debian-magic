@@ -236,10 +236,13 @@ extDefPushFunc(use)
  *
  * For each cell in the subtree rooted at rootUse->cu_def, make
  * sure that there are not two different nodes with the same label.
- * If there are, and either the label ends in a '#' or allNames is
- * TRUE, we generate unique names by appending a numeric suffix to
- * all but one of the offending labels.  Otherwise, if the label
- * doesn't end in a '!', we leave feedback.
+ * If there are, we generate unique names by appending a numeric
+ * suffix to all but one of the offending labels.
+ * If "option" is 1 (tagged mode), then only labels ending in the
+ * character "#" are forced to be unique.  If "option" is 2 (noports
+ * mode), then port labels are not forced to be unique.  Finally,
+ * if the label has been changed and doesn't end in a '!', we leave
+ * feedback.
  *
  * Results:
  *	None.
@@ -253,9 +256,9 @@ extDefPushFunc(use)
  */
 
 void
-ExtUnique(rootUse, allNames)
+ExtUnique(rootUse, option)
     CellUse *rootUse;
-    bool allNames;
+    int option;
 {
     CellDef *def;
     int nwarn;
@@ -279,7 +282,7 @@ ExtUnique(rootUse, allNames)
     {
 	def->cd_client = (ClientData) 0;
 	if (!SigInterruptPending)
-	    nwarn += extUniqueCell(def, allNames);
+	    nwarn += extUniqueCell(def, option);
     }
     StackFree(extDefStack);
     if (nwarn)

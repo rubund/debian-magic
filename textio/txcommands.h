@@ -156,4 +156,8 @@ extern void TxParseString();
 extern void TxDispatch();
 extern int TxCommandNumber;	/* Serial number of current command. */
 
+#ifdef MAGIC_WRAPPER
+extern int TxTclDispatch();
+#endif
+
 #endif /* _TXCOMMANDS_H */
