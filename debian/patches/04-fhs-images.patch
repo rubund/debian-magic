@@ -2,8 +2,10 @@ Description: Move images to an FHS conformant directory
  This patch moves some XBM images to an FHS conformant directory in /usr/share
 Author: Roland Stigge <stigge@antcom.de>
 
---- magic-8.0.210.orig/tcltk/wrapper.tcl
-+++ magic-8.0.210/tcltk/wrapper.tcl
+Index: magic/tcltk/wrapper.tcl
+===================================================================
+--- magic.orig/tcltk/wrapper.tcl
++++ magic/tcltk/wrapper.tcl
 @@ -25,19 +25,19 @@ if {[lsearch [namespace children] ::tksh
  # Button images
  
@@ -27,20 +29,22 @@ Author: Roland Stigge <stigge@antcom.de>
 -	-file ${CAD_ROOT}/magic/tcl/bitmaps/zoom.xbm \
 +	-file /usr/share/magic/bitmaps/zoom.xbm \
  	-background gray -foreground steelblue]
- 
- # Menu button callback functions
---- magic-8.0.210.orig/magic/Makefile
-+++ magic-8.0.210/magic/Makefile
+ set Glyph(lock) [image create bitmap \
+ 	-file ${CAD_ROOT}/magic/tcl/bitmaps/lock.xbm \
+Index: magic/magic/Makefile
+===================================================================
+--- magic.orig/magic/Makefile
++++ magic/magic/Makefile
 @@ -20,7 +20,7 @@ EXTRA_LIBS = ${MAGICDIR}/cmwind/libcmwin
  	    ${MAIN_EXTRA_LIBS}
  
- BITMAPS = up.xbm down.xbm left.xbm right.xbm zoom.xbm
+ BITMAPS = up.xbm down.xbm left.xbm right.xbm zoom.xbm lock.xbm
 -DEST_XBM = $(BITMAPS:%=$(DESTDIR)${TCLDIR}/bitmaps/%)
 +DEST_XBM = $(BITMAPS:%=$(DESTDIR)/usr/share/magic/bitmaps/%)
  
  DFLAGS += -DMAGIC_DATE="\"`date`\""
  LIBS   += ${GR_LIBS} ${READLINE_LIBS} -lm ${LD_EXTRA_LIBS} \
-@@ -51,9 +51,9 @@ $(DESTDIR)${TCLDIR}/tclmagic${SHDLIB_EXT
+@@ -52,9 +52,9 @@ $(DESTDIR)${TCLDIR}/tclmagic${SHDLIB_EXT
  	${RM} $(DESTDIR)${TCLDIR}/tclmagic${SHDLIB_EXT}
  	${CP} tclmagic${SHDLIB_EXT} $(DESTDIR)${TCLDIR}/tclmagic${SHDLIB_EXT}
  
