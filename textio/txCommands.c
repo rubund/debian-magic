@@ -29,6 +29,7 @@ static char rcsid[] __attribute__ ((unused)) ="$Header: /usr/cvsroot/magic-8.0/t
 #include <sys/time.h>
 #include <signal.h>
 
+#include "tcltk/tclmagic.h"
 #include "utils/magsgtty.h"
 #include "utils/magic.h"
 #include "textio/textio.h"
@@ -967,7 +968,7 @@ txGetInteractiveCommand(block, queue)
 	{
 	    (void) TxGetLinePrompt(inputLine, TX_MAX_CMDLEN, TX_CMD_PROMPT);
 	    if (inputLine[0] != '\0') MacroDefine(DBWclientID, (int)'.',
-			inputLine, FALSE);
+			inputLine, NULL, FALSE);
 	    TxParseString(inputLine, queue, (TxInputEvent* ) NULL);
 	}
 	else
@@ -1000,7 +1001,7 @@ txGetInteractiveCommand(block, queue)
 		    (void) TxGetLineWPrompt(inputLine,
 					TX_MAX_CMDLEN, TX_CMD_PROMPT, macroDef);
 		    if (inputLine[0] != '\0') MacroDefine(DBWclientID, (int)'.',
-				inputLine, FALSE);
+				inputLine, NULL, FALSE);
 		    TxParseString(inputLine, queue, (TxInputEvent *) NULL);
 		}
 		else
@@ -1126,13 +1127,14 @@ txGetFileCommand(f, queue)
  * ----------------------------------------------------------------------------
  */
 
-void
-TxTclDispatch(clientData, argc, argv)
+int
+TxTclDispatch(clientData, argc, argv, quiet)
    ClientData clientData;
    int argc;
    char *argv[];
+   bool quiet;
 {
-    bool result;
+    int result;
     int n, asize;
     TxCommand *tclcmd;
     unsigned char lastdrc;
@@ -1140,11 +1142,11 @@ TxTclDispatch(clientData, argc, argv)
     if (argc > TX_MAXARGS)
     {
 	TxError("Error: number of command arguments exceeds %d!\n", TX_MAXARGS);
-	return;
+	return -1;
     }
 
     SigIOReady = FALSE;
-    SigInterruptOnSigIO = TRUE;
+    if (SigInterruptOnSigIO >= 0) SigInterruptOnSigIO = 1;
     SigInterruptPending = FALSE;
 
     tclcmd = TxNewCommand();
@@ -1157,7 +1159,7 @@ TxTclDispatch(clientData, argc, argv)
 	{
 	    TxError("Error: command length exceeds %d characters!\n", TX_MAX_CMDLEN);
 	    TxFreeCommand(tclcmd);
-	    return;
+	    return -1;
 	}
 	strcpy(&tclcmd->tx_argstring[asize], argv[n]);
 	tclcmd->tx_argv[n] = &tclcmd->tx_argstring[asize];
@@ -1175,18 +1177,22 @@ TxTclDispatch(clientData, argc, argv)
     lastdrc = DRCBackGround;
     if (DRCBackGround != DRC_SET_OFF) DRCBackGround = DRC_NOT_SET;
 
-    result = WindSendCommand((MagWindow *)clientData, tclcmd);
+    result = WindSendCommand((MagWindow *)clientData, tclcmd, quiet);
+
     TxFreeCommand(tclcmd);
-    TxCommandNumber++;
+
+    // Don't update the command number on bypass commands, or else
+    // the selection mechanism gets broken by the background DRC.
+
+    if (argc > 0 && strcmp(argv[0], "*bypass")) TxCommandNumber++;
 
     if (SigInterruptPending)
 	TxPrintf("[Interrupted]\n");
 
-    if (result != FALSE)
-	WindUpdate();
+    if (result == 0) WindUpdate();
 
     SigInterruptPending = FALSE;
-    SigInterruptOnSigIO = FALSE;
+    if (SigInterruptOnSigIO >= 0) SigInterruptOnSigIO = 0;
     SigIOReady = FALSE;
 
     /* Force a break of DRCContinuous() so we don't run DRC on an	*/
@@ -1202,7 +1208,8 @@ TxTclDispatch(clientData, argc, argv)
 	DRCBreak();
 
     /* Reinstate the idle call */
-    if (result != FALSE) Tcl_DoWhenIdle(DRCContinuous, (ClientData)NULL);
+    if (result == 0) Tcl_DoWhenIdle(DRCContinuous, (ClientData)NULL);
+    return result;
 }
 #else  /* !MAGIC_WRAPPER */
 
@@ -1246,7 +1253,7 @@ TxDispatch(f)
 	     * it can get done at the end, after all pending commands have
 	     * been processed.
 	     */
-	    SigInterruptOnSigIO = FALSE;
+	    if (SigInterruptOnSigIO >= 0) SigInterruptOnSigIO = 0;
 	    SigInterruptPending = FALSE;
 	    txGetInteractiveCommand(FALSE, &inputCommands);
 	    if (DQIsEmpty(&inputCommands))
@@ -1271,13 +1278,13 @@ TxDispatch(f)
 		     *  command.
 		     */
 		    SigIOReady = FALSE;
-		    SigInterruptOnSigIO = TRUE;
+		    if (SigInterruptOnSigIO >= 0) SigInterruptOnSigIO = 1;
 		    SigInterruptPending = FALSE;
 		    DRCContinuous();
 		    TxUnPrompt();
 
 		    SigIOReady = FALSE;
-		    SigInterruptOnSigIO = FALSE;
+		    if (SigInterruptOnSigIO >= 0) SigInterruptOnSigIO = 0;
 		    SigInterruptPending = FALSE;
 		    (void) GrDisableTablet();
 		    WindUpdate();
@@ -1378,7 +1385,7 @@ TxDispatch(f)
 	      }
 	    else {
 #endif
-	      (void) WindSendCommand((MagWindow *) NULL, cmd);
+	      (void) WindSendCommand((MagWindow *) NULL, cmd, FALSE);
 	      TxFreeCommand(cmd);
 	      TxCommandNumber++;
 
@@ -1474,7 +1481,7 @@ TxLispDispatch (argc,argv,trace, inFile)
   }
   if (trace)
     TxPrintCommand (cmd);
-  ret = WindSendCommand((MagWindow *) NULL, cmd);
+  ret = WindSendCommand((MagWindow *) NULL, cmd, FALSE);
   /* restore the original values */
   cmd->tx_p = tx_p;
   cmd->tx_wid = wid;

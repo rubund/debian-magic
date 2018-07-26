@@ -535,7 +535,7 @@ DRCInteractionCheck(def, area, erasebox, func, cdarg)
     ClientData cdarg;		/* Extra info to be passed to func. */
 {
     int oldTiles, count, x, y, errorSaveType;
-    Rect intArea, square, subArea;
+    Rect intArea, square, cliparea, subArea;
     PaintResultType (*savedPaintTable)[NT][NT];
     void (*savedPaintPlane)();
     struct drcClientData arg;
@@ -562,16 +562,24 @@ DRCInteractionCheck(def, area, erasebox, func, cdarg)
 	    square.r_xtop = square.r_xbot + DRCStepSize;
 	    square.r_ytop = square.r_ybot + DRCStepSize;
 
+	    /* Limit square to area.  Otherwise, a huge processing	*/
+	    /* penalty is incurred for finding a single error (e.g.,	*/
+	    /* using "drc find" or "drc why" in a large design with a	*/
+	    /* large step size.						*/
+
+            cliparea = square;
+	    GeoClip(&cliparea, area);
+
 	    /* Find all the interactions in the square, and clip to the error
 	     * area we're interested in. */
 
-	    if (!DRCFindInteractions(def, &square, DRCTechHalo, &intArea))
+	    if (!DRCFindInteractions(def, &cliparea, DRCTechHalo, &intArea))
 	    {
 		/* Added May 4, 2008---if there are no subcells, run the
-		 * basic check over the area of the square.
+		 * basic check over the area of the erasebox.
 		 */
 		subArea = *erasebox;
-		GeoClip(&subArea, &square);
+		GeoClip(&subArea, &cliparea);
 		GEO_EXPAND(&subArea, DRCTechHalo, &intArea);
 
 		errorSaveType = DRCErrorType;
@@ -600,7 +608,7 @@ DRCInteractionCheck(def, area, erasebox, func, cdarg)
 		errorSaveType = DRCErrorType;
 		DRCErrorType = TT_ERROR_P;	// Basic check is always ERROR_P
 		eraseClip = *erasebox;
-		GeoClip(&eraseClip, &square);
+		GeoClip(&eraseClip, &cliparea);
 		subArea = eraseClip;
 
 		/* check above */
@@ -638,6 +646,12 @@ DRCInteractionCheck(def, area, erasebox, func, cdarg)
 		}
 		DRCErrorType = errorSaveType;
 	    }
+
+	    /* Clip interaction area against subArea-expanded-by-halo */
+
+	    subArea = *erasebox;
+	    GEO_EXPAND(&subArea, DRCTechHalo, &cliparea);
+	    GeoClip(&intArea, &cliparea);
     
 	    /* Flatten the interaction area. */
 

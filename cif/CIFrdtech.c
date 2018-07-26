@@ -62,7 +62,51 @@ CIFOp *cifCurReadOp;			/* Last geometric operation seen. */
 void cifReadStyleInit();
 void CIFReadLoadStyle();
 
-
+/*
+ * ----------------------------------------------------------------------------
+ *
+ * CIFReadTechLimitScale --
+ *
+ *	Determine if the scalefactor (ns / ds), applied to the current
+ *	grid scaling, would result in a grid finer than the minimum
+ *	resolution allowed by the process, as set by the "gridlimit"
+ *	statement in the "cifinput" section.
+ *
+ *	Note that even if the scalefactor is larger than the minimum
+ *	grid, it must be a MULTIPLE of the minimum grid, or else geometry
+ *	can be generated off-grid.
+ *
+ * Results:
+ *	TRUE if scaling by (ns / ds) would violate minimum grid resolution,
+ *	FALSE if not.
+ *
+ * Side effects:
+ *	None.
+ *
+ * ----------------------------------------------------------------------------
+ */
+
+bool
+CIFReadTechLimitScale(ns, ds)
+    int ns, ds;
+{
+    int gridup, scaledown;
+    int scale, limit, mult;
+
+    limit = cifCurReadStyle->crs_gridLimit;
+    if (limit == 0) return FALSE;	/* No limit */
+
+    scale = cifCurReadStyle->crs_scaleFactor;
+    mult = cifCurReadStyle->crs_multiplier;
+
+    gridup = limit * mult * ds;
+    scaledown = scale * ns * 10;
+
+    if ((scaledown / gridup) == 0) return TRUE;
+    if ((scaledown % gridup) != 0) return TRUE;
+    return FALSE;
+}
+
 /*
  * ----------------------------------------------------------------------------
  *
@@ -217,7 +261,7 @@ CIFParseReadLayers(string, mask)
 
     while (*string != 0)
     {
-	p = index(string, ',');
+	p = strchr(string, ',');
 	if (p != NULL)
 	    *p = 0;
 	
@@ -313,11 +357,15 @@ cifReadStyleInit()
     cifCurReadStyle->crs_cifLayers = DBZeroTypeBits;
     cifCurReadStyle->crs_nLayers = 0;
     cifCurReadStyle->crs_scaleFactor = 0;
+    cifCurReadStyle->crs_multiplier = 1;
+    cifCurReadStyle->crs_gridLimit = 0;
+    cifCurReadStyle->crs_flags = 0;
     HashInit(&(cifCurReadStyle->cifCalmaToCif), 64,
       sizeof (CalmaLayerType) / sizeof (unsigned));
     for (i = 0; i < MAXCIFRLAYERS; i++)
     {
 	cifCurReadStyle->crs_labelLayer[i] = TT_SPACE;
+	cifCurReadStyle->crs_labelSticky[i] = FALSE;
 	cifCurReadStyle->crs_layers[i] = NULL;
     }
 }
@@ -585,6 +633,27 @@ CIFReadTechLine(sectionName, argc, argv)
 	return TRUE;
     }
 
+    /* Process "gridlimit" lines. */
+    
+    if (strncmp(argv[0], "grid", 4) == 0)
+    {
+        if (StrIsInt(argv[1]))
+        {
+            cifCurReadStyle->crs_gridLimit = atoi(argv[1]);
+            if (cifCurReadStyle->crs_gridLimit < 0)
+            {
+                TechError("Grid limit must be a positive integer.\n");
+                cifCurReadStyle->crs_gridLimit = 0;
+            }
+        }
+        else
+	{
+            TechError("Unable to parse grid limit value.\n");
+	    goto errorReturn;
+	}
+        return TRUE;
+    }
+
     /* Process "variant" lines next. */
 
     if (strncmp(argv[0], "variant", 7) == 0)
@@ -681,8 +750,10 @@ CIFReadTechLine(sectionName, argc, argv)
     }
 
     /* Process templayer lines next.  (templayers in cifinput added 5/3/09) */
+    /* Fault handling deprecated 5/5/16;  treat as templayer and flag a	    */
+    /* warning.								    */
 
-    if (strcmp(argv[0], "templayer") == 0)
+    if ((strcmp(argv[0], "templayer") == 0) || (strcmp(argv[0], "fault") == 0))
     {
 	TileType type;
 
@@ -698,6 +769,9 @@ CIFReadTechLine(sectionName, argc, argv)
         if ((argc != 2) && (argc != 3)) goto wrongNumArgs;
 	type = CIFReadNameToType(argv[1], TRUE);
 	if (type < 0) goto errorReturn;
+
+	if (*argv[0] == 'f')
+	    TechError("Error:  Fault layers deprecated.  Treating as templayer\n");
 
 	cifCurReadLayer = (CIFReadLayer *) mallocMagic(sizeof(CIFReadLayer));
 	cifCurReadStyle->crs_layers[cifCurReadStyle->crs_nLayers]
@@ -788,7 +862,7 @@ CIFReadTechLine(sectionName, argc, argv)
 		cifCurReadStyle->crs_labelLayer[i]
 			= cifCurReadLayer->crl_magicType;
 		if (argc == 3)
-		    cifCurReadStyle->crs_layers[i]->crl_flags |= CIFR_TEXTLABELS;
+		    cifCurReadStyle->crs_labelSticky[i] = TRUE;
 	    }
 	}
 	return TRUE;
@@ -866,6 +940,8 @@ CIFReadTechLine(sectionName, argc, argv)
 	newOp->co_opcode = CIFOP_GROW_G;
     else if (strcmp(argv[0], "shrink") == 0)
 	newOp->co_opcode = CIFOP_SHRINK;
+    else if (strcmp(argv[0], "copyup") == 0)
+	newOp->co_opcode = CIFOP_COPYUP;
     else
     {
 	TechError("Unknown statement \"%s\".\n", argv[0]);
@@ -877,6 +953,7 @@ CIFReadTechLine(sectionName, argc, argv)
 	case CIFOP_AND:
 	case CIFOP_ANDNOT:
 	case CIFOP_OR:
+	case CIFOP_COPYUP:
 	    if (argc != 2) goto wrongNumArgs;
 	    CIFParseReadLayers(argv[1], &newOp->co_cifMask);
 	    break;
@@ -1225,7 +1302,7 @@ cifParseCalmaNums(str, numArray, numNums)
 /*
  * ----------------------------------------------------------------------------
  *
- * CIFTechInputScale(n, d)
+ * CIFTechInputScale(n, d, opt)
  *
  *   Scale all CIF input scale factors to make them equivalent
  *   to reducing the magic internal unit spacing by a factor of n/d.

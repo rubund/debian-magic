@@ -552,6 +552,7 @@ DRCTechStyleInit()
 	    dp = DRCCurStyle->DRCRulesTbl[i][j];
 	    dp = (DRCCookie *) mallocMagic((unsigned) (sizeof (DRCCookie)));
 	    dp->drcc_dist = -1;
+	    dp->drcc_cdist = -1;
 	    dp->drcc_next = (DRCCookie *) NULL;
 	    TTMaskZero(&dp->drcc_mask);
 	    DRCCurStyle->DRCRulesTbl[i][j] = dp;
@@ -652,7 +653,7 @@ DRCTechLine(sectionName, argc, argv)
 	for (newStyle = DRCStyleList; newStyle != NULL;
 		newStyle = newStyle->ds_next)
 	{
-	    /* Here we're only establishing existance;  break on
+	    /* Here we're only establishing existence;  break on
 	     * the first variant found.
 	     */
 	    if (!strncmp(newStyle->ds_name, argv[1], l))
@@ -806,9 +807,9 @@ DRCTechLine(sectionName, argc, argv)
 	else
 	    scaleD = 1;
 
-	if (scaleN <= 0 || scaleN > 255 || scaleD <= 0 || scaleD > 255)
+	if (scaleN <= 0 || scaleD <= 0)
 	{
-	    TechError("Scale factor must be between 1 and 255.\n");
+	    TechError("Scale factor must be greater than 0.\n");
 	    TechError("Setting scale factor to default value 1.\n");
 	    DRCCurStyle->DRCScaleFactorN = 1;
 	    DRCCurStyle->DRCScaleFactorD = 1;
@@ -1072,7 +1073,7 @@ drcExtend(argc, argv)
     DRCCookie *dp, *dpnew, *dptrig;
     TileType i, j;
     int plane, plane2;
-    TileTypeBitMask set2, setZ, setN;
+    TileTypeBitMask set2, setZ, setN, setM;
     PlaneMask pMask1, pMask2, pset, ptest;
     bool exact = FALSE;
 
@@ -1093,7 +1094,6 @@ drcExtend(argc, argv)
 			"the same plane\n");
 	return (0);
     }
-    TTMaskCom2(&setN, &set1);
 
     ptest = DBTechNoisyNameMask(layers2, &set2);
     pMask2 = CoincidentPlanes(&set2, ptest);
@@ -1104,6 +1104,13 @@ drcExtend(argc, argv)
 			"the same plane\n");
 	return (0);
     }
+
+    /* setM is the union of set1 and set2 */
+    TTMaskZero(&setM);
+    TTMaskSetMask3(&setM, &set1, &set2);
+
+    /* setN is the inverse of set1, and setC is the inverse of set2 */
+    TTMaskCom2(&setN, &set1);
     TTMaskCom2(&setC, &set2);
 
     /* Zero mask */
@@ -1129,14 +1136,14 @@ drcExtend(argc, argv)
 			/* find bucket preceding the new one we wish to insert */
 			dp = drcFindBucket(i, j, distance);
 			dpnew = (DRCCookie *)mallocMagic(sizeof(DRCCookie));
-			drcAssign(dpnew, distance, dp->drcc_next, &set1, &setZ, why,
+			drcAssign(dpnew, distance, dp->drcc_next, &setM, &setZ, why,
 				    0, DRC_FORWARD, plane, plane);
 
 			dp->drcc_next = dpnew;
 
 			dp = drcFindBucket(j, i, distance);
 			dpnew = (DRCCookie *)mallocMagic(sizeof(DRCCookie));
-			drcAssign(dpnew, distance, dp->drcc_next, &set1, &setZ, why,
+			drcAssign(dpnew, distance, dp->drcc_next, &setM, &setZ, why,
 				    0, DRC_REVERSE, plane, plane);
 	
 			dp->drcc_next = dpnew;
@@ -1170,7 +1177,7 @@ drcExtend(argc, argv)
 			/* find bucket preceding the new one we wish to insert */
 			dp = drcFindBucket(i, j, distance);
 			dpnew = (DRCCookie *)mallocMagic(sizeof(DRCCookie));
-			drcAssign(dpnew, distance, dp->drcc_next, &set1, &setZ, why,
+			drcAssign(dpnew, distance, dp->drcc_next, &setM, &setZ, why,
 				    0, DRC_FORWARD, plane2, plane);
 			dptrig = (DRCCookie *)mallocMagic(sizeof(DRCCookie));
 			drcAssign(dptrig, 1, dpnew, &setN, &setZ, why,
@@ -1179,7 +1186,7 @@ drcExtend(argc, argv)
 
 			dp = drcFindBucket(j, i, distance);
 			dpnew = (DRCCookie *)mallocMagic(sizeof(DRCCookie));
-			drcAssign(dpnew, distance, dp->drcc_next, &set1, &setZ, why,
+			drcAssign(dpnew, distance, dp->drcc_next, &setM, &setZ, why,
 				    0, DRC_REVERSE, plane2, plane);
 			dptrig = (DRCCookie *)mallocMagic(sizeof(DRCCookie));
 			drcAssign(dptrig, 1, dpnew, &setN, &setZ, why,
@@ -3376,6 +3383,10 @@ drcTechFinalStyle(style)
 
     drcScaleUp(style, style->DRCScaleFactorD);
     drcScaleDown(style, style->DRCScaleFactorN);
+
+    /* Scale DRCTechHalo to match */
+    DRCTechHalo *= style->DRCScaleFactorD;
+    DRCTechHalo /= style->DRCScaleFactorN;
 
     /* Set maximum halo */
     style->DRCTechHalo = DRCTechHalo;

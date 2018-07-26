@@ -53,12 +53,14 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
  * For the cell 'def', look for the same label appearing in two or more
  * distinct nodes.  For each such label found:
  * 
- *	If allNames is TRUE, then generate unique names for all
+ *	If option is 0, then generate unique names for all
  *	    but one of the nodes by appending a unique numeric
  *	    suffix to the offending labels.
- *	If allNames is FALSE, then generate unique names only if
+ *	If option is 1, then generate unique names only if
  *	    the label ends in '#'.  Leave feedback for all other
  *	    names that don't end in '!'.
+ *	If option is 2, then generate unique names as for
+ *	    option 0 only if the label is not a port.
  *
  * Results:
  *	Returns the number of warnings generated.
@@ -71,9 +73,9 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
  */
 
 int
-extUniqueCell(def, allNames)
+extUniqueCell(def, option)
     CellDef *def;
-    bool allNames;
+    int option;
 {
     LabRegion *lregList, *lastreg, processedLabel;
     LabRegion *lp;
@@ -91,7 +93,8 @@ extUniqueCell(def, allNames)
 
     /* Build up a list of nodes and assign them to tiles */
     lregList = (LabRegion *) ExtFindRegions(def, &TiPlaneRect,
-				&DBAllButSpaceBits, ExtCurStyle->exts_nodeConn,
+				&ExtCurStyle->exts_activeTypes,
+				ExtCurStyle->exts_nodeConn,
 				extUnInit, extHierLabFirst, (int (*)()) NULL);
 
     /* Assign the labels to their associated regions */
@@ -138,7 +141,7 @@ extUniqueCell(def, allNames)
 	    if (lastreg != lp && lastreg != &processedLabel)
 	    {
 		nwarn += extMakeUnique(def, ll, lp, lregList,
-				&labelHash, allNames);
+				&labelHash, option);
 		HashSetValue(he, (ClientData) &processedLabel);
 	    }
 	}
@@ -153,12 +156,12 @@ extUniqueCell(def, allNames)
 }
 
 int
-extMakeUnique(def, ll, lreg, lregList, labelHash, allNames)
+extMakeUnique(def, ll, lreg, lregList, labelHash, option)
     CellDef *def;
     LabelList *ll;
     LabRegion *lreg, *lregList;
     HashTable *labelHash;
-    bool allNames;
+    int option;
 {
     static char *badmesg =
     "Non-global label \"%s\" attached to more than one unconnected node: %s";
@@ -176,12 +179,16 @@ extMakeUnique(def, ll, lreg, lregList, labelHash, allNames)
      * changes a label to make it unique.
      */
     text = ll->ll_label->lab_text;
-    if (allNames) goto makeUnique;
-    cpend = index(text, '\0');
+    if (option == 0)
+	goto makeUnique;
+    else if ((option == 2) && !(ll->ll_label->lab_flags & PORT_DIR_MASK))
+	goto makeUnique;
+
+    cpend = strchr(text, '\0');
     if (cpend > text) cpend--;
     if (*cpend == '#') goto makeUnique;
-    if (*cpend == '!')
-	return 0;
+    if (*cpend == '!') return 0;
+    if ((option == 2) && (ll->ll_label->lab_flags & PORT_DIR_MASK)) return 0;
 
     /* Generate a warning for each occurrence of this label */
     nwarn = 0;

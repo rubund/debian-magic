@@ -62,7 +62,7 @@ DefAddRoutes(rootDef, f, oscale, special, defLayerMap)
     LefMapping *defLayerMap;	/* magic-to-lef layer mapping array */
 {
     char *token;
-    linkedRect *routeList, *newRoute = NULL, *routeTop = NULL;
+    LinkedRect *routeList, *newRoute = NULL, *routeTop = NULL;
     Point refp;			/* reference point */
     bool valid = FALSE;		/* is there a valid reference point? */
     bool initial = TRUE;
@@ -145,37 +145,37 @@ DefAddRoutes(rootDef, f, oscale, special, defLayerMap)
 	    if (he != NULL)
 	    {
 		lefl = (lefLayer *)HashGetValue(he);
-		newRoute = (linkedRect *)mallocMagic(sizeof(linkedRect));
+		newRoute = (LinkedRect *)mallocMagic(sizeof(LinkedRect));
 
 		/* The area to paint is derived from the via definitions. */
 
 		if (lefl != NULL)
 		{
-		    linkedRect *viaRoute, *addRoute;
+		    LinkedRect *viaRoute, *addRoute;
 
-		    /* If there is a linkedRect structure for the via,	*/
+		    /* If there is a LinkedRect structure for the via,	*/
 		    /* add those records to the route first.		*/
 
 		    for (viaRoute = lefl->info.via.lr; viaRoute != NULL;
-				viaRoute = viaRoute->rect_next)
+				viaRoute = viaRoute->r_next)
 		    {
-			addRoute = (linkedRect *)mallocMagic(sizeof(linkedRect));
-			addRoute->rect_next = NULL;
-			addRoute->type = viaRoute->type;
-			addRoute->area = viaRoute->area;
+			addRoute = (LinkedRect *)mallocMagic(sizeof(LinkedRect));
+			addRoute->r_next = NULL;
+			addRoute->r_type = viaRoute->r_type;
+			addRoute->r_r = viaRoute->r_r;
 
-			addRoute->area.r_xbot += refp.p_x;
-			addRoute->area.r_ybot += refp.p_y;
-			addRoute->area.r_xtop += refp.p_x;
-			addRoute->area.r_ytop += refp.p_y;
+			addRoute->r_r.r_xbot += refp.p_x;
+			addRoute->r_r.r_ybot += refp.p_y;
+			addRoute->r_r.r_xtop += refp.p_x;
+			addRoute->r_r.r_ytop += refp.p_y;
 
-			addRoute->area.r_xbot >>= 1;
-			addRoute->area.r_ybot >>= 1;
-			addRoute->area.r_xtop >>= 1;
-			addRoute->area.r_ytop >>= 1;
+			addRoute->r_r.r_xbot >>= 1;
+			addRoute->r_r.r_ybot >>= 1;
+			addRoute->r_r.r_xtop >>= 1;
+			addRoute->r_r.r_ytop >>= 1;
 	
 			if (routeTop)
-			    routeList->rect_next = addRoute;
+			    routeList->r_next = addRoute;
 			else
 			    routeTop = addRoute;
 
@@ -184,29 +184,29 @@ DefAddRoutes(rootDef, f, oscale, special, defLayerMap)
 			
 		    paintLayer = lefl->type;
 
-		    newRoute->area.r_xbot = refp.p_x + lefl->info.via.area.r_xbot;
-		    newRoute->area.r_ybot = refp.p_y + lefl->info.via.area.r_ybot;
-		    newRoute->area.r_xtop = refp.p_x + lefl->info.via.area.r_xtop;
-		    newRoute->area.r_ytop = refp.p_y + lefl->info.via.area.r_ytop;
+		    newRoute->r_r.r_xbot = refp.p_x + lefl->info.via.area.r_xbot;
+		    newRoute->r_r.r_ybot = refp.p_y + lefl->info.via.area.r_ybot;
+		    newRoute->r_r.r_xtop = refp.p_x + lefl->info.via.area.r_xtop;
+		    newRoute->r_r.r_ytop = refp.p_y + lefl->info.via.area.r_ytop;
 
-		    newRoute->area.r_xbot >>= 1;
-		    newRoute->area.r_ybot >>= 1;
-		    newRoute->area.r_xtop >>= 1;
-		    newRoute->area.r_ytop >>= 1;
+		    newRoute->r_r.r_xbot >>= 1;
+		    newRoute->r_r.r_ybot >>= 1;
+		    newRoute->r_r.r_xtop >>= 1;
+		    newRoute->r_r.r_ytop >>= 1;
 
 		}
 		else if ((paintLayer = DBTechNameType(LefLower(token))) >= 0)
 		{
 		    LefError("Error: Via \"%s\" named but undefined.\n", token);
-		    newRoute->area.r_xbot = refp.p_x - paintWidth;
-		    newRoute->area.r_ybot = refp.p_y - paintWidth;
-		    newRoute->area.r_xtop = refp.p_x + paintWidth;
-		    newRoute->area.r_ytop = refp.p_y + paintWidth;
+		    newRoute->r_r.r_xbot = refp.p_x - paintWidth;
+		    newRoute->r_r.r_ybot = refp.p_y - paintWidth;
+		    newRoute->r_r.r_xtop = refp.p_x + paintWidth;
+		    newRoute->r_r.r_ytop = refp.p_y + paintWidth;
 
-		    newRoute->area.r_xbot >>= 1;
-		    newRoute->area.r_ybot >>= 1;
-		    newRoute->area.r_xtop >>= 1;
-		    newRoute->area.r_ytop >>= 1;
+		    newRoute->r_r.r_xbot >>= 1;
+		    newRoute->r_r.r_ybot >>= 1;
+		    newRoute->r_r.r_xtop >>= 1;
+		    newRoute->r_r.r_ytop >>= 1;
 		}
 		else
 		   LefError("Via name \"%s\" unknown in route.\n", token);
@@ -332,7 +332,7 @@ DefAddRoutes(rootDef, f, oscale, special, defLayerMap)
 	    }
 	    else
 	    {
-		newRoute = (linkedRect *)mallocMagic(sizeof(linkedRect));
+		newRoute = (LinkedRect *)mallocMagic(sizeof(LinkedRect));
 
 		/* Route coordinates become the centerline of the	*/
 		/* segment.  "refp" is kept in 1/2 lambda units so	*/
@@ -341,37 +341,37 @@ DefAddRoutes(rootDef, f, oscale, special, defLayerMap)
 		locarea.r_xtop = refp.p_x;
 		locarea.r_ytop = refp.p_y;
 
-		GeoCanonicalRect(&locarea, &newRoute->area);
+		GeoCanonicalRect(&locarea, &newRoute->r_r);
 
-		if (newRoute->area.r_xbot == newRoute->area.r_xtop)
+		if (newRoute->r_r.r_xbot == newRoute->r_r.r_xtop)
 		{
-		    newRoute->area.r_xbot -= paintWidth;
-		    newRoute->area.r_xtop += paintWidth;
+		    newRoute->r_r.r_xbot -= paintWidth;
+		    newRoute->r_r.r_xtop += paintWidth;
 		}
 		else
 		{
-		    newRoute->area.r_xbot -= z;
-		    newRoute->area.r_xtop += z;
+		    newRoute->r_r.r_xbot -= z;
+		    newRoute->r_r.r_xtop += z;
 		}
 
-		if (newRoute->area.r_ybot == newRoute->area.r_ytop)
+		if (newRoute->r_r.r_ybot == newRoute->r_r.r_ytop)
 		{
-		    newRoute->area.r_ybot -= paintWidth;
-		    newRoute->area.r_ytop += paintWidth;
+		    newRoute->r_r.r_ybot -= paintWidth;
+		    newRoute->r_r.r_ytop += paintWidth;
 		}
 		else
 		{
-		    newRoute->area.r_ybot -= z;
-		    newRoute->area.r_ytop += z;
+		    newRoute->r_r.r_ybot -= z;
+		    newRoute->r_r.r_ytop += z;
 		}
 
 		/* If we don't have integer units here, we should	*/
 		/* rescale the magic internal grid.			*/
 
-		newRoute->area.r_xbot >>= 1;
-		newRoute->area.r_ybot >>= 1;
-		newRoute->area.r_xtop >>= 1;
-		newRoute->area.r_ytop >>= 1;
+		newRoute->r_r.r_xbot >>= 1;
+		newRoute->r_r.r_ybot >>= 1;
+		newRoute->r_r.r_xtop >>= 1;
+		newRoute->r_r.r_ytop >>= 1;
 	    }
 
 endCoord:
@@ -383,11 +383,11 @@ endCoord:
 	/* Link in the new route segment */
 	if (newRoute)
 	{
-	    newRoute->type = paintLayer;
-	    newRoute->rect_next = NULL;
+	    newRoute->r_type = paintLayer;
+	    newRoute->r_next = NULL;
 
 	    if (routeTop)
-		routeList->rect_next = newRoute;
+		routeList->r_next = newRoute;
 	    else
 		routeTop = newRoute;
 
@@ -401,11 +401,11 @@ endCoord:
     while (routeTop != NULL)
     {
 	/* paint */
-	DBPaint(rootDef, &routeTop->area, routeTop->type);
+	DBPaint(rootDef, &routeTop->r_r, routeTop->r_type);
 
 	/* advance to next point and free record (1-delayed) */
 	freeMagic((char *)routeTop);
-	routeTop = routeTop->rect_next;
+	routeTop = routeTop->r_next;
     }
     return token;	/* Pass back the last token found */
 }
@@ -689,6 +689,7 @@ DefReadPins(f, rootDef, sname, oscale, total)
     int keyword, subkey, values;
     int processed = 0;
     int pinDir = PORT_CLASS_DEFAULT;
+    int pinNum = 0;
     TileType curlayer = -1;
     Rect *currect, topRect;
     Transform t;
@@ -807,8 +808,9 @@ DefReadPins(f, rootDef, sname, oscale, total)
 				GeoTransRect(&t, currect, &topRect);
 				DBPaint(rootDef, &topRect, curlayer);
 				DBPutLabel(rootDef, &topRect, -1, pinname, curlayer,
-					pinDir);
+					pinNum | pinDir | PORT_DIR_MASK | LABEL_STICKY);
 				pending = FALSE;
+				pinNum++;
 			    }
 			    break;
 			case DEF_PINS_PROP_FIXED:
@@ -821,7 +823,8 @@ DefReadPins(f, rootDef, sname, oscale, total)
 				GeoTransRect(&t, currect, &topRect);
 				DBPaint(rootDef, &topRect, curlayer);
 				DBPutLabel(rootDef, &topRect, -1, pinname, curlayer,
-					pinDir);
+					pinNum | pinDir | PORT_DIR_MASK | LABEL_STICKY);
+				pinNum++;
 			    }
 			    break;
 		    }
@@ -934,7 +937,7 @@ DefReadVias(f, sname, oscale, total)
 		    lefl->lefClass = CLASS_VIA;
 		    lefl->info.via.area = GeoNullRect;
 		    lefl->info.via.cell = (CellDef *)NULL;
-		    lefl->info.via.lr = (linkedRect *)NULL;
+		    lefl->info.via.lr = (LinkedRect *)NULL;
 		    HashSetValue(he, lefl);
 		    lefl->canonName = (char *)he->h_key.h_name;
 		}
@@ -1090,7 +1093,7 @@ DefReadComponents(f, rootDef, sname, oscale, total)
 		    /* magic .mag layout file.				*/
 		    defMacro = DBCellNewDef(token, (char *)NULL);
 		    defMacro->cd_flags &= ~CDNOTFOUND;
-		    if (!DBCellRead(defMacro, (char *)NULL, TRUE))
+		    if (!DBCellRead(defMacro, (char *)NULL, TRUE, NULL))
 		    {
 		        LefError("Cell %s is not defined.  Maybe you have not "
 				"read the corresponding LEF file?\n",
@@ -1109,7 +1112,7 @@ DefReadComponents(f, rootDef, sname, oscale, total)
 		if ((defMacro == NULL) || ((defUse = DBCellNewUse(defMacro, usename))
 			== NULL))
 		{
-		    LefEndStatement(f);
+		    if (defMacro != NULL) LefEndStatement(f);
 		    break;
 		}
 		DBLinkCell(defUse, rootDef);
@@ -1275,7 +1278,7 @@ DefRead(inName)
     /* Initialize */
 
     TxPrintf("Reading DEF data from file %s.\n", filename);
-    TxPrintf("This action is undoable.\n");
+    TxPrintf("This action cannot be undone.\n");
     UndoDisable();
 
     /* This works for CIF reads;  maybe should only do this if the top	*/

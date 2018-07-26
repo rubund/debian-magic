@@ -191,6 +191,53 @@ extFindCoupling(def, table, clipArea)
     }
 
 }
+
+/*
+ * ----------------------------------------------------------------------------
+ *
+ * extRelocateSubstrateCoupling ---
+ *
+ * Move coupling capacitance to the substrate node from the coupling
+ * cap table onto the source node's cap-to-substrate record.
+ *
+ * ----------------------------------------------------------------------------
+ */
+   
+void
+extRelocateSubstrateCoupling(table, subsnode)
+    HashTable *table;		/* Coupling capacitance hash table */
+    NodeRegion *subsnode;	/* Node record for substrate */
+{
+    HashEntry *he;
+    CoupleKey *ck;
+    HashSearch hs;
+    CapValue cap;
+    NodeRegion *rtp;
+    NodeRegion *rbp;
+
+    HashStartSearch(&hs);
+    while (he = HashNext(table, &hs))
+    {
+	cap = extGetCapValue(he);
+	if (cap == 0) continue;
+
+	ck = (CoupleKey *) he->h_key.h_words;
+	rtp = (NodeRegion *) ck->ck_1;
+	rbp = (NodeRegion *) ck->ck_2;
+
+	if (rtp == subsnode)
+	{
+	    rbp->nreg_cap += cap;
+	    extSetCapValue(he, (CapValue)0);
+	}
+	else if (rbp == subsnode)
+	{
+	    rtp->nreg_cap += cap;
+	    extSetCapValue(he, (CapValue)0);
+	}
+    }
+}
+
 
 /*
  * ----------------------------------------------------------------------------
@@ -371,6 +418,9 @@ extAddOverlap(tbelow, ecpls)
     rabove = (NodeRegion *) extGetRegion(tabove);
     rbelow = (NodeRegion *) extGetRegion(tbelow);
 
+    /* Quick check on validity of tile's ti_client record */
+    if (rbelow == (NodeRegion *)CLIENTDEFAULT) return 0;
+
     /* Compute the area of overlap */
     ov.o_clip.r_xbot = MAX(LEFT(tbelow), LEFT(tabove));
     ov.o_clip.r_xtop = MIN(RIGHT(tbelow), RIGHT(tabove));
@@ -428,6 +478,11 @@ extAddOverlap(tbelow, ecpls)
 	int ob = ExtCurStyle->exts_planeOrder[ecpls->plane_checked];
 	if (oa > ob)
 	{
+	    Tile *tp;
+	    TileType t, tres;
+	    TileTypeBitMask *mask;
+	    int len;
+	    CapValue cp;
 	    /*
 	     * Subtract the substrate capacitance from tabove's region due to
 	     * the area of the overlap, minus any shielded area.  The shielded
@@ -441,6 +496,7 @@ extAddOverlap(tbelow, ecpls)
 		extNregAdjustCap(rabove, 
 		    -(ExtCurStyle->exts_areaCap[ta] * ov.o_area),
 		    "obsolete_overlap");
+
 	} else if (CAP_DEBUG)
 	    extNregAdjustCap(rabove, 0.0, 
 		"obsolete_overlap (skipped, wrong direction)");
@@ -628,9 +684,19 @@ extAddCouple(bp, ecs)
     {
 	bpCopy = *bp;
 	bp = &bpCopy;
+	
 	GEOCLIP(&bp->b_segment, extCoupleSearchArea);
-	if (GEO_RECTNULL(&bp->b_segment))
-	    return (0);
+
+	/* Fixed 2/27/2017 by Tim
+	 * GEO_RECTNULL should not be applied to boundaries, which are
+	 * segments and therefore have no area.  This causes the function
+	 * to always return.
+	 */
+	/* if (GEO_RECTNULL(&bp->b_segment)) return (0); */
+
+	if ((bp->b_segment.r_ytop <= bp->b_segment.r_ybot) &&
+		(bp->b_segment.r_xtop <= bp->b_segment.r_xbot))
+	    return 0;
     }
     r = ovr = bp->b_segment;
 

@@ -216,7 +216,7 @@ CmdFeedback(w, cmd)
 			{
 			    TxError("%s isn't a valid display style.  Try one of:\n",
 					cmd->tx_argv[3]);
-			    TxError("    dotted, pale, mediaum, solid, outline,\n");
+			    TxError("    dotted, pale, medium, solid, outline,\n");
 			    TxError("    or a long name from the .dstyle file\n");
 			    break;
 			}
@@ -311,7 +311,8 @@ CmdFeedback(w, cmd)
 		    plane = DBNewPlane((ClientData)0);
 		    TTMaskZero(&feedSimpleMask);
 		    TTMaskSetType(&feedSimpleMask, 1);
-		    PaintPolygon(plist, points, plane, ptable, (PaintUndoInfo *)NULL);
+		    PaintPolygon(plist, points, plane, ptable,
+				(PaintUndoInfo *)NULL, FALSE);
 		    i = DBWFeedbackCount;
 		    DBSrPaintArea((Tile *)NULL, plane, &TiPlaneRect, &feedSimpleMask,
 			feedPolyFunc, (ClientData)&fpargs);
@@ -1485,6 +1486,11 @@ cmdIdFunc(selUse, use, transform, newId)
 	TxError("    Cell identifier not changed.\n");
 	return 1;
     }
+    if (use->cu_parent == NULL)
+    {
+	TxError("Cell instance is a window top-level and cannot be changed.\n");
+	return 1;
+    }
 
     if (!DBReLinkCell(use, newId))
     {
@@ -1862,7 +1868,7 @@ CmdFlatten(w, cmd)
     TxCommand *cmd;
 {
      int		rval, xMask;
-     bool		dolabels;
+     bool		dolabels, toplabels, invert;
      char		*destname;
      CellDef		*newdef;
      CellUse		*newuse;
@@ -1872,6 +1878,7 @@ CmdFlatten(w, cmd)
     destname = cmd->tx_argv[cmd->tx_argc - 1];
     xMask = CU_DESCEND_ALL;
     dolabels = TRUE;
+    toplabels = FALSE;
 
     rval = 0;
     if (cmd->tx_argc > 2)
@@ -1879,26 +1886,39 @@ CmdFlatten(w, cmd)
 	int i;
 	for (i = 1; i < (cmd->tx_argc - 1); i++)
 	{
-	    if (strncmp(cmd->tx_argv[i], "-no", 3))
+	    if (!strncmp(cmd->tx_argv[i], "-no", 3))
+	    {
+		invert = TRUE;
+	    }
+	    else if (!strncmp(cmd->tx_argv[i], "-do", 3))
+	    {
+		invert = FALSE;
+	    }
+	    else
 	    {
 	        rval = -1;
 		break;
 	    }
-	    else if (strlen(cmd->tx_argv[i]) > 3)
+
+	    if (strlen(cmd->tx_argv[i]) > 3)
 	    {
-		switch(cmd->tx_argv[1][3])
+		switch(cmd->tx_argv[i][3])
 		{
 		    case 'l':
-			dolabels = FALSE;
+			dolabels = (invert) ? FALSE : TRUE;
+			break;
+		    case 't':
+			toplabels = (invert) ? FALSE : TRUE;
 			break;
 		    case 's':
-			xMask = CU_DESCEND_NO_SUBCKT;
+			xMask = (invert) ? CU_DESCEND_NO_SUBCKT : CU_DESCEND_ALL;
 			break;
 		    case 'v':
-			xMask = CU_DESCEND_NO_VENDOR;
+			xMask = (invert) ? CU_DESCEND_NO_VENDOR : CU_DESCEND_ALL;
 			break;
 		    default:
-			TxError("options are: -nolabels, -nosubcircuits -novendor\n");
+			TxError("options are: -nolabels, -nosubcircuits "
+				"-novendor, -dotoplabels\n");
 			break;
 		}
 	    }
@@ -1939,6 +1959,13 @@ CmdFlatten(w, cmd)
     DBCellCopyAllPaint(&scx, &DBAllButSpaceAndDRCBits, xMask, flatDestUse);
     if (dolabels)
 	FlatCopyAllLabels(&scx, &DBAllTypeBits, xMask, flatDestUse);
+    else if (toplabels)
+    {
+	int savemask = scx.scx_use->cu_expandMask;
+	scx.scx_use->cu_expandMask = CU_DESCEND_SPECIAL;
+	DBCellCopyAllLabels(&scx, &DBAllTypeBits, CU_DESCEND_SPECIAL, flatDestUse);
+	scx.scx_use->cu_expandMask = savemask;
+    }
 
     if (xMask != CU_DESCEND_ALL)
 	DBCellCopyAllCells(&scx, xMask, flatDestUse, (Rect *)NULL);

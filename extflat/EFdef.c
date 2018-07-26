@@ -68,6 +68,7 @@ EFInit()
 {
     EFLayerNumNames = 1;
     EFDevNumTypes = 0;
+    EFCompat = TRUE;
 
     HashInit(&efFreeHashTable, 32, HT_WORDKEYS);
     HashInit(&efDefHashTable, INITDEFSIZE, 0);

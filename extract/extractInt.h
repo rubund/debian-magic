@@ -210,6 +210,21 @@ typedef struct {	/* Maintain plane information when pushing	*/
     int  plane;		/* function extNbrPushFunc().			*/
 } PlaneAndArea; 
 
+/* Structure to be kept in a hash table of node regions for the current	*/
+/* extract cell.  It tracks the original substrate cap calculated for	*/
+/* each region used in the "node" line output, the final substrate cap	*/
+/* calculated after taking all subcircuits into account, and a running	*/
+/* total of all corrections to the node's substrate cap generated in	*/
+/* "merge" lines by extSubtree() and extArray().  After both routines	*/
+/* have run, any unaccounted capacitance is output to the .ext file as	*/
+/* a "subcap" line.							*/
+
+typedef struct {
+    NodeRegion *subcap_reg;
+    CapValue	subcap_orig;
+    CapValue	subcap_final;
+    CapValue	subcap_adjust;
+} SubCapAdjust;
 
 /*
  * The following constructs a node name from the plane number 'n'
@@ -270,7 +285,7 @@ typedef struct
     Tile	*b_inside;	/* Pointer to tile just inside segment */
     Tile	*b_outside;	/* Pointer to tile just outside segment */
     Rect	 b_segment;	/* Actual coordinates of segment */
-    u_char	 b_direction;	/* Direction following segment (see below) */
+    unsigned char b_direction;	/* Direction following segment (see below) */
     int		 b_plane;	/* extract argument for extSideOverlap   */
 } Boundary;
 
@@ -345,11 +360,12 @@ typedef struct extTree
      */
 typedef struct
 {
-    FILE	*ha_outf;	/* The .ext file being written */
-    CellUse	*ha_parentUse;	/* Use pointing to the def being extracted */
-    char      *(*ha_nodename)();/* Map (tp, et, ha) into nodename; see above */
-    ExtTree	 ha_cumFlat;	/* Cumulative yank buffer */
-    HashTable	 ha_connHash;	/* Connections made during hier processing */
+    FILE	*ha_outf;	 /* The .ext file being written */
+    CellUse	*ha_parentUse;	 /* Use pointing to the def being extracted */
+    char      *(*ha_nodename)(); /* Map (tp, et, ha) into nodename; see above */
+    ExtTree	 ha_cumFlat;	 /* Cumulative yank buffer */
+    NodeRegion  *ha_parentReg;	 /* Node region list from parent def */
+    HashTable	 ha_connHash;	 /* Connections made during hier processing */
 
 /* All areas are in parent coordinates */
 
@@ -513,6 +529,12 @@ typedef struct extstyle
      * Nothing else should connect to anything else.
      */
     TileTypeBitMask	 exts_transConn[NT];
+
+    /*
+     * Set of types to be considered for extraction.  Types not in
+     * this list cannot be nodes (e.g., implant layers)
+     */
+    TileTypeBitMask	 exts_activeTypes;
 
     /*
      * Sheet resistivity for each tile type, in milli-ohms per square.
@@ -820,6 +842,17 @@ typedef struct extstyle
     TileTypeBitMask	 exts_subsTransistorTypes[NT];
 #endif	/* ARIEL */
 
+	/*
+	 * There is a single name for global substrate, and a list of
+	 * types that connect to the substrate.  Since for non-SOI
+	 * processes, this generally is used to specify that space on
+	 * the well plane is the substrate, the plane number for the
+	 * well plane is given, too.
+	 */
+    char		*exts_globSubstrateName;
+    TileTypeBitMask	 exts_globSubstrateTypes;
+    int			 exts_globSubstratePlane;
+
     /* Scaling */
 	/*
 	 * Step size used when breaking up a large cell for interaction
@@ -834,7 +867,7 @@ typedef struct extstyle
 	 * exts_unitsPerLambda; we produce a "scale" line in the .ext file
 	 * indicating this.  All area dimensions should be multiplied
 	 * by exts_unitsPerLambda**2.
-	 * (changed to type float May 11, 2006 to accomodate, e.g., 90
+	 * (changed to type float May 11, 2006 to accommodate, e.g., 90
 	 * and 130 nm technologies)
 	 */
     float		 exts_unitsPerLambda;
@@ -998,6 +1031,9 @@ extern int extNumFatal;		/* Number fatal errors encountered so far */
 extern int extNumWarnings;	/* Number warning messages so far */
 extern CellUse *extParentUse;	/* Dummy use for def being extracted */
 extern ClientData extNbrUn;	/* Ditto */
+
+extern NodeRegion *glob_subsnode;	/* Substrate node for cell def */
+extern NodeRegion *temp_subsnode;	/* Substrate connection to subcell */
 
     /*
      * This is really a (Stack *), but we use the struct tag to avoid

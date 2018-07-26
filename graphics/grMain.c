@@ -162,6 +162,7 @@ bool (*GrEventPendingPtr)()   	= NULL;
 int (*GrWindowIdPtr)()   	= NULL;
 char *(*GrWindowNamePtr)()	= NULL;
 bool (*GrGetCursorPosPtr)()   	= NULL;
+bool (*GrGetCursorRootPosPtr)()	= NULL;
 
 void (*GrEnableTabletPtr)()	= NULL;
 void (*GrDisableTabletPtr)()	= NULL;

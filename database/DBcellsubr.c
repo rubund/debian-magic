@@ -73,7 +73,7 @@ DBDescendSubcell(use, xMask)
 
 	case CU_DESCEND_NO_SUBCKT:
 	    if ((use->cu_def->cd_flags & CDAVAILABLE) == 0)
-		if (!DBCellRead(use->cu_def, (char *) NULL, TRUE))
+		if (!DBCellRead(use->cu_def, (char *) NULL, TRUE, NULL))
 		    return FALSE;
 	    return (DBIsSubcircuit(use->cu_def)) ? FALSE : TRUE;
 
@@ -85,6 +85,9 @@ DBDescendSubcell(use, xMask)
 
 	case CU_DESCEND_NO_VENDOR:
 	    return (use->cu_def->cd_flags & CDVENDORGDS) ? FALSE : TRUE;
+
+	case CU_DESCEND_NONE:
+	    return FALSE;
     }
     return TRUE;	/* in case CU_DESCEND_ALL is not defined as 0 */
 }

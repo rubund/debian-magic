@@ -114,6 +114,8 @@ extern bool GrX11Init(), GrX11Create();
 extern void GrX11Delete(), GrX11Configure(), GrX11Raise(), GrX11Lower();
 extern void GrX11Lock(), GrX11Unlock(), GrX11IconUpdate();
 extern void grXWStdin();
+extern bool grx11GetCursorPos();
+
 
 
 /*---------------------------------------------------------
@@ -490,7 +492,7 @@ GrX11Init(dispType)
 		visual_table[2] = j; /* GreyScale */
 	    if ((grvisual_get[j].class == 3) && (grvisual_get[j].depth == 8)
 			&& (visual_table[3] == -1))
-		visual_table[3] = j; /* Psuedocolor */
+		visual_table[3] = j; /* Pseudocolor */
 	    if ((grvisual_get[j].class == 4) && (grvisual_get[j].depth == 15)
 			&& (visual_table[4] == -1))
 		visual_table[4] = j; /* TrueColor */
@@ -1034,6 +1036,7 @@ x11SetDisplay (dispType, outFileName, mouseFileName)
     GrUnderWindowPtr = GrX11Lower;
     GrUpdateIconPtr = GrX11IconUpdate; 
     GrGetCursorPosPtr = grx11GetCursorPos;
+    GrGetCursorRootPosPtr = grx11GetCursorRootPos;
 
     /* local indirections */
     grSetSPatternPtr = grx11SetSPattern;
@@ -1427,7 +1430,7 @@ GrX11IconUpdate(w,text)
      class.res_name = "magic";
      class.res_class = "magic";
      XSetClassHint( grXdpy, wind, &class);
-     if (brack = index(text,'['))
+     if (brack = strchr(text,'['))
      {
      	  brack--;
 	  *brack = 0;
@@ -1436,7 +1439,7 @@ GrX11IconUpdate(w,text)
      	  *brack = ' ';
 	  return;
      }
-     if (brack = rindex(text,' ')) text = brack+1;
+     if (brack = strrchr(text,' ')) text = brack+1;
      XSetIconName(grXdpy,wind,text);
      XStoreName(grXdpy,wind,text);
 }

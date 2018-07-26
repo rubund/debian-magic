@@ -157,6 +157,9 @@ CmdCheckForPaintFunc()
 #define TECH_PLANES	6
 #define TECH_LAYERS	7
 #define TECH_DRC	8
+#define TECH_LOCK	9
+#define TECH_UNLOCK	10	
+#define TECH_REVERT	11
 
 void
 CmdTech(w, cmd)
@@ -169,15 +172,13 @@ CmdTech(w, cmd)
     Tcl_Obj *lobj;
 #endif
     bool noprompt = FALSE;
-    int saveNumPlanes;
-    int changePlanesFunc();	/* forward declaration */
 
     static char *actionNames[] =
 	{ "no", "yes", 0 };
 
     static char *cmdTechOption[] =
     {	
-	"load filename [-noprompt][-nooverride]\n\
+	"load filename [-noprompt][-override]\n\
 				Load a new technology",
 	"help			Display techinfo command options",
 	"name			Show current technology name",
@@ -185,9 +186,11 @@ CmdTech(w, cmd)
 	"version		Show current technology version",
 	"lambda			Show internal units per lambda", 
 	"planes			Show defined planes",
-	"layers	[lock|unlock <layer...>]\n\
-				Show (or lock and unlock) defined layers",
+	"layers	[<layer...>]	Show defined layers",
 	"drc <rule> <layer...>	Query DRC ruleset",
+	"locked [<layer...>]	Lock (make uneditable) layer <layer>",
+	"unlocked [<layer...>]	Unlock (make editable) layer <layer>",
+	"revert [<layer...>]	Revert lock state of layer <layer> to default",
 	NULL
     };
 
@@ -271,81 +274,166 @@ CmdTech(w, cmd)
 #endif
 
 	case TECH_LAYERS:
-	    if (cmd->tx_argc == 4)
-	    {
-		TileTypeBitMask lockmask, *rMask;
-		TileType ctype;
-
-		if (!strcmp(cmd->tx_argv[3], "*"))
-		    TTMaskSetMask(&lockmask, &DBUserLayerBits);
-		else
-		    DBTechNoisyNameMask(cmd->tx_argv[3], &lockmask);
-		if (!strcmp(cmd->tx_argv[2], "lock"))
-		{
-		    TTMaskClearMask(&DBActiveLayerBits, &lockmask);
-		    for (ctype = TT_TECHDEPBASE; ctype < DBNumUserLayers; ctype++)
-			if (TTMaskHasType(&lockmask, ctype))
-			    if (DBIsContact(ctype))
-				DBLockContact(ctype);
-		    for (ctype = DBNumUserLayers; ctype < DBNumTypes; ctype++)
-		    {
-			rMask = DBResidueMask(ctype);
-			if (TTMaskIntersect(&lockmask, rMask))
-			{
-			    TTMaskClearType(&DBActiveLayerBits, ctype);
-			    DBLockContact(ctype);
-			}
-		    }
-		}
-		else if (!strcmp(cmd->tx_argv[2], "unlock"))
-		{
-		    TTMaskSetMask(&DBActiveLayerBits, &lockmask);
-		    for (ctype = TT_TECHDEPBASE; ctype < DBNumUserLayers; ctype++)
-			if (TTMaskHasType(&lockmask, ctype))
-			    if (DBIsContact(ctype))
-				DBUnlockContact(ctype);
-
-		    for (ctype = DBNumUserLayers; ctype < DBNumTypes; ctype++)
-		    {
-			TileTypeBitMask testmask;
-			rMask = DBResidueMask(ctype);
-			TTMaskAndMask3(&testmask, &DBActiveLayerBits, rMask);
-			if (TTMaskEqual(&testmask, rMask))
-			{
-			    TTMaskSetType(&DBActiveLayerBits, ctype);
-			    DBUnlockContact(ctype);
-			}
-		    }
-		    TTMaskAndMask(&DBActiveLayerBits, &DBAllButSpaceAndDRCBits);
-		}
-		else
-		    TxError("Unknown operation %s; use lock or unlock\n",
-				cmd->tx_argv[2]);
-	    }
-	    else if (cmd->tx_argc == 3)
+	    if (cmd->tx_argc == 3)
 	    {
 		if (!strcmp(cmd->tx_argv[2], "*"))
 		    DBTechPrintTypes(&DBAllButSpaceAndDRCBits, TRUE);
-		else if (!strcmp(cmd->tx_argv[2], "locked"))
-		{
-		    TileTypeBitMask lockedLayers;
-		    TTMaskCom2(&lockedLayers, &DBActiveLayerBits);
-		    TTMaskAndMask(&lockedLayers, &DBAllButSpaceAndDRCBits);
-		    DBTechPrintTypes(&lockedLayers, TRUE);
-		}
-		else if (!strcmp(cmd->tx_argv[2], "revert"))
-		{
-		    // Copy DBTechActiveLayerBits back to DBActiveLayerBits
-		    TTMaskZero(&DBActiveLayerBits);
-		    TTMaskSetMask(&DBActiveLayerBits, &DBTechActiveLayerBits);
-		}
 		else
-		    DBTechPrintCanonicalType(cmd->tx_argv[2]);
+		{
+		    TileTypeBitMask layermask;
+		    DBTechNoisyNameMask(cmd->tx_argv[2], &layermask);
+		    DBTechPrintTypes(&layermask, TRUE);
+		}
 	    }
 	    else if (cmd->tx_argc == 2)
 		DBTechPrintTypes(&DBAllButSpaceAndDRCBits, FALSE);
 	    else
 		goto wrongNumArgs;
+	    break;
+
+	case TECH_LOCK:
+	    if (cmd->tx_argc == 3)
+	    {
+		TileTypeBitMask lockmask, *rMask;
+		TileType ctype;
+
+		TTMaskZero(&lockmask);
+		if (!strcmp(cmd->tx_argv[2], "*"))
+		    TTMaskSetMask(&lockmask, &DBUserLayerBits);
+		else
+		    DBTechNoisyNameMask(cmd->tx_argv[2], &lockmask);
+
+		TTMaskClearMask(&DBActiveLayerBits, &lockmask);
+
+		for (ctype = TT_TECHDEPBASE; ctype < DBNumUserLayers; ctype++)
+		    if (TTMaskHasType(&lockmask, ctype))
+			if (DBIsContact(ctype))
+			    DBLockContact(ctype);
+
+		for (ctype = DBNumUserLayers; ctype < DBNumTypes; ctype++)
+		{
+		    rMask = DBResidueMask(ctype);
+		    if (TTMaskIntersect(&lockmask, rMask))
+		    {
+			TTMaskClearType(&DBActiveLayerBits, ctype);
+			DBLockContact(ctype);
+		    }
+		}
+	    }
+	    else if (cmd->tx_argc == 2)
+	    {
+		/* List all locked layers */
+		TileTypeBitMask lockedLayers;
+		TTMaskCom2(&lockedLayers, &DBActiveLayerBits);
+		TTMaskAndMask(&lockedLayers, &DBAllButSpaceAndDRCBits);
+		DBTechPrintTypes(&lockedLayers, TRUE);
+	    }
+	    else
+		goto wrongNumArgs;
+	    break;
+
+	case TECH_UNLOCK:
+	    if (cmd->tx_argc == 3)
+	    {
+		TileTypeBitMask lockmask, *rMask;
+		TileType ctype;
+
+		TTMaskZero(&lockmask);
+		if (!strcmp(cmd->tx_argv[2], "*"))
+		    TTMaskSetMask(&lockmask, &DBUserLayerBits);
+		else
+		    DBTechNoisyNameMask(cmd->tx_argv[2], &lockmask);
+
+		TTMaskSetMask(&DBActiveLayerBits, &lockmask);
+		for (ctype = TT_TECHDEPBASE; ctype < DBNumUserLayers; ctype++)
+		    if (TTMaskHasType(&lockmask, ctype))
+			if (DBIsContact(ctype))
+			    DBUnlockContact(ctype);
+
+		for (ctype = DBNumUserLayers; ctype < DBNumTypes; ctype++)
+		{
+		    TileTypeBitMask testmask;
+		    rMask = DBResidueMask(ctype);
+		    TTMaskAndMask3(&testmask, &DBActiveLayerBits, rMask);
+		    if (TTMaskEqual(&testmask, rMask))
+		    {
+			TTMaskSetType(&DBActiveLayerBits, ctype);
+			DBUnlockContact(ctype);
+		    }
+		}
+		TTMaskAndMask(&DBActiveLayerBits, &DBAllButSpaceAndDRCBits);
+	    }
+	    else if (cmd->tx_argc == 2)
+	    {
+		/* List all unlocked layers */
+
+		TileTypeBitMask unlockedLayers;
+		TTMaskZero(&unlockedLayers);
+		TTMaskSetMask(&unlockedLayers, &DBAllButSpaceAndDRCBits);
+		TTMaskCom2(&unlockedLayers, &DBActiveLayerBits);
+		TTMaskCom(&unlockedLayers);
+		DBTechPrintTypes(&unlockedLayers, TRUE);
+	    }
+	    else
+		goto wrongNumArgs;
+	    break;
+
+	case TECH_REVERT:
+	    {
+	    TileTypeBitMask lockmask, *rMask;
+	    TileType ctype;
+
+	    if (cmd->tx_argc == 3)
+	    {
+
+		TTMaskZero(&lockmask);
+		if (!strcmp(cmd->tx_argv[2], "*"))
+		    TTMaskSetMask(&lockmask, &DBTechActiveLayerBits);
+		else
+		    DBTechNoisyNameMask(cmd->tx_argv[2], &lockmask);
+
+		TTMaskClearMask(&DBActiveLayerBits, &lockmask);
+		TTMaskAndMask(&lockmask, &DBTechActiveLayerBits);
+		TTMaskSetMask(&DBActiveLayerBits, &lockmask);
+
+	    }
+	    else if (cmd->tx_argc == 2)
+	    {
+		// Copy DBTechActiveLayerBits back to DBActiveLayerBits
+		TTMaskZero(&DBActiveLayerBits);
+		TTMaskSetMask(&DBActiveLayerBits, &DBTechActiveLayerBits);
+	    }
+	    else
+		goto wrongNumArgs;
+
+	    // Handle contact types, which involve a bit more than
+	    // just setting the active layer mask, as paint/erase
+	    // tables need to be manipulated
+
+	    for (ctype = TT_TECHDEPBASE; ctype < DBNumUserLayers; ctype++)
+		if (DBIsContact(ctype))
+		    if (TTMaskHasType(&DBActiveLayerBits, ctype))
+			DBUnlockContact(ctype);
+		    else
+			DBLockContact(ctype);
+
+	    for (ctype = DBNumUserLayers; ctype < DBNumTypes; ctype++)
+	    {
+		TileTypeBitMask testmask;
+		rMask = DBResidueMask(ctype);
+		TTMaskAndMask3(&testmask, &DBActiveLayerBits, rMask);
+		if (TTMaskEqual(&testmask, rMask))
+		{
+		    TTMaskSetType(&DBActiveLayerBits, ctype);
+		    DBUnlockContact(ctype);
+		}
+		else if (TTMaskIntersect(&DBActiveLayerBits, rMask))
+		{
+		    TTMaskClearType(&DBActiveLayerBits, ctype);
+		    DBLockContact(ctype);
+		}
+	    }
+	    }
 	    break;
 
 	case TECH_DRC:
@@ -420,29 +508,38 @@ CmdTech(w, cmd)
 	    locargc = cmd->tx_argc;
 	    while ((*cmd->tx_argv[locargc - 1] == '-') && (locargc > 3))
 	    {
-		if (!strcmp(cmd->tx_argv[locargc - 1], "-nooverride"))
+		if (!strcmp(cmd->tx_argv[locargc - 1], "-override"))
 		{
-		    /* Disallow the "tech load" command from overriding */
+		    /* Allow the "tech load" command to override 	*/
 		    /* a technology specified on the command line.	*/
-		    /* This is used when "tech load" sets up a specific	*/
-		    /* project technology from a .magicrc startup	*/
-		    /* script.						*/
+		    /* Possibly this behavior should not be allowed,	*/
+		    /* but you never know.  Use with utmost caution.	*/
 
-		    if (TechOverridesDefault)
-			return;
+		    TechOverridesDefault = FALSE;
 		}
 		else if (!strcmp(cmd->tx_argv[locargc - 1], "-noprompt"))
 		    noprompt = TRUE;
-		else
+
+		// "-nooverride" is kept for backwards compatibility but
+		// has no effect.
+
+		else if (strcmp(cmd->tx_argv[locargc - 1], "-nooverride"))
 		    break;
 		locargc--;
 	    }
 
 	    if (locargc != 3)
 	    {
-		TxError("Usage: tech load <filename> [-noprompt] [-nooverride]\n");
+		TxError("Usage: tech load <filename> [-noprompt] [-override]\n");
 		break;
 	    }
+
+	    /* If the "-T" command line option is given to magic, then	*/
+	    /* the techfile given on the command line prevents any	*/
+	    /* other techfile from being loaded until after startup is	*/
+	    /* done.							*/
+
+	    if (TechOverridesDefault) return;
 
 	    /* Here:  We need to do a test to see if any structures	*/
 	    /* exist in memory and delete them, or else we need to have	*/
@@ -460,25 +557,22 @@ CmdTech(w, cmd)
 		    if (action == 0) return;
 		}
 	    }
-	
-	    /* Changing number of planes requires handling on every	*/
-	    /* celldef.  So we need to save the original number of	*/
-	    /* planes to see if it shrinks or expands.			*/
 
-	    saveNumPlanes = DBNumPlanes;
+	    /* Call TechLoad with initmask = -2 to check only that the	*/
+	    /* techfile exists and is readable before calling the init	*/
+	    /* functions on various sections, which is not reversible.	*/
 
-	    /* CIF istyle, CIF ostyle, and extract sections need calls	*/
-	    /* to the init functions which clean up memory devoted to	*/
-	    /* remembering all the styles.				*/
-
-#ifdef CIF_MODULE
-	    CIFTechInit();
-	    CIFReadTechInit();
+	    if (!TechLoad(cmd->tx_argv[2], -2))
+	    {
+#ifdef MAGIC_WRAPPER
+		Tcl_SetResult(magicinterp, "Technology file does not exist"
+				" or is not readable\n", NULL);
+#else
+		TxError("Technology file does not exist or is not readable.\n");
 #endif
-	    ExtTechInit();
-	    DRCTechInit();
-	    MZTechInit();
-
+		break;
+	    }
+	
 	    if (!TechLoad(cmd->tx_argv[2], 0))
 	    {
 #ifdef MAGIC_WRAPPER
@@ -488,53 +582,6 @@ CmdTech(w, cmd)
 #endif
 		break;
 	    }
-
-	    /* If internal scalefactor is not the default 1:1, then we  */
-	    /* need to scale the techfile numbers accordingly.          */
-
-	    if ((DBLambda[0] != 1) || (DBLambda[1] != 1))
-	    {
-		int d = DBLambda[0];
-		int n = DBLambda[1];
-
-		CIFTechInputScale(d, n, TRUE);
-		CIFTechOutputScale(d, n);
-		DRCTechScale(d, n);
-		ExtTechScale(d, n);
-		WireTechScale(d, n);
-#ifdef LEF_MODULE
-		LefTechScale(d, n);
-#endif
-#ifdef ROUTE_MODULE
-		RtrTechScale(d, n);
-#endif
-		TxPrintf("Scaled tech values by %d / %d to" 
-				" match internal grid scaling\n", n, d);
-
-		/* Check if we're below the scale set by cifoutput gridlimit */
-		if (CIFTechLimitScale(1, 1))
-		    TxError("WARNING:  Current grid scale is smaller"
-			" than the minimum for the process!\n");
-	    }
-
-	    /* Post-technology reading routines */
-
-#ifdef ROUTE_MODULE
-	    MZAfterTech();
-	    IRAfterTech();
-	    GAMazeInitParms();
-#endif
-	    PlowAfterTech();
-
-	    if (DBCellSrDefs(0, checkForPaintFunc, (ClientData)&saveNumPlanes))
-	    {
-		if (saveNumPlanes != DBNumPlanes)
-		    TxError("Warning:  Number of planes has changed.  ");
-		TxError("Existing layout may be invalid.\n");
-	    }
-	    if (saveNumPlanes != DBNumPlanes)
-		DBCellSrDefs(0, changePlanesFunc, (ClientData) &saveNumPlanes);
-
 	    break;
 
 	case TECH_HELP:
@@ -558,56 +605,6 @@ usage:
 usage2:
     TxError("  Type \":%s help\" for help.\n", cmd->tx_argv[0]);
     return;
-}
-
-/*
- * ----------------------------------------------------------------------------
- *
- * This function hacks the existing layout database in case a tech file
- * is loaded which contains more or fewer planes than the exisiting
- * technology.  This is doing nothing fancy; it is simply making sure
- * that all memory allocation is accounted for.
- *
- * As a note for future implementation, it would be helpful to keep the
- * old plane name definitions around and try to match up the old and new
- * planes, so that it is possible to load a technology file which matches
- * the existing technology except for the addition or subtraction of one
- * or more planes (e.g., extra metal layer option) without completely
- * invalidating an existing layout.
- *
- * As written, this function is inherently dangerous.  It is intended for
- * use when loading a new tech file when there is no layout, just empty
- * tile planes.
- * ----------------------------------------------------------------------------
- */
-
-int
-changePlanesFunc(cellDef, arg)
-    CellDef *cellDef;
-    int *arg;
-{
-    int oldnumplanes = *arg;
-    int pNum;
-
-    if (oldnumplanes < DBNumPlanes)
-    {
-	/* New planes to be added */
-	for (pNum = oldnumplanes; pNum < DBNumPlanes; pNum++)
-	{
-	    cellDef->cd_planes[pNum] = DBNewPlane((ClientData) TT_SPACE);
-	}
-    }
-    else
-    {
-	/* Old planes to be subtracted */
-	for (pNum = DBNumPlanes; pNum < oldnumplanes; pNum++)
-	{
-	    DBFreePaintPlane(cellDef->cd_planes[pNum]);
-	    TiFreePlane(cellDef->cd_planes[pNum]);
-	    cellDef->cd_planes[pNum] = (Plane *) NULL;
-	}
-    }
-    return 0;
 }
 
 /*
@@ -1224,12 +1221,15 @@ cmdWhatCellFunc(selUse, realUse, transform, foundAny)
 				 * use found.
 				 */
 {
+    /* Forward reference */
+    char *dbGetUseName();
+
     if (!*foundAny)
     {
 	TxPrintf("Selected subcell(s):\n");
 	*foundAny = TRUE;
     }
-    TxPrintf("    Instance \"%s\" of cell \"%s\"\n", realUse->cu_id,
+    TxPrintf("    Instance \"%s\" of cell \"%s\"\n", dbGetUseName(realUse),
 	    realUse->cu_def->cd_name);
     return 0;
 }
@@ -1246,10 +1246,12 @@ cmdWhatCellListFunc(selUse, realUse, transform, newobj)
     Tcl_Obj *newobj;		/* Tcl list object holding use names */
 {
     Tcl_Obj *tuple;
+    /* Forward reference */
+    char *dbGetUseName();
 
     tuple = Tcl_NewListObj(0, NULL);
     Tcl_ListObjAppendElement(magicinterp, tuple,
-		Tcl_NewStringObj(realUse->cu_id, -1));
+		Tcl_NewStringObj(dbGetUseName(realUse), -1));
     Tcl_ListObjAppendElement(magicinterp, tuple,
 		Tcl_NewStringObj(realUse->cu_def->cd_name, -1));
     Tcl_ListObjAppendElement(magicinterp, newobj, tuple);
@@ -1884,3 +1886,152 @@ CmdXload(w, cmd)
     }
     else DBWloadWindow(w, (char *) NULL, FALSE, TRUE);
 }
+
+/*
+ * ----------------------------------------------------------------------------
+ *
+ * CmdXor --
+ *
+ * Implements xor command
+ *
+ * Usage:
+ *	xor [-<option>] destname
+ *
+ * Results:
+ *	rewrites paint tables with xor functions.
+ *	Cell "destname" is assumed to exist.
+ *	Existing top level cell is flattened into destname on top of
+ *	what's already there, using an XOR paint function.  Whatever
+ *	paint remains after the command is a difference between the
+ *	two layouts.
+ *
+ * ----------------------------------------------------------------------------
+ */
+
+void
+CmdXor(w, cmd)
+    MagWindow *w;
+    TxCommand *cmd;
+{
+    int			rval, xMask;
+    bool		dolabels;
+    char		*destname;
+    CellDef		*newdef;
+    CellUse		*newuse;
+    SearchContext	scx;
+    CellUse		*flatDestUse;
+
+    PaintResultType	DBXORResultTbl[NP][NT][NT];
+    PaintResultType	(*curPaintSave)[NT][NT];
+    void		(*curPlaneSave)();
+
+    int p, t, h;
+     
+    destname = cmd->tx_argv[cmd->tx_argc - 1];
+    xMask = CU_DESCEND_ALL;
+    dolabels = TRUE;
+
+    rval = 0;
+    if (cmd->tx_argc > 2)
+    {
+	int i;
+	for (i = 1; i < (cmd->tx_argc - 1); i++)
+	{
+	    if (strncmp(cmd->tx_argv[i], "-no", 3))
+	    {
+	        rval = -1;
+		break;
+	    }
+	    else if (strlen(cmd->tx_argv[i]) > 3)
+	    {
+		switch(cmd->tx_argv[1][3])
+		{
+		    case 'l':
+			dolabels = FALSE;
+			break;
+		    case 's':
+			xMask = CU_DESCEND_NO_SUBCKT;
+			break;
+		    case 'v':
+			xMask = CU_DESCEND_NO_VENDOR;
+			break;
+		    default:
+			TxError("options are: -nolabels, -nosubcircuits -novendor\n");
+			break;
+		}
+	    }
+	}
+    }
+    else if (cmd->tx_argc != 2)
+	rval = -1;
+
+    if (rval != 0)
+    {
+     	TxError("usage: xor [-<option>...] destcell\n");
+	return;
+    }
+    /* create the new def */
+    if ((newdef = DBCellLookDef(destname)) == NULL)
+    {
+    	 TxError("%s does not exist\n", destname);
+	 return;
+    }
+
+    UndoDisable();
+    newuse = DBCellNewUse(newdef, (char *) NULL);
+    (void) StrDup(&(newuse->cu_id), "Flattened cell");
+    DBSetTrans(newuse, &GeoIdentityTransform);
+    newuse->cu_expandMask = CU_DESCEND_SPECIAL;
+    flatDestUse = newuse;
+    
+    if (EditCellUse)
+	scx.scx_use  = EditCellUse;
+    else
+	scx.scx_use = (CellUse *)w->w_surfaceID;
+
+    scx.scx_area = scx.scx_use->cu_def->cd_bbox;
+    scx.scx_trans = GeoIdentityTransform;
+
+    // Prepare the XOR result table
+
+    for (p = 0; p < DBNumPlanes; p++)
+    {
+	// During the copy, space tiles will not be painted over
+	// anything.  However, due to non-manhattan geometry
+	// handling, TT_SPACE is occasionally painted over a
+	// split tile that is being erased and replaced by a
+	// rectangular tile, so painting TT_SPACE should always
+	// result in TT_SPACE.
+
+	for (h = 0; h < DBNumTypes; h++)
+	    DBXORResultTbl[p][0][h] = TT_SPACE;
+
+	for (t = 1; t < DBNumTypes; t++)
+	    for (h = 0; h < DBNumTypes; h++)
+	    {
+		if (t == h)
+		    DBXORResultTbl[p][t][h] = TT_SPACE;
+		else
+		    DBXORResultTbl[p][t][h] = t;
+	    }
+    }
+
+    curPaintSave = DBNewPaintTable(DBXORResultTbl);
+    curPlaneSave = DBNewPaintPlane(DBPaintPlaneXor);
+
+    DBCellCopyAllPaint(&scx, &DBAllButSpaceAndDRCBits, xMask, flatDestUse);
+    if (dolabels)
+	FlatCopyAllLabels(&scx, &DBAllTypeBits, xMask, flatDestUse);
+
+    if (xMask != CU_DESCEND_ALL)
+	DBCellCopyAllCells(&scx, xMask, flatDestUse, (Rect *)NULL);
+    
+    DBNewPaintTable(curPaintSave);
+    DBNewPaintPlane(curPlaneSave);
+
+    // Remove new use
+    DBCellDeleteUse(newuse);
+
+    UndoEnable();
+}
+

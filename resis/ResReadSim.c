@@ -245,7 +245,7 @@ ResReadNode(nodefile)
 	node->rs_bbox.r_xtop = (int)((float)atof(line[NODE_BBOX_UR_X])/lambda);
 	node->rs_bbox.r_ytop = (int)((float)atof(line[NODE_BBOX_UR_Y])/lambda);
 #endif
-	if (cp = index(line[NODETYPE], ';')) *cp = '\0';
+	if (cp = strchr(line[NODETYPE], ';')) *cp = '\0';
 	node->type = DBTechNameType(line[NODETYPE]);
 
 	if (node->type == -1)
@@ -661,7 +661,7 @@ ResSimAttribute(aname,avalue,rootname,readextfile)
 	  }
      }
 #endif
-     if (avalue = index(avalue,',')) 
+     if (avalue = strchr(avalue,',')) 
      {
           (void) ResSimAttribute(aname,avalue+1,rootname,readextfile);
      }
@@ -756,7 +756,7 @@ ResSimProcessFixPoints(filename)
 	  label = line[RES_EXT_ATTR_TEXT];
 	  label += 8;
 	  if (*label == ':') label++;
-	  if ((c=rindex(label,'"')) != NULL) *c='\0';
+	  if ((c=strrchr(label,'"')) != NULL) *c='\0';
 	  else if (*label == '\0');
 	  else 
 	  {
@@ -855,6 +855,8 @@ ResInitializeNode(entry)
 	  node->oldname = NULL;
 	  node->drivepoint.p_x = INFINITY;
 	  node->drivepoint.p_y = INFINITY;
+	  node->location.p_x = INFINITY;
+	  node->location.p_y = INFINITY;
 	  node->rs_sublist[0]=NULL;
 	  node->rs_sublist[1]=NULL;
      }

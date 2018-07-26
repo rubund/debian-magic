@@ -23,9 +23,7 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef STDC
 #include <unistd.h>
-#endif
 #include <ctype.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -203,7 +201,7 @@ file_is_not_writeable(name)
  *	current technology.  Each line after the header has the
  *	format "rect <xbot> <ybot> <xtop> <ytop>".
  *	Nonmanhattan geometry is covered by the entry
- *	"try <xbot> <ybot> <xtop> <ytop> <dir>" with <dir> indicating
+ *	"tri <xbot> <ybot> <xtop> <ytop> <dir>" with <dir> indicating
  *	the direction of the corner made by the right triangle.
  *	If the split tile contains more than one type, separate entries
  *	are output for each.
@@ -402,11 +400,12 @@ dbCellReadDef(f, cellDef, name, ignoreTech)
 		cellDef->cd_name, n);
 	if (d > 1) 
 	{
-	    TxPrintf("/ %d", d);
+	    TxPrintf("/ %d\n", d);
 	    TxError("Warning:  Geometry may be lost because internal grid"
-			"cannot be reduced.\n");
+			" cannot be reduced.\n");
 	}
-	TxPrintf("\n");
+	else
+	    TxPrintf("\n");
     }
 
     /*
@@ -455,7 +454,7 @@ dbCellReadDef(f, cellDef, name, ignoreTech)
 	    }
 	    else if (!strcmp(layername, "properties"))
 	    {
-		if (!dbReadProperties(cellDef, line, sizeof line, f)) goto badfile;
+		if (!dbReadProperties(cellDef, line, sizeof line, f, n, d)) goto badfile;
 		continue;
 	    }
 	    else if (!strcmp(layername, "end")) goto done;
@@ -903,7 +902,7 @@ DBReadBackup(name)
  */
 
 bool
-DBCellRead(cellDef, name, ignoreTech)
+DBCellRead(cellDef, name, ignoreTech, errptr)
     CellDef *cellDef;	/* Pointer to definition of cell to be read in */
     char *name;		/* Name of file from which to read definition.
 			 * If NULL, then use cellDef->cd_file; if that
@@ -917,19 +916,25 @@ DBCellRead(cellDef, name, ignoreTech)
 			 * names do not match, but an attempt will be
 			 * made to read the file anyway.
 			 */
+    int *errptr;	/* Copy of errno set by file reading routine
+			 * is placed here, unless NULL.
+			 */
 {
     FILE *f;
     bool result;
 
+    if (errptr != NULL) *errptr = 0;
+
     if (cellDef->cd_flags & CDAVAILABLE)
 	result = TRUE;
 
-    else if ((f = dbReadOpen(cellDef, name, TRUE)) == NULL)
+    else if ((f = dbReadOpen(cellDef, name, TRUE, errptr)) == NULL)
 	result = FALSE;
 
     else
     {
 	result = (dbCellReadDef(f, cellDef, name, ignoreTech));
+
 #ifdef FILE_LOCKS
 	/* Close files that were locked by another user */
 	if (cellDef->cd_fd == -1) fclose(f);
@@ -969,13 +974,14 @@ DBCellRead(cellDef, name, ignoreTech)
  */
 
 FILE *
-dbReadOpen(cellDef, name, setFileName)
+dbReadOpen(cellDef, name, setFileName, errptr)
     CellDef *cellDef;	/* Def being read */
     char *name;		/* Name if specified, or NULL */
     bool setFileName;	/* If TRUE then cellDef->cd_file should be updated
 			 * to point to the name of the file from which the
 			 * cell was loaded.
 			 */
+    int *errptr;	/* Pointer to int to hold error value */
 {
     FILE *f = NULL;
     char *filename, *realname;
@@ -989,20 +995,62 @@ dbReadOpen(cellDef, name, setFileName)
     }
 #endif
 
+    if (errptr != NULL) *errptr = 0;	// No error, by default
+
     if (name != (char *) NULL)
     {
 	f = PaLockOpen(name, "r", DBSuffix, Path,
 			CellLibPath, &filename, &is_locked);
+	if (errptr != NULL) *errptr = errno;
     }
     else if (cellDef->cd_file != (char *) NULL)
     {
-	f = PaLockOpen(cellDef->cd_file, "r", "", ".",
+	/* Do not send a name with a file extension to PaLockOpen(),
+	 * otherwise that routine must handle it and then cannot
+	 * distinguish between, say, cell.mag and cell.mag.mag.
+	 */
+	char *pptr, *sptr;
+
+	sptr = strrchr(cellDef->cd_file, '/');
+	if (sptr == NULL)
+	    sptr = cellDef->cd_file;
+	else
+	    sptr++;
+
+	pptr = strrchr(sptr, '.');
+	if (pptr != NULL)
+	    if (strcmp(pptr, DBSuffix)) pptr = NULL;
+	else
+	    *pptr = '\0';
+
+	f = PaLockOpen(cellDef->cd_file, "r", DBSuffix, ".",
 			(char *) NULL, &filename, &is_locked);
+
+	/* Fall back on the original method of using search paths. */
+
+	if (f == NULL)
+	{
+	    f = PaLockOpen(cellDef->cd_name, "r", DBSuffix, Path,
+			CellLibPath, &filename, &is_locked);
+
+	    if (f != NULL)
+	    {
+		if (pptr != NULL) *pptr = '.';
+		TxError("Warning:  Parent cell lists instance of \"%s\" at bad file "
+			"path %s.\n", cellDef->cd_name, cellDef->cd_file);
+		TxError("The cell exists in the search paths at %s.\n", filename);
+		TxError("The discovered version will be used.\n");
+	    }
+	}
+
+	if (errptr != NULL) *errptr = errno;
+	if (pptr != NULL) *pptr = '.';	// Put it back where you found it!
     }
     else
     {
 	f = PaLockOpen(cellDef->cd_name, "r", DBSuffix, Path,
 			CellLibPath, &filename, &is_locked);
+	if (errptr != NULL) *errptr = errno;
     }
 
     if (f == NULL)
@@ -1012,16 +1060,18 @@ dbReadOpen(cellDef, name, setFileName)
 	    return ((FILE *) NULL);
 
 	if (name != (char *) NULL)
-	    TxError("File %s%s couldn't be found\n", name, DBSuffix);
+	    TxError("File %s%s couldn't be read\n", name, DBSuffix);
 	else if (cellDef->cd_file != (char *) NULL)
-	    TxError("File %s couldn't be found\n", cellDef->cd_file);
+	    TxError("File %s couldn't be read\n", cellDef->cd_file);
 	else {
-	    TxError("Cell %s couldn't be found\n", cellDef->cd_name);
+	    TxError("Cell %s couldn't be read\n", cellDef->cd_name);
 	    realname = (char *) mallocMagic((unsigned) (strlen(cellDef->cd_name)
 			+ strlen(DBSuffix) + 1));
 	    (void) sprintf(realname, "%s%s", cellDef->cd_name, DBSuffix);
 	    cellDef->cd_file = StrDup(&cellDef->cd_file, realname);
 	}
+	if (errptr) TxError("%s\n", strerror(*errptr));
+
 	cellDef->cd_flags |= CDNOTFOUND;
 	return ((FILE *) NULL);
     }
@@ -1123,13 +1173,14 @@ dbReadUse(cellDef, line, len, f, scalen, scaled)
     int scaled;		/* Divide values in file by this */
 {
     int xlo, xhi, ylo, yhi, xsep, ysep, childStamp;
-    int absa, absb, absd, abse;
-    char cellname[1024], useid[1024];
+    int absa, absb, absd, abse, nconv;
+    char cellname[1024], useid[1024], path[1024];
     CellUse *subCellUse;
     CellDef *subCellDef;
     Transform t;
     Rect r;
     bool locked;
+    char *slashptr, *pathptr;
 
     if (strncmp(line, "use", 3) != 0)
     {
@@ -1138,11 +1189,19 @@ dbReadUse(cellDef, line, len, f, scalen, scaled)
     }
 
     useid[0] = '\0';
-    if (sscanf(line, "use %1023s %1023s", cellname, useid) < 1)
+    nconv = sscanf(line, "use %1023s %1023s %1023s", cellname, useid, path);
+    if (nconv < 1)
     {
 	TxError("Malformed \"use\" line: %s", line);
 	return (FALSE);
     }
+    /* Make sure useid[0] is an empty string if no useid was provided */
+    if (nconv == 1) useid[0] = '\0';
+    if (nconv <= 2) path[0] = '\0';
+
+    pathptr = &path[0];
+    while (*pathptr == ' ' || *pathptr == '\t') pathptr++;
+    if (*pathptr == '\n') *pathptr = '\0';
 
     locked = (useid[0] == CULOCKCHAR) ? TRUE : FALSE;
 
@@ -1285,6 +1344,100 @@ badTransform:
 	goto nextLine;
     }
 
+    /* Relative path handling:  If path does not have a leading "/"	*/
+    /* or "~" and cellDef->cd_file has path components, then the path	*/
+    /* should be interpreted relative to the path of the parent cell.	*/
+
+    if ((*pathptr == '\0') || ((*pathptr != '/') && (*pathptr != '~')))
+	if ((cellDef->cd_file != NULL) &&
+			(slashptr = strrchr(cellDef->cd_file, '/')) != NULL)
+	{
+	    *slashptr = '\0';
+	    if (*pathptr == '\0')
+		strcpy(path, cellDef->cd_file);
+	    else
+	    {
+		char savepath[1024];
+		strcpy(savepath, pathptr);
+		sprintf(path, "%s/%s", cellDef->cd_file, savepath);
+	    }
+	    pathptr = &path[0];
+	    *slashptr = '/';
+	}
+
+    /* If path has a leading '~/' and cellDef->cd_file has an absolute	*/
+    /* path that does not match the user's home directory, but appears	*/
+    /* to be a different home directory, then replace the "~" with the	*/
+    /* home directory used by the parent cell.				*/
+
+    if (*pathptr == '~' && *(pathptr + 1) == '/')
+	if ((cellDef->cd_file != NULL) && (cellDef->cd_file[0] == '/'))
+	{
+	    char *homedir = getenv("HOME");
+	    if (strncmp(cellDef->cd_file, homedir, strlen(homedir)) ||
+			*(cellDef->cd_file + strlen(homedir)) != '/')
+	    {
+		char *homeroot = strrchr(homedir, '/');
+		int rootlen = (int)(homeroot - homedir) + 1;
+		if (!strncmp(cellDef->cd_file, homedir, rootlen))
+		{
+		    char savepath[1024];
+		    char *userbrk = strchr(cellDef->cd_file + rootlen, '/');
+		    if (userbrk != NULL)
+		    {
+			int userlen = (int)(userbrk - cellDef->cd_file);
+			strcpy(savepath, pathptr + 1);
+			strcpy(path, cellDef->cd_file);
+			strcpy(path + userlen, savepath);
+			pathptr = &path[0];
+		    }
+		}
+	    }
+	}
+
+    /* If "use" line contains a path name, then set cd_file to this and	*/
+    /* it will be the preferred path.  If cd_file is already set and	*/
+    /* points to a different target, then flag an error, as there are	*/
+    /* now two versions of the same cell name coming from different	*/
+    /* sources, and this must be corrected.				*/
+
+    if (*pathptr != '\0')
+    {
+	if (subCellDef->cd_file != NULL)
+	{
+	    slashptr = strrchr(subCellDef->cd_file, '/');
+	    if (slashptr != NULL)
+	    {
+		*slashptr = '\0';
+
+		if (strcmp(subCellDef->cd_file, pathptr))
+		{
+		    TxError("Duplicate cell in %s:  Instance of cell %s is from "
+				"path %s but cell was previously read from %s.\n",
+				cellDef->cd_name, slashptr + 1, pathptr,
+				subCellDef->cd_file);
+
+		    /* To do:  Check if new path does not exist (ignore),	*/
+		    /* or if new path has same symbolic link or is the same	*/
+		    /* filesize and checksum (ignore).  If file appears to	*/
+		    /* be truly different, then create a new cell with a	*/
+		    /* modified cell name.					*/
+
+		    TxError("New path will be ignored.  Please check.\n");
+		}
+		*slashptr = '/';
+	    }
+	}
+	else
+	{
+	    /* Reconstruct file from path and cellname */
+
+	    strcat(path, "/");
+	    strcat(path, subCellDef->cd_name);
+	    strcat(path, DBSuffix);
+	    StrDup(&subCellDef->cd_file, path);
+	}
+    }
     
     subCellUse = DBCellNewUse(subCellDef, (useid[0]) ?
 		((locked) ? useid + 1 : useid) : (char *) NULL);
@@ -1356,14 +1509,21 @@ nextLine:
  */
 
 bool
-dbReadProperties(cellDef, line, len, f)
+dbReadProperties(cellDef, line, len, f, scalen, scaled)
     CellDef *cellDef;	/* Cell whose elements are being read */
     char *line;		/* Line containing << elements >> */
     int len;		/* Size of buffer pointed to by line */
     FILE *f;		/* Input file */
+    int scalen;		/* Scale up by this factor */
+    int scaled;		/* Scale down by this factor */
 {
-    char propertyname[128], propertyvalue[128], *storedvalue;
+    char propertyname[128], propertyvalue[2048], *storedvalue;
     int ntok;
+    unsigned int noeditflag;
+
+    /* Save CDNOEDIT flag if set, and clear it */
+    noeditflag = cellDef->cd_flags & CDNOEDIT;
+    cellDef->cd_flags &= ~CDNOEDIT;
 
     /* Get first element line */
     if (dbFgets(line, len, f) == NULL) return (FALSE);
@@ -1373,7 +1533,10 @@ dbReadProperties(cellDef, line, len, f)
 	/* Skip blank lines */
 	while (line[0] == '\0')
 	    if (dbFgets(line, len, f) == NULL)
+	    {
+		cellDef->cd_flags |= noeditflag;
 		return (TRUE);
+	    }
 
 	/* Stop when at end of properties section (currently, only "string"
 	 * is defined)
@@ -1386,18 +1549,59 @@ dbReadProperties(cellDef, line, len, f)
 	 */
 	if (line[0] == 's')
 	{
-	    if ((ntok = sscanf(line, "string %127s %127[^\n]",
+	    if ((ntok = sscanf(line, "string %127s %2047[^\n]",
 		    propertyname, propertyvalue)) != 2)
 	    {
 		TxError("Skipping bad property line: %s", line);
 		goto nextproperty;
 	    }
-	    storedvalue = StrDup((char **)NULL, propertyvalue);
-	    (void) DBPropPut(cellDef, propertyname, storedvalue);
 
 	    /* Go ahead and process the vendor GDS property */
 	    if (!strcmp(propertyname, "GDS_FILE"))
 		cellDef->cd_flags |= CDVENDORGDS;
+
+	    /* Also process FIXED_BBOX property, but do not keep	*/
+	    /* the property, as it should be regenerated on cell	*/
+	    /* output from the current scale.				*/
+
+	    if (!strcmp(propertyname, "FIXED_BBOX"))
+	    {
+		if (sscanf(propertyvalue, "%d %d %d %d",
+			&(cellDef->cd_bbox.r_xbot),
+			&(cellDef->cd_bbox.r_ybot),
+			&(cellDef->cd_bbox.r_xtop),
+			&(cellDef->cd_bbox.r_ytop)) != 4)
+		{
+		    TxError("Cannot read bounding box values in %s property",
+				propertyname);
+		    storedvalue = StrDup((char **)NULL, propertyvalue);
+		    (void) DBPropPut(cellDef, propertyname, storedvalue);
+		}
+		else
+		{
+		    if (scalen > 1)
+		    {
+			cellDef->cd_bbox.r_xbot *= scalen;
+			cellDef->cd_bbox.r_ybot *= scalen;
+			cellDef->cd_bbox.r_xtop *= scalen;
+			cellDef->cd_bbox.r_ytop *= scalen;
+		    }
+		    if (scaled > 1)
+		    {
+			cellDef->cd_bbox.r_xbot /= scaled;
+			cellDef->cd_bbox.r_ybot /= scaled;
+			cellDef->cd_bbox.r_xtop /= scaled;
+			cellDef->cd_bbox.r_ytop /= scaled;
+		    }
+		    cellDef->cd_extended = cellDef->cd_bbox;
+		    cellDef->cd_flags |= CDFIXEDBBOX;
+		}
+	    }
+	    else
+	    {
+		storedvalue = StrDup((char **)NULL, propertyvalue);
+		(void) DBPropPut(cellDef, propertyname, storedvalue);
+	    }
 	}
 
 nextproperty:
@@ -1405,6 +1609,7 @@ nextproperty:
 	    break;
     }
 
+    cellDef->cd_flags |= noeditflag;
     return (TRUE);
 }
 
@@ -1727,7 +1932,7 @@ dbReadLabels(cellDef, line, len, f, scalen, scaled)
 		TxError("Skipping bad \"port\" line: %s", line);
 		goto nextlabel;
 	    }
-	    lab->lab_flags &= ~LABEL_STICKY;
+	    /* lab->lab_flags &= ~LABEL_STICKY; */
 	    lab->lab_flags |= idx;
 	    for (pptr = &ppos[0]; *pptr != '\0'; pptr++)
 	    {
@@ -1918,7 +2123,7 @@ dbFgets(line, len, f)
 	cs = line, l = len;
 	while (--l > 0 && (c = getc(f)) != EOF)
 	{
-	    *cs++ = c;
+	    if (c != '\r') *cs++ = c;
 	    if (c == '\n')
 		break;
 	}
@@ -2110,6 +2315,7 @@ DBCellWriteFile(cellDef, f)
     TileTypeBitMask typeMask, *sMask;
     int reducer;
     char *estring;
+    char lstring[256];
 
 #define FPRINTF(f,s)\
 {\
@@ -2158,6 +2364,10 @@ DBCellWriteFile(cellDef, f)
      * plane being searched.
      */
 
+    if (cellDef->cd_file)
+	arg.wa_name = cellDef->cd_file;
+    else
+	arg.wa_name = cellDef->cd_name;
     arg.wa_file = f;
     arg.wa_reducer = reducer;
     for (type = TT_PAINTBASE; type < DBNumUserLayers; type++)
@@ -2194,8 +2404,6 @@ DBCellWriteFile(cellDef, f)
     /* Now labels */
     if (cellDef->cd_labels)
     {
-	char lstring[256];
-
 	FPRINTF(f, "<< labels >>\n");
 	for (lab = cellDef->cd_labels; lab; lab = lab->lab_next)
 	{
@@ -2306,6 +2514,27 @@ DBCellWriteFile(cellDef, f)
 	DBPropEnum(cellDef, dbWritePropFunc, (ClientData)f);
     }
 
+    /* Fixed bounding box goes into a special property in output file	*/
+    /* This is not kept internally as a property, so that it can be	*/
+    /* read and written in the correct units without regard to internal	*/
+    /* changes in scaling.						*/
+
+    if (cellDef->cd_flags & CDFIXEDBBOX)
+    {
+	// If there were no explicit properties, then we need to
+	// write the header
+
+	if (cellDef->cd_props == (ClientData)NULL)
+	    FPRINTF(f, "<< properties >>\n");
+
+	sprintf(lstring, "string FIXED_BBOX %d %d %d %d\n",
+		cellDef->cd_bbox.r_xbot / reducer,
+		cellDef->cd_bbox.r_ybot / reducer,
+		cellDef->cd_bbox.r_xtop / reducer,
+		cellDef->cd_bbox.r_ytop / reducer);
+	FPRINTF(f, lstring);
+    }
+
     FPRINTF(f, "<< end >>\n");
 
     if (fflush(f) == EOF || ferror(f))
@@ -2350,10 +2579,12 @@ dbWritePropFunc(key, value, cdata)
     ClientData cdata;
 {
     FILE *f = (FILE *)cdata;
-    char lstring[256];
+    char *lstring;
 
+    lstring = (char *)mallocMagic(10 + strlen((char *)value) + strlen(key));
     sprintf(lstring, "string %s %s\n", key, (char *)value);
     FPRINTR(f, lstring);
+    freeMagic(lstring);
 
     return 0;
 }
@@ -2563,7 +2794,7 @@ DBCellWrite(cellDef, fileName)
 #ifdef FILE_LOCKS
 	else
 	    /* Re-aquire the lock on the new file by opening it. */
-	    DBCellRead(cellDef, NULL, TRUE);
+	    DBCellRead(cellDef, NULL, TRUE, NULL);
 #endif  
 
     }
@@ -2798,20 +3029,44 @@ dbWriteCellFunc(cellUse, cdarg)
     struct writeArg *arg = (struct writeArg *) cdarg;
     Transform *t;
     Rect *b;
-    char     cstring[256], *pathend;
+    char     cstring[256], *pathend, *pathstart, *parent;
 
     t = &(cellUse->cu_transform);
     b = &(cellUse->cu_def->cd_bbox);
+    pathstart = cellUse->cu_def->cd_file;
+    parent = arg->wa_name;
 
-    if (cellUse->cu_def->cd_file == NULL)
+    if (pathstart == NULL)
 	pathend = NULL;
     else
     {
-	pathend = strrchr(cellUse->cu_def->cd_file, '/');
-	if (pathend != NULL) *pathend = '\0';
+	char *slashptr, *pathorigin;
+
+	/* Get child path relative to the parent path */
+
+	pathorigin = pathstart;
+	pathend = strrchr(pathstart, '/');
+	slashptr = strchr(pathstart, '/');
+	while (slashptr)
+	{
+	    if (!strncmp(pathorigin, parent, (int)(slashptr - pathorigin + 1)))
+	    {
+		pathstart = slashptr + 1;
+		slashptr = strchr(pathstart, '/');
+	    }
+	    else
+		break;
+	}
+	if (pathend != NULL)
+	{
+	    *pathend = '\0';
+	    if (pathstart >= pathend)
+		pathstart = NULL;
+	}
     }
 
-    if ((cellUse->cu_def->cd_flags & CDVISITED) || (pathend == NULL))
+    if ((cellUse->cu_def->cd_flags & CDVISITED) || (pathend == NULL) ||
+		(pathstart == NULL) || (*pathstart == '\0'))
     {
 	sprintf(cstring, "use %s %c%s\n", cellUse->cu_def->cd_name,
 		(cellUse->cu_flags & CU_LOCKED) ? CULOCKCHAR : ' ',
@@ -2819,9 +3074,26 @@ dbWriteCellFunc(cellUse, cdarg)
     }
     else
     {
-	sprintf(cstring, "use %s %c%s %s\n", cellUse->cu_def->cd_name,
-		(cellUse->cu_flags & CU_LOCKED) ? CULOCKCHAR : ' ',
-		cellUse->cu_id, cellUse->cu_def->cd_file);
+	/* If path starts with home path, then replace with "~"	*/
+	/* to make IP semi-portable between home directories	*/
+	/* with the same file structure.			*/
+
+	char *homedir = getenv("HOME");
+
+	if (!strncmp(cellUse->cu_def->cd_file, homedir, strlen(homedir))
+		&& (*(cellUse->cu_def->cd_file + strlen(homedir)) == '/'))
+	{
+	    sprintf(cstring, "use %s %c%s ~%s\n", cellUse->cu_def->cd_name,
+			(cellUse->cu_flags & CU_LOCKED) ? CULOCKCHAR : ' ',
+			cellUse->cu_id, cellUse->cu_def->cd_file +
+			strlen(homedir));
+	}
+	else
+	{
+	    sprintf(cstring, "use %s %c%s %s\n", cellUse->cu_def->cd_name,
+			(cellUse->cu_flags & CU_LOCKED) ? CULOCKCHAR : ' ',
+			cellUse->cu_id, pathstart);
+	}
     }
     FPRINTR(arg->wa_file, cstring);
 

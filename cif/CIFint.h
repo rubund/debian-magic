@@ -125,6 +125,9 @@ typedef struct cifop
  *			the CIF layer, selectively picking layers.
  * CIFOP_MAXRECT -	Reduce all areas to the largest internal fitting
  *			rectangle.
+ * CIFOP_COPYUP -	Added 5/5/16---make and keep a copy the resulting layer,
+ *			which will be painted into parent cells instead of the
+ *			current cell.  This replaces the "fault" method.
  */
 
 #define CIFOP_AND	1
@@ -143,6 +146,7 @@ typedef struct cifop
 #define CIFOP_BBOX	14
 #define CIFOP_NET	15
 #define CIFOP_MAXRECT	16
+#define CIFOP_COPYUP	17
 
 /* Added by Tim 10/21/2004 */
 /* The following structure is used to pass information on how to draw

@@ -396,7 +396,7 @@ TxUseMore()
 	char *argv[100];
 	close(pipeEnds[1]);
 	dup2(pipeEnds[0], 0);
-	if ((pagername = rindex(pagerpath, '/')) != (char *) 0) 
+	if ((pagername = strrchr(pagerpath, '/')) != (char *) 0) 
 	    pagername++;
 	else
 	    pagername = pagerpath;
@@ -439,15 +439,6 @@ done:
 void
 TxStopMore()
 {
-
-/*
-#if defined(SYSV) | defined(ALPHA)
-    int status;
-#else
-    union wait status;
-#endif
-*/
-
     /* TxMoreFile may be NULL if the "more" executable was not found */
     if (TxMoreFile == NULL) return;
 
@@ -464,7 +455,6 @@ TxStopMore()
   
     WaitPid (txMorePid, 0);
     txMorePid = 0;
-/*  while (wait(&status) != txMorePid) */ /* try again */; 
 }
 
 #endif /* !MAGIC_WRAPPER */

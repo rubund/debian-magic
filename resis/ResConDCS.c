@@ -42,6 +42,8 @@ struct conSrArg2
     TileTypeBitMask     *csa2_connect;  /* Table indicating what connects
                                          * to what.
                                          */
+    SearchContext	*csa2_topscx;	/* Original top-level search context */
+    int			 csa2_xMask;	/* Cell window mask for search */
     Rect                *csa2_bounds;   /* Area that limits the search */
 
     conSrArea		*csa2_list;	/* List of areas to process */
@@ -52,6 +54,7 @@ struct conSrArg2
 #define CSA2_LIST_START_SIZE 256
 
 extern int dbcUnconnectFunc();
+extern int dbcConnectLabelFunc();
 extern int dbcConnectFuncDCS();
 #ifdef ARIEL
 extern int resSubSearchFunc();
@@ -96,6 +99,7 @@ dbcConnectFuncDCS(tile, cx)
     TileType		t2, t1, loctype, ctype;
     TileType		dinfo = 0;
     SearchContext	*scx = cx->tc_scx;
+    SearchContext	scx2;
     int			pNum;
     CellDef		*def;
 
@@ -195,7 +199,6 @@ dbcConnectFuncDCS(tile, cx)
 #ifdef ARIEL
     if (TTMaskHasType(&ResSubsTypeBitMask,t1) && (ResOptionsFlags & ResOpt_DoSubstrate))
     {
-         int	pNum;
 	 TileTypeBitMask  *mask = &ExtCurStyle->exts_subsTransistorTypes[t1];
 
 	 for (pNum = PL_TECHDEPBASE; pNum < DBNumPlanes; pNum++)
@@ -225,35 +228,15 @@ dbcConnectFuncDCS(tile, cx)
 	loctype = (SplitSide(tile)) ? SplitRightType(tile) : SplitLeftType(tile);
     }
 
-    pNum = DBPlane(loctype);
+    pNum = cx->tc_plane;
     connectMask = &csa2->csa2_connect[loctype];
 
     if (DBIsContact(loctype))
     {
-	TileTypeBitMask *cMask, *rMask = DBResidueMask(loctype);
-
-	TTMaskSetOnlyType(&notConnectMask, loctype);
-
-	/* Differenct contact types may share residues (6/18/04) */     
-	for (ctype = TT_TECHDEPBASE; ctype < DBNumUserLayers; ctype++)
-	{
-	    if (DBIsContact(ctype))
-	    {
-		cMask = DBResidueMask(ctype);
-		if (TTMaskIntersect(rMask, cMask))
-		    TTMaskSetType(&notConnectMask, ctype);
-	    }
-	}
-
 	/* The mask of contact types must include all stacked contacts */
-	for (ctype = DBNumUserLayers; ctype < DBNumTypes; ctype++)   
-	{
-	    cMask = DBResidueMask(ctype);
-	    if TTMaskHasType(cMask, loctype)
-		TTMaskSetType(&notConnectMask, ctype);
-	}
-
-	TTMaskCom(&notConnectMask);
+	
+	TTMaskZero(&notConnectMask);
+	TTMaskSetMask(&notConnectMask, &DBNotConnectTbl[loctype]);
     }
     else
     {
@@ -264,12 +247,22 @@ dbcConnectFuncDCS(tile, cx)
 
     if (DBSrPaintNMArea((Tile *) NULL, def->cd_planes[pNum],
 		dinfo, &newarea, &notConnectMask, dbcUnconnectFunc,
-		(ClientData) connectMask) == 0)
+		(ClientData)NULL) == 0)
 	return 0;
 
     DBNMPaintPlane(def->cd_planes[pNum], dinfo,
 		&newarea, DBStdPaintTbl(loctype, pNum),
 		(PaintUndoInfo *) NULL);
+
+    /* Check the source def for any labels belonging to this	*/
+    /* tile area and plane, and add them to the destination	*/
+
+    scx2 = *csa2->csa2_topscx;
+    scx2.scx_area = newarea;
+    DBTreeSrLabels(&scx2, connectMask, csa2->csa2_xMask, NULL,
+    		TF_LABEL_ATTACH, dbcConnectLabelFunc,
+    		(ClientData)csa2);
+    // DBCellCopyLabels(&scx2, connectMask, csa2->csa2_xMask, csa2->csa2_use, NULL);
 
     /* Only extend those sides bordering the diagonal tile */
 
@@ -306,12 +299,14 @@ dbcConnectFuncDCS(tile, cx)
 	csa2->csa2_size *= 2;
 
 	newlist = (conSrArea *)mallocMagic(csa2->csa2_size * sizeof(conSrArea));
-	for (i = 0; i < lastsize; i++)
-	{
-	    newlist[i].area = csa2->csa2_list[i].area;
-	    newlist[i].connectMask = csa2->csa2_list[i].connectMask;
-	    newlist[i].dinfo = csa2->csa2_list[i].dinfo;
-	}
+	memcpy((void *)newlist, (void *)csa2->csa2_list,
+			(size_t)lastsize * sizeof(conSrArea));
+	// for (i = 0; i < lastsize; i++)
+	// {
+	//     newlist[i].area = csa2->csa2_list[i].area;
+	//     newlist[i].connectMask = csa2->csa2_list[i].connectMask;
+	//     newlist[i].dinfo = csa2->csa2_list[i].dinfo;
+	// }
 	freeMagic((char *)csa2->csa2_list);
 	csa2->csa2_list = newlist;
     }
@@ -432,8 +427,10 @@ DBTreeCopyConnectDCS(scx, mask, xMask, connect, area, destUse)
     TileType		newtype;
 
     csa2.csa2_use = destUse;
+    csa2.csa2_xMask = xMask;
     csa2.csa2_bounds = area;
     csa2.csa2_connect = connect;
+    csa2.csa2_topscx = scx;
 
     csa2.csa2_size = CSA2_LIST_START_SIZE;
     csa2.csa2_list = (conSrArea *)mallocMagic(CSA2_LIST_START_SIZE

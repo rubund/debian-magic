@@ -846,7 +846,7 @@ dbFreeCellFunc(tile)
 	{
 	    /* The parent must be null before DBCellDeleteUse will work */
 	    use->cu_parent = (CellDef *) NULL;
-	    (void) DBCellDeleteUse(use);
+	    DBCellDeleteUse(use);
 	}
 	freeMagic((char *)body);
     }

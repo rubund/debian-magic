@@ -22,9 +22,7 @@ static char rcsid[] = "$Header: /usr/cvsroot/magic-8.0/utils/LIBdbio.c,v 1.1.1.1
 #endif	/* not lint */
 
 #include <stdio.h>
-#ifdef __STDC__
 #include <unistd.h>
-#endif
 
 #include "utils/magic.h"
 

@@ -50,4 +50,8 @@ typedef struct GR_GLY3
 
 extern void GrFreeGlyphs();
 
+/* global pointer to the set of window glyphs */
+
+extern GrGlyphs *windGlyphs;
+
 #endif /* _GLYPHS_H */

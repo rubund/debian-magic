@@ -900,7 +900,7 @@ mzTechSpacing(argc, argv)
  * mzTechSearch --
  *
  * Process a "search" line from the "mzrouter" section of the tech file.
- * A search line sets several parameters controling the search.
+ * A search line sets several parameters controlling the search.
  * It has the form: 
  *
  *	search <rate> <width> <penalty>

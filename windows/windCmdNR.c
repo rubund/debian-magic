@@ -233,7 +233,7 @@ windPushbuttonCmd(w, cmd)
     txcmd.tx_argc = 0;
     txcmd.tx_p = cmd->tx_p;
     txcmd.tx_wid = cmd->tx_wid;
-    (void) WindSendCommand(w, &txcmd);
+    (void) WindSendCommand(w, &txcmd, FALSE);
     return;
 
 badusage:

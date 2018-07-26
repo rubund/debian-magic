@@ -187,7 +187,7 @@ drcPrintError (celldef, rect, cptr, scx)
 {
     HashEntry *h;
     int i;
-    Rect *area;
+    Rect *area, r;
 
     ASSERT (cptr != (DRCCookie *) NULL, "drcPrintError");
 
@@ -253,6 +253,7 @@ drcListallError (celldef, rect, cptr, scx)
 
     ASSERT (cptr != (DRCCookie *) NULL, "drcListallError");
 
+    // Report in top-level coordinates
     GeoTransRect(&scx->scx_trans, rect, &r);
     area = &scx->scx_area;
     if ((area != NULL) && (!GEO_OVERLAP(area, rect))) return;
@@ -559,7 +560,7 @@ drcWhyAllFunc(scx, cdarg)
     
     (void) DRCInteractionCheck(def, &scx->scx_area, &scx->scx_area,
 		drcListallError, (ClientData)scx);
-    (void) DRCArrayCheck(def, &scx->scx_area,
+    (void) DRCArrayCheck(def, &scx->scx_area, &scx->scx_area,
 		drcListallError, (ClientData)scx);
     
     /* Also search children. */
@@ -890,7 +891,7 @@ drcFindFunc(scx, finddata)
     if (HashGetValue(h) != 0) return 0;
     HashSetValue(h, 1);
 
-    (void) DBCellRead(def, (char *) NULL, TRUE);
+    (void) DBCellRead(def, (char *) NULL, TRUE, NULL);
 
     if (DBSrPaintArea((Tile *) NULL, def->cd_planes[PL_DRC_ERROR],
 	    &def->cd_bbox, &DBAllButSpaceBits, drcFindFunc2,

@@ -30,6 +30,7 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
 #endif
 
 #include "utils/magic.h"
+#include "utils/main.h"
 #include "utils/utils.h"
 #include "utils/hash.h"
 #include "utils/malloc.h"
@@ -77,10 +78,11 @@ MacroInit()
  */
 
 void
-MacroDefine(client, xc, str, imacro)
+MacroDefine(client, xc, str, help, imacro)
     WindClient client;	/* window client type */
     int xc;		/* full (X11) keycode of macro with modifiers */
     char *str;		/* ...and the string to be attached to it */
+    char *help;		/* ...and/or the help text for the macro */
     bool imacro;	/* is this an interactive macro? */
 {
     HashEntry *h;
@@ -102,6 +104,10 @@ MacroDefine(client, xc, str, imacro)
     {
 	if (oldMacro->macrotext != NULL)
 	    freeMagic(oldMacro->macrotext);
+	if (oldMacro->helptext != NULL) {
+	    freeMagic(oldMacro->helptext);
+	    oldMacro->helptext = NULL;
+	}
 	newMacro = oldMacro;
     }
     else
@@ -110,6 +116,54 @@ MacroDefine(client, xc, str, imacro)
     HashSetValue(h, newMacro);
     newMacro->interactive = imacro;
     newMacro->macrotext = StrDup((char **)NULL, str);
+    if (help != NULL)
+	newMacro->helptext = StrDup((char **)NULL, help);
+    else
+	newMacro->helptext = NULL;
+}
+
+/*
+ *---------------------------------------------------------
+ * MacroDefineHelp ---
+ *
+ *	This procedure defines the help text for a macro.
+ *	A macro must already exist for the specified key.
+ *
+ * Results:
+ *	None.
+ *
+ * Side Effects:
+ *	The string passed is copied and considered to be the
+ *	macro definition for the character.
+ *---------------------------------------------------------
+ */
+
+void
+MacroDefineHelp(client, xc, help)
+    WindClient client;	/* window client type */
+    int xc;		/* full (X11) keycode of macro with modifiers */
+    char *help;		/* ...and/or the help text for the macro */
+{
+    HashEntry *h;
+    HashTable *clienttable;
+    macrodef *curMacro;
+
+    /* If a macro exists, delete the old string and redefine it */
+    h = HashFind(&MacroClients, (char *)client);
+    clienttable = (HashTable *)HashGetValue(h);
+    if (clienttable == NULL) return;
+
+    h = HashFind(clienttable, (char *)((ClientData)xc));
+    curMacro = (macrodef *)HashGetValue(h);
+    if (curMacro == NULL) return;
+
+    if (curMacro->helptext != NULL)
+	freeMagic(curMacro->helptext);
+
+    if (help == NULL)
+	curMacro->helptext = NULL;
+    else
+	curMacro->helptext = StrDup((char **)NULL, help);
 }
 
 /*---------------------------------------------------------
@@ -157,6 +211,49 @@ MacroRetrieve(client, xc, iReturn)
 	}
     }
     if (iReturn != NULL) *iReturn = FALSE;
+    return (char *)NULL;
+}
+
+/*---------------------------------------------------------
+ * MacroRetrieveHelp:
+ *	This procedure retrieves the help text for a macro.
+ *
+ * Results:
+ *	A pointer to a new Malloc'ed string is returned.
+ *	This structure should be freed when the caller is
+ *	done with it.
+ *
+ * Side Effects:
+ *	None.
+ *---------------------------------------------------------
+ */
+
+char *
+MacroRetrieveHelp(client, xc)
+    WindClient client;		/* window client type */
+    int xc;			/* the extended name of the macro */
+{
+    HashEntry *h;
+    HashTable *clienttable;
+    macrodef *cMacro;
+
+    /* If a macro exists, delete the old string and redefine it */
+    h = HashLookOnly(&MacroClients, (char *)client);
+    if (h != NULL)
+    {
+	clienttable = (HashTable *)HashGetValue(h);
+	if (clienttable != NULL)
+	{
+	    h = HashLookOnly(clienttable, (char *)((ClientData)xc));
+	    if (h != NULL)
+	    {
+		cMacro = (macrodef *)HashGetValue(h);
+		if (cMacro != NULL)
+		    if (cMacro->helptext != NULL)
+			return StrDup((char **)NULL, cMacro->helptext);
+	    }
+	}
+    }
     return (char *)NULL;
 }
 
@@ -253,6 +350,8 @@ MacroDelete(client, xc)
 		{
 		    if (cMacro->macrotext != NULL)
 			freeMagic(cMacro->macrotext);
+		    if (cMacro->helptext != NULL)
+			freeMagic(cMacro->helptext);
 		    HashSetValue(h, NULL);
 		    freeMagic(cMacro);
 		}
@@ -460,6 +559,9 @@ MacroKey(str, verbose)
 	    else
 		kc = (int)tc;
 	}
+	else if (!strncmp(vis, "<del>", 5))
+	    /* Because, weirdly, there is no keysymdef for the "Delete" key */
+	    kc = (int)0x7f;
 	else
 	{
 	    /* X11 keysym name handling */
@@ -494,7 +596,11 @@ MacroKey(str, verbose)
 	return (int)str[1] - 'A' + 1;
     }
     if (warn)
-	TxError("Extended macros are unavailable with this device type.\n");
+    {
+	if (strcasecmp(MainDisplayType, "NULL") || (TxTkConsole == TRUE))
+	    TxPrintf("Extended macros are unavailable"
+			" with graphics type \"%s\".\n", MainDisplayType);
+    }
     warn = 0;
     *verbose = 0;
     return(0);

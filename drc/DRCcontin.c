@@ -59,7 +59,7 @@ global unsigned char DRCStatus = DRC_NOT_RUNNING;
  * tiles pile up but nothing is checked.
  */
 
-global u_char DRCBackGround = DRC_NOT_SET;
+global unsigned char DRCBackGround = DRC_NOT_SET;
 
 /* Global variable, settable by outside world, that enables
  * and disables Euclidean DRC checking.  If enabled, magic
@@ -481,7 +481,7 @@ DRCContinuous()
 				 */
 	while ((DRCPendingRoot != (DRCPendingCookie *)NULL) &&
 	    DBSrPaintArea ((Tile *) NULL,
-	    DRCPendingRoot->dpc_def->cd_planes [PL_DRC_CHECK],
+	    DRCPendingRoot->dpc_def->cd_planes[PL_DRC_CHECK],
 	    &TiPlaneRect, &DBAllButSpaceBits, drcCheckTile, (ClientData) NULL))
 	{
 			     /* check for new user command (without blocking) */
@@ -615,6 +615,7 @@ drcCheckTile(tile, arg)
     Rect erasebox;		/* erase old ERROR tiles in this
 				 * region and clip new ERRORs to it
 				 */
+    Rect checkbox;
     CellDef * celldef;		/* First CellDef on DRCPending list. */
     Rect redisplayArea;		/* Area to be redisplayed. */
     extern int drcXorFunc();	/* Forward declarations. */
@@ -644,6 +645,12 @@ drcCheckTile(tile, arg)
 	erasebox.r_xtop, erasebox.r_ytop);
     */
 
+    /* checkbox is erasebox expanded by DRCTechHalo.  Note that this is	*/
+    /* computed independently inside DRCInteractionCheck().		*/
+
+    GEO_EXPAND(&erasebox, DRCTechHalo, &checkbox);
+    GeoClip(&checkbox, &square);
+
     /* Use drcDisplayPlane to save all the current errors in the
      * area we're about to recheck.
      */
@@ -664,7 +671,7 @@ drcCheckTile(tile, arg)
      */
 
     /* DRCBasicCheck (celldef, &checkbox, &erasebox, drcPaintError,
-	(ClientData) drcTempPlane); */
+		(ClientData) drcTempPlane); */
 
     /* Check #2:  check interactions between paint and subcells, and
      * also between subcells and other subcells.  If any part of a
@@ -700,10 +707,10 @@ drcCheckTile(tile, arg)
     DBPaintPlane(celldef->cd_planes[PL_DRC_CHECK], &erasebox,
 	DBStdEraseTbl(TiGetType(tile), PL_DRC_CHECK),
 	(PaintUndoInfo *) NULL);
-    DBPaintPlane(celldef->cd_planes[PL_DRC_ERROR], &erasebox,
+    DBPaintPlane(celldef->cd_planes[PL_DRC_ERROR], &checkbox,
 	DBStdEraseTbl(TT_ERROR_P, PL_DRC_ERROR),
 	(PaintUndoInfo *) NULL);
-    DBPaintPlane(celldef->cd_planes[PL_DRC_ERROR], &square,
+    DBPaintPlane(celldef->cd_planes[PL_DRC_ERROR], &checkbox,
 	DBStdEraseTbl(TT_ERROR_S, PL_DRC_ERROR),
 	(PaintUndoInfo *) NULL);
     (void) DBSrPaintArea((Tile *) NULL, drcTempPlane, &TiPlaneRect,

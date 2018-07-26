@@ -614,12 +614,19 @@ GrTkGetColorByName(name)
 
     if (strlen(name) == 1)
 	style = GrStyleNames[name[0] & 0x7f];
+    else if (DBWNumStyles == 0)
+    {
+	TxError("No style table exists.\n");
+	return NULL;
+    }
     else
     {
 	for (style = 0; style < TECHBEGINSTYLES + DBWNumStyles; style++)
-	    if (!strcmp(name, GrStyleTable[style].longname))
-		break;
+	    if (GrStyleTable[style].longname != NULL)
+		if (!strcmp(name, GrStyleTable[style].longname))
+		    break;
     }
+
     if (style >= TECHBEGINSTYLES + DBWNumStyles)
     {
 	TxError("Style does not exist or style is not accessible\n");
@@ -705,6 +712,7 @@ typedef struct LayerMaster {
 				 * deleted. */
     int width, height;		/* Dimensions of image. */
     int layerOff;		/* If TRUE layer is displayed in non-edit style */
+    int layerLock;		/* Layer is displayed with a cursor icon */
     char *layerString;		/* Value of -layer option (malloc'ed). */
     struct LayerInstance *instancePtr;
 				/* First in list of all instances associated
@@ -735,8 +743,8 @@ typedef struct LayerInstance {
  */
 
 static int		ImgLayerCreate _ANSI_ARGS_((Tcl_Interp *interp,
-			    char *name, int argc, Tcl_Obj *CONST objv[],
-			    Tk_ImageType *typePtr, Tk_ImageMaster master,
+			    const char *name, int argc, Tcl_Obj *CONST objv[],
+			    const Tk_ImageType *typePtr, Tk_ImageMaster master,
 			    ClientData *clientDataPtr));
 static ClientData	ImgLayerGet _ANSI_ARGS_((Tk_Window tkwin,
 			    ClientData clientData));
@@ -769,6 +777,8 @@ static Tk_ConfigSpec configSpecs[] = {
 	(char *) NULL, Tk_Offset(LayerMaster, layerString), TK_CONFIG_NULL_OK},
     {TK_CONFIG_BOOLEAN, "-disabled", (char *) NULL, (char *) NULL,
 	(char *) "0", Tk_Offset(LayerMaster, layerOff), 0},
+    {TK_CONFIG_INT, "-icon", (char *) NULL, (char *) NULL,
+	(char *) "-1", Tk_Offset(LayerMaster, layerLock), 0},
     {TK_CONFIG_INT, "-width", (char *) NULL, (char *) NULL,
 	(char *) "16", Tk_Offset(LayerMaster, width), 0},
     {TK_CONFIG_INT, "-height", (char *) NULL, (char *) NULL,
@@ -813,11 +823,11 @@ static int
 ImgLayerCreate(interp, name, argc, argv, typePtr, master, clientDataPtr)
     Tcl_Interp *interp;		/* Interpreter for application containing
 				 * image. */
-    char *name;			/* Name to use for image. */
+    const char *name;		/* Name to use for image. */
     int argc;			/* Number of arguments. */
     Tcl_Obj *CONST argv[];	/* Argument objects for options (doesn't
 				 * include image name or type). */
-    Tk_ImageType *typePtr;	/* Pointer to our type record (not used). */
+    const Tk_ImageType *typePtr;/* Pointer to our type record (not used). */
     Tk_ImageMaster master;	/* Token for image, to be used by us in
 				 * later callbacks. */
     ClientData *clientDataPtr;	/* Store manager's token for image here;
@@ -825,13 +835,14 @@ ImgLayerCreate(interp, name, argc, argv, typePtr, master, clientDataPtr)
 {
     LayerMaster *masterPtr;
 
-    masterPtr = (LayerMaster *) ckalloc(sizeof(LayerMaster));
+    masterPtr = (LayerMaster *) Tcl_Alloc(sizeof(LayerMaster));
     masterPtr->tkMaster = master;
     masterPtr->interp = interp;
     masterPtr->imageCmd = Tcl_CreateObjCommand(interp, name, ImgLayerCmd,
 	    (ClientData) masterPtr, ImgLayerCmdDeletedProc);
     masterPtr->width = masterPtr->height = 0;
     masterPtr->layerOff = 0;
+    masterPtr->layerLock = -1;
     masterPtr->layerString = NULL;
     masterPtr->instancePtr = NULL;
     if (ImgLayerConfigureMaster(masterPtr, argc, argv, 0) != TCL_OK) {
@@ -1090,6 +1101,7 @@ ImgLayerConfigureInstance(instancePtr)
 	tmpmw.w_flags = WIND_OFFSCREEN;
 	tmpmw.w_grdata = (ClientData)instancePtr->pixmap;
 	tmpmw.w_allArea = r;
+	tmpmw.w_clipAgainst = NULL;
 
 	GrLock(&tmpmw, FALSE);
 
@@ -1138,7 +1150,11 @@ ImgLayerConfigureInstance(instancePtr)
 		grDrawOffScreenBox(&r);
 		break;
 	}
-
+	if (masterPtr->layerLock >= 0) {
+	    GrSetStuff(STYLE_BLACK);
+	    grInformDriver();
+	    GrDrawGlyphNum(masterPtr->layerLock, 0, 0);
+	}
 	GrUnlock(&tmpmw);
     }
 
@@ -1318,7 +1334,7 @@ ImgLayerGet(tkwin, masterData)
 static void
 ImgLayerDisplay(clientData, display, drawable, imageX, imageY, width,
 	height, drawableX, drawableY)
-    ClientData clientData;	/* Pointer to BitmapInstance structure for
+    ClientData clientData;	/* Pointer to LayerInstance structure for
 				 * for instance to be displayed. */
     Display *display;		/* Display on which to draw image. */
     Drawable drawable;		/* Pixmap or window in which to draw image. */
@@ -1361,7 +1377,7 @@ ImgLayerDisplay(clientData, display, drawable, imageX, imageY, width,
 
 static void
 ImgLayerFree(clientData, display)
-    ClientData clientData;	/* Pointer to BitmapInstance structure for
+    ClientData clientData;	/* Pointer to LayerInstance structure for
 				 * for instance to be displayed. */
     Display *display;		/* Display containing window that used image. */
 {

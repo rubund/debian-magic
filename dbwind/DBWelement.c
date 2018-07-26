@@ -319,7 +319,7 @@ DBWElementRedraw(window, plane)
 	 * that there's additional scaling involved.
 	 */
 
-	WindSurfaceToScreen(window, &elem->area, &screenArea);
+	WindSurfaceToScreenNoClip(window, &elem->area, &screenArea);
 
 	/* Deal with half-point-offset flags for the line element */
 	if ((elem->type == ELEMENT_LINE) &&

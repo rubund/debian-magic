@@ -53,10 +53,11 @@ typedef struct
 #define r_xtop r_ur.p_x
 #define r_ytop r_ur.p_y
 
-typedef struct G1		/* A linked rectangle */
+typedef struct _linkedRect	/* A linked rectangle */
 {
     Rect r_r;			/* A rectangle. */
-    struct G1 *r_next;		/* Pointer to another linked rectangle */
+    int  r_type;	   	/* Tile type of rectangle */
+    struct _linkedRect *r_next; /* Pointer to another linked rectangle */
 } LinkedRect;
 
 /*-------------------------------------------------------------------

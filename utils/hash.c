@@ -234,7 +234,7 @@ hash(table, key)
 	case HT_CLIENTKEYS:
 	    if (table->ht_hashFn)
 	    {
-		i = (*table->ht_hashFn)(key);
+		i = (*(table->ht_hashFn))(key);
 		break;
 	    }
 	    /* Fall through to ... */

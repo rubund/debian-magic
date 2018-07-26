@@ -30,6 +30,7 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
 #include <sys/times.h>
 #include <sys/time.h>
 
+#include "tcltk/tclmagic.h"
 #include "utils/main.h"
 #include "utils/magic.h"
 #include "utils/malloc.h"
@@ -92,11 +93,7 @@ global char	*SysLibPath = NULL;	/* Used to find color maps, styles, */
  * (see utils.h for explanation of individual flags).
  */
 
-#ifdef MAGIC_WRAPPER
-global short RuntimeFlags = MAIN_MAKE_WINDOW | MAIN_TK_CONSOLE;
-#else
 global short RuntimeFlags = MAIN_MAKE_WINDOW;
-#endif
 
 /*
  * See the file main.h for a description of the information kept
@@ -120,12 +117,24 @@ static char *MainFileName = NULL;
 /* RC file specified on the command line */
 static char *RCFileName = NULL;	
 
-/* the first filename specified on the command line */
+/* Definition of file types that magic can read */
+#define FN_MAGIC_DB	0
+#define FN_LEF_FILE	1
+#define FN_DEF_FILE	2
+#define FN_GDS_FILE	3
+#define FN_CIF_FILE	4
+#define FN_TCL_SCRIPT	5
+
+/* List of filenames specified on the command line */
 typedef struct filename {
     char *fn;
+    unsigned char fn_type;
     struct filename *fn_prev;
 } FileName;
 FileName *CurrentName;
+
+/* tech name specified on the command line */
+static char *TechDefault = NULL;
 
 /* the filename for the graphics and mouse ports */
 global char *MainGraphicsFile = NULL;
@@ -174,6 +183,28 @@ MainExit(errNum)
 
     TxFlush();
     TxResetTerminal();
+
+#ifdef MAGIC_WRAPPER
+
+    // NOTE:  This needs to be done in conjunction with the following
+    // commands in the console:
+    // (1) tkcon eval rename ::exit ::quit
+    // (2) tkcon eval proc::exit args {slave eval quit}
+    //
+    // The lines above redirect tkcon's "exit" routine to be named
+    // "quit" (in the console, not the slave!).  Because the tkcon
+    // File->Exit callback is set to eval "exit", we then can create
+    // a new proc called "exit" in the console that runs "quit" in
+    // the slave (magic), and will therefore do the usual checks to
+    // save work before exiting;  if all responses are to exit without
+    // saving, then it finally gets to here, where it runs the (renamed)
+    // "quit" command in tkcon.  That will ensure that tkcon runs
+    // various cleanup activities such as saving the command-line
+    // history file before the final (!) exit.
+
+    if (TxTkConsole)
+	Tcl_Eval(magicinterp, "catch {tkcon eval quit}\n");
+#endif
 
     exit(errNum);
 }
@@ -336,6 +367,7 @@ mainDoArgs(argc, argv)
 		CurrentName = (FileName *) mallocMagic(sizeof(FileName));
 		CurrentName->fn = MainFileName;
 		CurrentName->fn_prev = (FileName *) NULL;
+		CurrentName->fn_type = FN_MAGIC_DB;
 	    }
 	    else
 	    {
@@ -344,6 +376,7 @@ mainDoArgs(argc, argv)
 		temporary = (FileName *) mallocMagic(sizeof(FileName));
 		temporary->fn = StrDup((char **) NULL, *argv);
 		temporary->fn_prev = CurrentName;
+		temporary->fn_type = FN_MAGIC_DB;
 		CurrentName = temporary;
 	    }
 
@@ -362,17 +395,32 @@ mainDoArgs(argc, argv)
 		    c--;
 		    d--;
 		}
+
+		// Additional checks
+		if ((c = strrchr(CurrentName->fn, '.')) != NULL)
+		{
+#ifdef LEF_MODULE
+		    if (!strcasecmp(c, ".lef"))
+			CurrentName->fn_type = FN_LEF_FILE;
+		    else if (!strcasecmp(c, ".def"))
+			CurrentName->fn_type = FN_DEF_FILE;
+#endif
+#ifdef CIF_MODULE
+		    if (!strcasecmp(c, ".cif"))
+			CurrentName->fn_type = FN_CIF_FILE;
+		    else if (!strncasecmp(c, ".gds", 3))
+			CurrentName->fn_type = FN_GDS_FILE;
+#endif
+#ifdef MAGIC_WRAPPER
+		    if (!strcasecmp(c, ".tcl"))
+			CurrentName->fn_type = FN_TCL_SCRIPT;
+#endif
+		}
 	    }
 	}
     }
 
     return 0;
-
-badfopt:
-    TxError("-F requires load and save file names, e.g.,");
-    TxError(" \"-F magic magicsave\"\n");
-exitnow:
-    return 1;
 }
 
 /*
@@ -449,10 +497,6 @@ mainInitBeforeArgs(argc, argv)
     LispInit();
 #endif
 
-    /* Identify version first thing */
-    TxPrintf("\nMagic %s revision %s - Compiled on %s.\n", MagicVersion,
-		MagicRevision, MagicCompileTime);
-
     /*
      * Get preliminary info on the graphics display.
      * This may be overriden later.
@@ -492,22 +536,8 @@ mainInitAfterArgs()
     SectionID sec_drc, sec_extract, sec_wiring, sec_router;
     SectionID sec_plow, sec_plot, sec_mzrouter;
 
-    /* If no technology has been specified yet, try to read one from
-     * the initial cell, or else assign a default.
-     */
-
-    if ((TechDefault == NULL) && (MainFileName != NULL))
-	(void) StrDup(&TechDefault, DBGetTech(MainFileName));
-    if (TechDefault == NULL)
-	TechDefault = "scmos";
-
     DBTypeInit();
     MacroInit();
-
-#ifdef SCHEME_INTERPRETER
-    /* Pass technology name to Lisp interpreter (rajit@cs.caltech.edu) */
-    LispSetTech (TechDefault);
-#endif
 
 #ifdef LEF_MODULE
     /* Pre-techfile-loading intialization of the LEF module */
@@ -518,22 +548,49 @@ mainInitAfterArgs()
     OAInit();
 #endif
 
-    /* TxPrintf("Using technology \"%s\".\n", TechDefault); */
-
     /*
      * Setup path names for system directory searches
      */
 
     StrDup(&SysLibPath, MAGIC_SYS_PATH);
 
-    CellLibPath = (char *)mallocMagic(strlen(MAGIC_LIB_PATH) + strlen(TechDefault) - 1);
-    (void) sprintf(CellLibPath, MAGIC_LIB_PATH, TechDefault);
+    /*
+     * Historic behavior:  Expect to search for cells in a directory
+     * inside the install area with the same name as the technology.
+     * Deprecated but kept for backwards compatibility.  If directory
+     * does not exist, it will be ignored.
+     */
+
+    if (TechFileName != NULL)
+    {
+	CellLibPath = (char *)mallocMagic(strlen(MAGIC_LIB_PATH_FORMAT)
+		+ strlen(TechFileName) - 1);
+	sprintf(CellLibPath, MAGIC_LIB_PATH_FORMAT, TechFileName);
+	PaAppend(&CellLibPath, MAGIC_LIB_PATH_DEFAULT);
+    }
+    else if ((TechDefault != NULL) && TechOverridesDefault)
+    {
+	CellLibPath = (char *)mallocMagic(strlen(MAGIC_LIB_PATH_FORMAT)
+		+ strlen(TechDefault) - 1);
+	sprintf(CellLibPath, MAGIC_LIB_PATH_FORMAT, TechDefault);
+	PaAppend(&CellLibPath, MAGIC_LIB_PATH_DEFAULT);
+    }
+    else
+	StrDup(&CellLibPath, MAGIC_LIB_PATH_DEFAULT);
     
     if (MainGraphicsFile == NULL) MainGraphicsFile = "/dev/null";
     if (MainMouseFile == NULL) MainMouseFile = MainGraphicsFile;
 
+#ifdef MAGIC_WRAPPER
+    /* Check for batch mode operation and disable interrupts in	*/
+    /* batch mode by not calling SigInit().			*/
+    if (Tcl_GetVar(magicinterp, "batch_mode", TCL_GLOBAL_ONLY) != NULL)
+	SigInit(1);
+    else
+#endif
+
     /* catch signals, must come after mainDoArgs & before SigWatchFile */
-    SigInit();
+    SigInit(0);
 
     /* set up graphics */
     if ( !GrSetDisplay(MainDisplayType, MainGraphicsFile, MainMouseFile) )
@@ -627,28 +684,25 @@ mainInitAfterArgs()
 			sec_types, &sec_plot, TRUE);
 #endif
 
-    /* Load the technology file */
+    /* Load minimum technology file needed to keep things from	*/
+    /* crashing during initialization.				*/
 
-    if (!TechLoad(TechDefault, 0))
+    if (!TechLoad("minimum", 0))
     {
-	/* Don't give up just yet---user may have put a tech	*/
-	/* load command in the RC file.  Load the default	*/
-	/* technology, and only complain if that doesn't work	*/
-	/* either.						*/
-
-	if (!TechLoad("scmos", 0))
-	{
-	    TxError("Cannot load technology \"scmos\" or \"%s\"\n", TechDefault);
-	    return 2;
-	}
+	TxError("Cannot load technology \"minimum\" for initialization\n");
+	return 2;
     }
 
-    if (DBTechName != 0) {
-	TxPrintf("Using technology \"%s\"", DBTechName);
-	if (DBTechVersion != 0) TxPrintf(", version %s.", DBTechVersion);
-	TxPrintf("\n");
+    /* The minimum tech has been loaded only to keep the database from	*/
+    /* becoming corrupted during initialization.  Free the tech file	*/
+    /* name so that a "real" technology file can be forced to replace	*/
+    /* it in mainInitFinal().						*/
+
+    if (TechFileName != NULL)
+    {
+	freeMagic(TechFileName);
+	TechFileName = NULL;
     }
-    if (DBTechDescription != 0) TxPrintf("%s\n", DBTechDescription);
 
     /* initialize the undo package */
     (void) UndoInit((char *) NULL, (char *) NULL);
@@ -659,7 +713,7 @@ mainInitAfterArgs()
     /* initialize commands */
     CmdInit();
 
-    /* Initalize the interface between windows and its clients */
+    /* Initialize the interface between windows and its clients */
     DBWinit();
 #ifdef USE_READLINE
     TxInitReadline();
@@ -733,11 +787,88 @@ mainInitAfterArgs()
 int
 mainInitFinal()
 {
-    char *home;
-    char startupFileName[100];
+    char *home, cwd[512];
+    char startupFileName[256];
     FILE *f;
+    char *rname;
+    int result;
 
+#ifdef MAGIC_WRAPPER
+
+    /* Read in system pre-startup file, if it exists. */
+
+    /* Use PaOpen first to perform variable substitutions, and	*/
+    /* return the actual filename in rname.			*/
+
+    f = PaOpen(MAGIC_PRE_DOT, "r", (char *) NULL, ".",
+	    (char *) NULL, (char **) &rname);
+    if (f != NULL)
+    {
+	fclose(f);
+	result = Tcl_EvalFile(magicinterp, rname);
+	if (result != TCL_OK)
+	{
+	    TxError("Error parsing pre-startup file \"%s\": %s\n", rname,
+				Tcl_GetStringResult(magicinterp));
+	    Tcl_ResetResult(magicinterp);
+	}
+    }
+#endif	/* MAGIC_WRAPPER */
+
+    // Make a first attempt to load the technology if specified on the
+    // command line with the -T option.  This will preempt most other
+    // ways that the technology file is determined.  If the technology
+    // specified cannot be loaded, then the forced override is revoked.
+
+    if ((TechFileName == NULL) && (TechDefault != NULL) && TechOverridesDefault)
+    {
+        if (!TechLoad(TechDefault, -2))
+	{
+            TxError("Failed to load technology \"%s\"\n", TechDefault);
+	    TechOverridesDefault = FALSE;
+	}
+        else if (!TechLoad(TechDefault, 0))
+	{
+            TxError("Error loading technology \"%s\"\n", TechDefault);
+	    TechOverridesDefault = FALSE;
+	}
+    }
+
+#ifndef MAGIC_WRAPPER
+
+    // Let the wrapper script be responsible for formatting and
+    // printing the technology file informaiton.
+
+    if (DBTechName != 0) {
+	TxPrintf("Using technology \"%s\"", DBTechName);
+	if (DBTechVersion != 0) TxPrintf(", version %s.", DBTechVersion);
+	TxPrintf("\n");
+    }
+    if (DBTechDescription != 0) TxPrintf("%s\n", DBTechDescription);
+#endif
+
+#ifdef MAGIC_WRAPPER
     /* Read in system startup file, if it exists. */
+
+    /* Use PaOpen first to perform variable substitutions, and	*/
+    /* return the actual filename in rname.			*/
+
+    f = PaOpen(MAGIC_SYS_DOT, "r", (char *) NULL, ".",
+	    (char *) NULL, (char **) &rname);
+    if (f != NULL)
+    {
+	fclose(f);
+	result = Tcl_EvalFile(magicinterp, rname);
+	if (result != TCL_OK)
+	{
+	    TxError("Error parsing system startup file \"%s\": %s\n", rname,
+				Tcl_GetStringResult(magicinterp));
+	    Tcl_ResetResult(magicinterp);
+	}
+    }
+
+#else /* !MAGIC_WRAPPER */
+
     f = PaOpen(MAGIC_SYS_DOT, "r", (char *) NULL, ".",
 	    (char *) NULL, (char **) NULL);
     if (f != NULL)
@@ -745,6 +876,8 @@ mainInitFinal()
 	TxDispatch(f); 
 	(void) fclose(f);
     }
+
+#endif  /* !MAGIC_WRAPPER */
 
     /*
      * Strive for a wee bit more parallelism; let the graphics
@@ -762,9 +895,133 @@ mainInitFinal()
 	/* a full path, then look for this file in the home directory too. */
 
 	home = getenv("HOME");
+
+#ifdef MAGIC_WRAPPER
+
+	if (home != NULL && (RCFileName[0] != '/'))
+	{
+	    Tcl_Channel fc;
+
+	    (void) sprintf(startupFileName, "%s/%s", home, RCFileName);
+
+	    fc = Tcl_OpenFileChannel(magicinterp, startupFileName, "r", 0);
+	    if (fc != NULL)
+	    {
+		Tcl_Close(magicinterp, fc);
+		result = Tcl_EvalFile(magicinterp, startupFileName);
+		if (result != TCL_OK)
+		{
+		    TxError("Error parsing user \"%s\": %s\n", RCFileName,
+				Tcl_GetStringResult(magicinterp));
+		    Tcl_ResetResult(magicinterp);
+		}
+	    }
+	    else
+	    {
+		/* Try the (deprecated) name ".magic" */
+		(void) sprintf(startupFileName, "%s/.magic", home);
+		fc = Tcl_OpenFileChannel(magicinterp, startupFileName, "r", 0);
+		if (fc != NULL)
+		{
+		    TxPrintf("Note:  Use of the file name \"~/.magic\" is deprecated."
+			"  Please change this to \"~/.magicrc\".\n");
+
+		    Tcl_Close(magicinterp, fc);
+		    result = Tcl_EvalFile(magicinterp, startupFileName);
+
+		    if (result != TCL_OK)
+		    {
+			TxError("Error parsing user \".magic\": %s\n",
+				Tcl_GetStringResult(magicinterp));
+			Tcl_ResetResult(magicinterp);
+		    }
+		}
+	    }
+	}
+
+        if (getcwd(cwd, 512) == NULL || strcmp(cwd, home))
+	{
+	    /* Read in the .magicrc file from the current directory, if	*/
+	    /* different from HOME.					*/
+
+	    Tcl_Channel fc;
+
+	    fc = Tcl_OpenFileChannel(magicinterp, RCFileName, "r", 0);
+	    if (fc != NULL)
+	    {
+		Tcl_Close(magicinterp, fc);
+		result = Tcl_EvalFile(magicinterp, RCFileName);
+
+		if (result != TCL_OK)
+		{
+		    // Print error message but continue anyway
+
+		    TxError("Error parsing \"%s\": %s\n", RCFileName,
+				Tcl_GetStringResult(magicinterp));
+		    Tcl_ResetResult(magicinterp);
+		    TxPrintf("Bad local startup file \"%s\", continuing without.\n",
+					RCFileName);
+		}
+	    }
+	    else
+	    {
+		/* Try the (deprecated) name ".magic" */
+
+		Tcl_ResetResult(magicinterp);
+		fc = Tcl_OpenFileChannel(magicinterp, ".magic", "r", 0);
+		if (fc != NULL)
+		{
+		    Tcl_Close(magicinterp, fc);
+
+		    TxPrintf("Note:  Use of the file name \".magic\" is deprecated."
+				"  Please change this to \".magicrc\".\n");
+
+		    result = Tcl_EvalFile(magicinterp, ".magic");
+
+		    if (result != TCL_OK)
+		    {
+			// Print error message but continue anyway
+
+			TxError("Error parsing local \".magic\": %s\n",
+				Tcl_GetStringResult(magicinterp));
+			Tcl_ResetResult(magicinterp);
+			TxPrintf("Bad local startup file \".magic\","
+					" continuing without.\n");
+		    }
+		}
+		else
+		{
+		    /* Try the alternative name "magic_setup" */
+
+		    Tcl_ResetResult(magicinterp);
+
+		    fc = Tcl_OpenFileChannel(magicinterp, "magic_setup", "r", 0);
+		    if (fc != NULL)
+		    {
+			Tcl_Close(magicinterp, fc);
+
+			result = Tcl_EvalFile(magicinterp, "magic_setup");
+			if (result != TCL_OK)
+			{
+			    TxError("Error parsing local \"magic_setup\": %s\n",
+					Tcl_GetStringResult(magicinterp));
+			    TxError("%s\n", Tcl_GetStringResult(magicinterp));
+			    Tcl_ResetResult(magicinterp);	// Still not an error
+			    TxPrintf("Bad local startup file \"magic_setup\","
+					" continuing without.\n");
+			}
+		    }
+		}
+	    }
+	}
+
+#else /* !MAGIC_WRAPPER */
+
 	if (home != NULL && (RCFileName[0] != '/'))
 	{
 	    (void) sprintf(startupFileName, "%s/%s", home, RCFileName);
+
+
 	    f = PaOpen(startupFileName, "r", (char *) NULL, ".",
 		(char *) NULL, (char **) NULL);
 
@@ -816,7 +1073,52 @@ mainInitFinal()
 	    TxDispatch(f); 
 	    fclose(f);
 	}
+
+#endif /* !MAGIC_WRAPPER */
+
     }
+
+    /* We are done forcing the "tech load" command to be ignored */
+    TechOverridesDefault = FALSE;
+
+    /* If no technology has been specified yet, try to read one from
+     * the initial cell, or else assign a default.
+     */
+
+    if ((TechFileName == NULL) && (TechDefault == NULL) && (MainFileName != NULL))
+	StrDup(&TechDefault, DBGetTech(MainFileName));
+
+    /* Load the technology file.  If any startup file loaded a		*/
+    /* technology file, then "TechFileName" will be set, and we		*/
+    /* should not override it.						*/
+
+    if ((TechFileName == NULL) && (TechDefault != NULL))
+    {
+        if (!TechLoad(TechDefault, -2))
+            TxError("Failed to load technology \"%s\"\n", TechDefault);
+        else if (!TechLoad(TechDefault, 0))
+            TxError("Error loading technology \"%s\"\n", TechDefault);
+    }
+
+    if (TechDefault != NULL)
+    {
+	freeMagic(TechDefault);
+	TechDefault = NULL;
+    }
+
+    /* If that failed, then load the "minimum" technology again and	*/
+    /* keep it.  It's not very useful, but it will keep everything	*/
+    /* up and running.  In the worst case, if site.pre has removed the	*/
+    /* standard locations from the system path, then magic will exit.	*/
+
+    if (TechFileName == NULL)
+	if (!TechLoad("minimum", 0))
+	    return -1;
+
+#ifdef SCHEME_INTERPRETER
+    /* Pass technology name to Lisp interpreter (rajit@cs.caltech.edu) */
+    LispSetTech (TechFileName);
+#endif
 
     /*
      * Recover crash files from the temp directory if we have specified
@@ -842,7 +1144,33 @@ mainInitFinal()
 	{
 	    temporary = CurrentName;
 	    CurrentName = temporary->fn_prev;
-	    DBWreload(temporary->fn);
+	    TxPrintf("Loading \"%s\" from command line.\n", temporary->fn);
+	    switch (temporary->fn_type)
+	    {
+		case FN_MAGIC_DB:
+		    DBWreload(temporary->fn);
+		    break;
+#ifdef LEF_MODULE
+		case FN_LEF_FILE:
+		    LefRead(temporary->fn, FALSE);
+		    break;
+		case FN_DEF_FILE:
+		    DefRead(temporary->fn);
+		    break;
+#endif
+#ifdef MAGIC_WRAPPER
+		case FN_TCL_SCRIPT:
+		    result = Tcl_EvalFile(magicinterp, temporary->fn);
+		    if (result != TCL_OK)
+		    {
+			TxError("Error parsing \"%s\": %s\n",
+				temporary->fn,
+				Tcl_GetStringResult(magicinterp));
+			Tcl_ResetResult(magicinterp);
+		    }
+		    break;
+#endif
+	    }
 	    freeMagic(temporary);
 	}
     }

@@ -196,7 +196,7 @@ proc magic::getwindowitem {} {
 
       if {[.cellmgr.box.view exists $pl] == 0} {
          .cellmgr.box.view insert $parent end -id $pl -text "$j"
-	 set inst [lindex [magic::cellname linst instances $i] 0]
+	 set inst [lindex [magic::cellname list instances $j] 0]
          .cellmgr.box.view set $pl 0 "$inst"
 	 magic::addlistset $pl
       }

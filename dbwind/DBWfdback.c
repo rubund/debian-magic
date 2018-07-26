@@ -40,6 +40,15 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
 #include "utils/malloc.h"
 #include "utils/signals.h"
 
+/* Use a reference-counted character structure for feedback info */
+
+typedef struct rcstring
+{
+    int refcount;
+    char *string;
+} RCString;
+    
+
 /* Each feedback area is stored in a record that looks like this: */
 
 typedef struct feedback
@@ -52,7 +61,7 @@ typedef struct feedback
 				 * of fb_rootDef, scaled up to the next
 				 * integral Magic unit.
 				 */
-    char *fb_text;		/* Text explanation for the feedback. */
+    RCString *fb_text;		/* Text explanation for the feedback. */
     CellDef *fb_rootDef;	/* Root definition of windows in which to
 				 * display this feedback.
 				 */
@@ -169,7 +178,7 @@ DBWFeedbackRedraw(window, plane)
 	GeoClip(&tmp, &worldArea);
 
 	/*
-	 * Ignore areas which have been clipped out of existance
+	 * Ignore areas which have been clipped out of existence
 	 */
 	if (tmp.r_xtop < tmp.r_xbot || tmp.r_ytop < tmp.r_ybot)
 	    continue;
@@ -268,6 +277,7 @@ DBWFeedbackClear(text)
     Feedback *fb, *fl, *fe;
     Rect area;
     CellDef *currentRoot;
+    RCString *quickptr = NULL;
 
     /* Clear out the feedback array and recycle string storage.  Whenever
      * the root cell changes, make a call to erase from the screen.
@@ -276,13 +286,18 @@ DBWFeedbackClear(text)
     currentRoot = (CellDef *) NULL;
     oldCount = DBWFeedbackCount;
     DBWFeedbackCount = 0;
-    fl = (Feedback *)NULL;
     for (fb = dbwfbArray; fb < dbwfbArray + oldCount; fb++)
     {
-	if ((text == NULL) || 
-		((fb->fb_text == NULL) && (fl->fb_text == (char *)(-1))) ||
-		((fb->fb_text != NULL) && (strstr(fb->fb_text, text) != NULL)))
+	if ((text == NULL) ||
+		((quickptr != NULL) && (fb->fb_text == quickptr)) ||
+		(strstr(fb->fb_text->string, text) != NULL))
 	{
+	    // Track the last refcount string that matched the
+	    // text so we can run through lists of matching text
+	    // without having to call strstr()
+
+	    if (text != NULL) quickptr = fb->fb_text;
+
 	    if (currentRoot != fb->fb_rootDef)
 	    {
 		if (currentRoot != (CellDef *) NULL)
@@ -291,10 +306,16 @@ DBWFeedbackClear(text)
 	    }
 	    (void) GeoInclude(&fb->fb_rootArea, &area);
 	    currentRoot = fb->fb_rootDef;
-	    if (fb->fb_text != NULL) freeMagic(fb->fb_text);
-	    if (text != NULL) fb->fb_text = (char *)(-1);
+
+	    // Decrement refcount and free if zero.
+	    fb->fb_text->refcount--;
+	    if (fb->fb_text->refcount == 0)
+	    {
+		freeMagic(fb->fb_text->string);
+		freeMagic(fb->fb_text);
+	    }
+	    fb->fb_text = NULL;
 	}
-	fl = fb;
     }
     if (currentRoot != NULL)
 	DBWHLRedraw(currentRoot, &area, TRUE);
@@ -308,7 +329,7 @@ DBWFeedbackClear(text)
 	fe = fl + oldCount;
 	for (fb = dbwfbArray; fb < fe; fb++)
 	{
-	    while ((fb->fb_text == (char *)(-1)) && (fb < fe)) fb++;
+	    while ((fb->fb_text == NULL) && (fb < fe)) fb++;
 	    if (fb < fe) *fl++ = *fb;
 	}
 	DBWFeedbackCount = (int)(fl - dbwfbArray);
@@ -382,7 +403,7 @@ DBWFeedbackAdd(area, text, cellDef, scaleFactor, style)
     Rect tmp, tmp2, tmp3;
     Transform transform;
     int i;
-    Feedback *fb;
+    Feedback *fb, *fblast;
     extern int dbwfbGetTransform();	/* Forward declaration. */
 
     /* Find a transform from this cell to the root, and use it to
@@ -429,19 +450,19 @@ DBWFeedbackAdd(area, text, cellDef, scaleFactor, style)
     }
     fb = &dbwfbArray[DBWFeedbackCount];
     fb->fb_area = *area;
+    fblast = (DBWFeedbackCount == 0) ? NULL : &dbwfbArray[DBWFeedbackCount - 1];
 
-    /* If the text is the same as the last non-NULL text entry,	*/
-    /* then leave the fb_text entry NULL.			*/
-
-    if (DBWFeedbackCount > 0)
+    if (fblast && (!strcmp(fblast->fb_text->string, text)))
     {
-	i = DBWFeedbackCount - 1;
-	while (dbwfbArray[i].fb_text == NULL) i--;
-	if (strcmp(dbwfbArray[i].fb_text, text))
-	    StrDup(&(fb->fb_text), text);
+	fb->fb_text = fblast->fb_text;
+	fb->fb_text->refcount++;
     }
     else
-	StrDup(&(fb->fb_text), text);
+    {
+	fb->fb_text = (RCString *)mallocMagic(sizeof(RCString));
+	fb->fb_text->refcount = 1;
+	fb->fb_text->string = StrDup(NULL, text);
+    }
 
     fb->fb_rootDef = dbwfbRootDef;
     fb->fb_scale = scaleFactor;
@@ -620,6 +641,5 @@ DBWFeedbackNth(nth, area, pRootDef, pStyle)
     *area = dbwfbArray[nth].fb_rootArea;
     if (pRootDef != NULL) *pRootDef = dbwfbArray[nth].fb_rootDef;
     if (pStyle != NULL) *pStyle = dbwfbArray[nth].fb_style;
-    while (dbwfbArray[nth].fb_text == NULL) nth--;
-    return dbwfbArray[nth].fb_text;
+    return dbwfbArray[nth].fb_text->string;
 }

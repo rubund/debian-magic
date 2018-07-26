@@ -428,17 +428,22 @@ CIFTechLimitScale(ns, ds)
     int ns, ds;
 {
     int gridup, scaledown;
-
-    /* If no output style is active, it's okay to refine the	*/
-    /* grid arbitrarily.					*/
+    int scale, limit, expand;
 
     if (CIFCurStyle == NULL) return FALSE;
 
-    gridup = CIFCurStyle->cs_gridLimit * ds;
-    if (gridup == 0) return FALSE;
+    scale = CIFCurStyle->cs_scaleFactor;
+    limit = CIFCurStyle->cs_gridLimit;
+    expand = CIFCurStyle->cs_expander;
 
-    scaledown = CIFCurStyle->cs_scaleFactor * ns;
+    if (limit == 0) limit = 1;
+
+    gridup = limit * expand * ds;
+    scaledown = scale * ns * 10;
+
+    if ((scaledown / gridup) == 0) return TRUE;
     if ((scaledown % gridup) != 0) return TRUE;
+
     return FALSE;
 }
 
@@ -551,7 +556,7 @@ CIFTechLine(sectionName, argc, argv)
 	for (newStyle = CIFStyleList; newStyle != NULL; 
 		newStyle = newStyle->cs_next)
 	{
-	    /* Here we're only establishing existance;		*/
+	    /* Here we're only establishing existence;		*/
 	    /* break on the first variant found.		*/
 
 	    if (!strncmp(newStyle->cs_name, argv[1], l))

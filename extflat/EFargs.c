@@ -53,6 +53,7 @@ char *EFVersion = MAGIC_VERSION;/* Version number of .ext format we read */
 char *EFLibPath = NULL;		/* Library search path for .ext files */
 char *EFTech = NULL;
 char *EFStyle = NULL;		/* Start with no extraction style */
+bool  EFCompat = TRUE;		/* Start with backwards compatibility enabled */
 
 #ifdef MAGIC_WRAPPER
 extern char     *Path;		/* magic's search path---note this should  */
@@ -206,13 +207,13 @@ EFArgs(argc, argv, err_result, argsProc, cdata)
 	    case 't':
 		if ((cp = ArgStr(&argc, &argv, "trim characters")) == NULL)
 		    goto usage;
-		if (index(cp, '!')) EFTrimFlags |= EF_TRIMGLOB;
-		if (index(cp, '#')) EFTrimFlags |= EF_TRIMLOCAL;
-		if (index(cp, ',')) EFTrimFlags |= EF_CONVERTCOMMAS;
-		if (index(cp, '=')) EFTrimFlags |= EF_CONVERTEQUAL;
+		if (strchr(cp, '!')) EFTrimFlags |= EF_TRIMGLOB;
+		if (strchr(cp, '#')) EFTrimFlags |= EF_TRIMLOCAL;
+		if (strchr(cp, ',')) EFTrimFlags |= EF_CONVERTCOMMAS;
+		if (strchr(cp, '=')) EFTrimFlags |= EF_CONVERTEQUAL;
 		break;
 	    case 'C':
-		EFCapThreshold = INFINITE_THRESHOLD;
+		EFCapThreshold = (EFCapValue)INFINITE_THRESHOLD_F;
 		break;
 	    case 'R':
 		EFResistThreshold = INFINITE_THRESHOLD;
@@ -252,7 +253,7 @@ EFArgs(argc, argv, err_result, argsProc, cdata)
 		}
 		while (fgets(line, sizeof line, f))
 		{
-		    cp = index(line, '\n');
+		    cp = strchr(line, '\n');
 		    if (cp) *cp = '\0';
 		    printf("Watching node '%s'\n", line);
 		    hierName = EFStrToHN((HierName *) NULL, line);
@@ -302,7 +303,7 @@ EFArgs(argc, argv, err_result, argsProc, cdata)
 #endif
 
     /* Eliminate trailing .ext from input name */
-    if ((cp = rindex(inname, '.')) && strcmp(cp, ".ext") == 0)
+    if ((cp = strrchr(inname, '.')) && strcmp(cp, ".ext") == 0)
     {
 	realIn = (char *) mallocMagic((unsigned)(cp - inname + 1));
 	(void) strncpy(realIn, inname, cp - inname);

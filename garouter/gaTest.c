@@ -357,7 +357,7 @@ gaSplitFunc(scx, plane)
 
     /* Paint into DRC error plane */
     (*gaSplitPaintPlane)(plane, &rTrans, DBStdWriteTbl(1),
-		(PaintUndoInfo *) NULL, FALSE);
+		(PaintUndoInfo *) NULL, PAINT_NORMAL);
     return (0);
 }
 

@@ -233,7 +233,7 @@ typedef struct label
 				 	 * cached in lab_bbox;
 					 */
     int		    lab_just;		/* Justification (GEO_NORTH, etc.) */
-    char	    lab_font;		/* Font used for label. -1 is the default
+    signed char	    lab_font;		/* Font used for label. -1 is the default
 					 * X11 font; other values are indexes into
 					 * the font tables.
 					 */
@@ -381,6 +381,8 @@ typedef struct celldef
  *	    a cell is small and does not call any instances itself.
  *	    The flag is used to identify the cell and remove it after GDS
  *	    input processing.
+ *	CDFLATTENED is set when a cell marked CDFLATGDS is used.  Cells
+ *	    that are never used are not removed after processing.
  *	CDPROCESSEDGDS is set when the cell read from the GDS stream file
  *	    is added to the magic database.  The flag is used to identify
  *	    whether the cell has been processed when forcing the GDS
@@ -402,9 +404,10 @@ typedef struct celldef
 #define CDNOEDIT	 0x0100
 #define CDPROCESSED	 0x0200
 #define CDFLATGDS	 0x0400
-#define CDPROCESSEDGDS	 0x0800
-#define CDVENDORGDS	 0x1000
-#define CDVISITED	 0x2000
+#define CDFLATTENED	 0x0800
+#define CDPROCESSEDGDS	 0x1000
+#define CDVENDORGDS	 0x2000
+#define CDVISITED	 0x4000
 
 /*
  * Description of an array.
@@ -516,6 +519,7 @@ typedef struct celluse
 #define CU_DESCEND_NO_SUBCKT	0x0005	/* Descend no subcircuits */
 #define CU_DESCEND_NO_VENDOR	0x0006	/* Descend no vendor-GDS subcells */
 #define CU_DESCEND_NO_LOCK	0x0007	/* Descend unlocked subcells only */
+#define CU_DESCEND_NONE		0x0009	/* Descend no subcells */
 
 /*
  * All subcells used by a cell are part of another tile plane,
@@ -632,6 +636,11 @@ typedef struct treeFilter
 					 * of paint to which the label is
 					 * attached
 					 */
+#define TF_LABEL_ATTACH_NOT_NE	0x04	/* Same as above, ignore tile NE corner */
+#define TF_LABEL_ATTACH_NOT_NW	0x08	/* Same as above, ignore tile NW corner */
+#define TF_LABEL_ATTACH_NOT_SE	0x10	/* Same as above, ignore tile SE corner */
+#define TF_LABEL_ATTACH_NOT_SW	0x20	/* Same as above, ignore tile SW corner */
+#define TF_LABEL_ATTACH_CORNER	0x3C	/* Mask of the four types above */
 
 /* -------------- Undo information passed to DBPaintPlane ------------- */
 
@@ -656,7 +665,14 @@ typedef struct
 #define CHILDINST 3
 #define ALLCELLS  4
 #define TOPCELLS  5
-#define OTHER	  6
+#define MODIFIED  6
+#define OTHER	  7
+
+/* -------------------- More codes for painting ------------------------*/
+
+#define PAINT_NORMAL	0	/* Normal paint procedure */
+#define PAINT_MARK	1	/* Mark tiles that are painted */
+#define PAINT_XOR	2	/* Use with XOR function to prevent double-painting */
 
 /* -------------------- Exported procedure headers -------------------- */
 
@@ -668,6 +684,7 @@ extern void DBPaintPlane0();
 extern void DBPaintPlaneActive();
 extern void DBPaintPlaneWrapper();
 extern void DBPaintPlaneMark();
+extern void DBPaintPlaneXor();
 extern void DBPaintPlaneByProc();
 extern void DBPaintPlaneMergeOnce();
 extern void DBPaintMask();
@@ -676,11 +693,11 @@ extern void DBClearPaintPlane();
 extern void DBLockContact();
 extern void DBUnlockContact();
 
-#define DBPaintPlane(a, b, c, d)  DBPaintPlane0(a, b, c, d, FALSE)
+#define DBPaintPlane(a, b, c, d)  DBPaintPlane0(a, b, c, d, PAINT_NORMAL)
 #define DBMergeNMTiles(a, b, c)      DBMergeNMTiles0(a, b, c, FALSE)
 
 extern void DBNMPaintPlane0();
-#define DBNMPaintPlane(a, b, c, d, e)  DBNMPaintPlane0(a, b, c, d, e, FALSE)
+#define DBNMPaintPlane(a, b, c, d, e)  DBNMPaintPlane0(a, b, c, d, e, PAINT_NORMAL)
 
     /* I/O */
 extern bool DBCellRead();
@@ -718,7 +735,7 @@ extern bool DBTechAddContact();
 extern bool DBTechAddCompose();
 extern TileType DBTechNameType(), DBTechNoisyNameType();
 extern int DBTechNamePlane(), DBTechNoisyNamePlane();
-extern PlaneMask DBTechNoisyNameMask();
+extern PlaneMask DBTechNameMask(), DBTechNoisyNameMask();
 extern PlaneMask DBTechTypesToPlanes();
 extern bool DBTechTypesOnPlane();
 extern void DBTechInitPlane();
@@ -835,7 +852,6 @@ extern int DBTreeSrLabels();
 extern int DBTreeSrCells();
 extern int DBSrRoots();
 extern int DBCellEnum();
-extern int DBSrCellUses();
 extern int DBArraySr();
 extern bool DBNearestLabel();
 extern int DBSrLabelLoc();

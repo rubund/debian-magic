@@ -45,7 +45,6 @@ extern int TechFormatVersion;
 /* ----------------- Exported variables  ---------------- */
 
 extern char *TechFileName;	/* Full path and file name of technology file */
-extern char *TechDefault;	/* Name of default technology */
 extern bool TechOverridesDefault; /* Set TRUE if technology was specified on
 				   * the command line.
 				   */

@@ -121,7 +121,7 @@ SelRedisplay(window, plane)
 
     /* Redisplay the information on the paint planes. */
 
-    GrSetStuff(STYLE_DRAWBOX);
+    GrSetStuff(STYLE_OUTLINEHIGHLIGHTS);
     selRedisplayPlane = plane;
     for (i = PL_SELECTBASE; i < DBNumPlanes; i += 1)
     {
@@ -379,3 +379,65 @@ SelSetDisplay(selectUse, displayRoot)
     selDisUse = selectUse;
     selDisRoot = displayRoot;
 }
+
+/*----------------------------------------------------------------------*/
+/* Functions for converting selections to highlight areas		*/
+/*----------------------------------------------------------------------*/
+
+typedef struct {
+    char *text;
+    int  style;
+} FeedLayerData;
+
+void
+SelCopyToFeedback(celldef, seluse, style, text)
+    CellDef *celldef;		/* Cell def to hold feedback */
+    CellUse *seluse;		/* Cell use holding selection */
+    int style;			/* Style to use for feedback */
+    char *text;			/* Text to attach to feedback */
+{
+    int selFeedbackFunc();	/* Forward reference */
+    int i;
+    CellDef *saveDef;
+    FeedLayerData fld;
+
+    if (celldef == NULL) return;
+
+    saveDef = selDisRoot;
+    selDisRoot = celldef;
+
+    fld.text = text;
+    fld.style = style;
+
+    UndoDisable();
+    for (i = PL_SELECTBASE; i < DBNumPlanes; i += 1)
+    {
+	(void) DBSrPaintArea((Tile *) NULL, seluse->cu_def->cd_planes[i],
+		&TiPlaneRect, &DBAllButSpaceBits, selFeedbackFunc,
+		(ClientData)&fld);
+    }
+    UndoEnable();
+
+    selDisRoot = saveDef;
+}
+
+/*----------------------------------------------------------------------*/
+/* Callback function per tile of the selection
+/*----------------------------------------------------------------------*/
+
+int
+selFeedbackFunc(tile, fld)
+    Tile *tile;
+    FeedLayerData *fld;
+{
+    Rect area;
+
+    TiToRect(tile, &area);
+
+    DBWFeedbackAdd(&area, fld->text, selDisRoot, 1, fld->style |
+                (TiGetTypeExact(tile) & (TT_DIAGONAL | TT_DIRECTION | TT_SIDE)));
+        /* (preserve information about the geometry of a diagonal tile) */
+    return 0;
+}
+
+/*----------------------------------------------------------------------*/

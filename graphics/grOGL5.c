@@ -91,14 +91,19 @@ GrOGLDrawGlyph (gl, p)
 
 	    y1 = bBox.r_ybot + y;
 	    for (x = 0; x < gl->gr_xsize; x++) {
-		int color, red, green, blue;
-	        color = GrStyleTable[*pixelp++].color;
-		x1 = bBox.r_xbot + x;
-		GrGetColor(color, &red, &green, &blue);
-		glColor4ub((GLubyte)red, (GLubyte)green, (GLubyte)blue, (GLubyte)255);
-		glBegin(GL_POINTS);
-		glVertex2i((GLint)x1, (GLint)y1);
-		glEnd();
+		int color, red, green, blue, mask;
+		if (*pixelp != 0) {
+		    mask = GrStyleTable[*pixelp].color << 1;
+	            color = GrStyleTable[*pixelp].color;
+		    x1 = bBox.r_xbot + x;
+		    GrGetColor(color, &red, &green, &blue);
+		    glColor4ub((GLubyte)red, (GLubyte)green, (GLubyte)blue,
+					(GLubyte)mask);
+		    glBegin(GL_POINTS);
+		    glVertex2i((GLint)x1, (GLint)y1);
+		    glEnd();
+		}
+		pixelp++;
 	    }
 	}
     } else {
@@ -139,14 +144,18 @@ GrOGLDrawGlyph (gl, p)
 		    pixelp = &( gl->gr_pixels[y*gl->gr_xsize +
 			    (startx - bBox.r_xbot)]);
 		    for ( ; startx <= endx; startx++) {
-			int color, red, green, blue;
-			color = GrStyleTable[*pixelp++].color;
-			GrGetColor(color, &red, &green, &blue);
-			glColor4ub((GLubyte)red, (GLubyte)green,
-				   (GLubyte)blue, (GLubyte)255);
-			glBegin(GL_POINTS);
-			glVertex2i((GLint)startx, (GLint)yloc);
-			glEnd();
+			int color, red, green, blue, mask;
+			if (*pixelp != 0) {
+			    mask = GrStyleTable[*pixelp].mask << 1;
+			    color = GrStyleTable[*pixelp].color;
+			    GrGetColor(color, &red, &green, &blue);
+			    glColor4ub((GLubyte)red, (GLubyte)green,
+					(GLubyte)blue, (GLubyte)mask);
+			    glBegin(GL_POINTS);
+			    glVertex2i((GLint)startx, (GLint)yloc);
+			    glEnd();
+			}
+			pixelp++;
 		    }
 		    startx = endx + 1;
 		}

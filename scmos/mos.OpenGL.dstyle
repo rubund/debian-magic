@@ -34,7 +34,7 @@ display_styles 24
 #
 # num   opaque  color   outline  fill  number   name    name
 # ----+------+--------+--------+------+-------+------+--------------
-0	127	0	0x00	solid	0	-	no_color_at_all
+0	0	0	0x00	solid	0	.	no_color_at_all
 #
 # Opaque styles used for drawing and erasing highlights, window borders,
 # etc.

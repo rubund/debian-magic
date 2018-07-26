@@ -260,7 +260,6 @@ CmdExtToSim(w, cmd)
     char **argv = cmd->tx_argv; 
     char **msg;
     bool err_result;
-    char *resstr;
 
     short sd_rclass;
     short sub_rclass;
@@ -360,7 +359,7 @@ CmdExtToSim(w, cmd)
 	case EXTTOSIM_CTHRESH:
 	    if (cmd->tx_argc == 2)
 	    {
-		if (LocCapThreshold == INFINITE_THRESHOLD)
+		if (!IS_FINITE_F(LocCapThreshold))
 		    Tcl_SetResult(magicinterp, "infinite", NULL);
 		else
 		    Tcl_SetObjResult(magicinterp,
@@ -369,7 +368,7 @@ CmdExtToSim(w, cmd)
 	    }
 	    else if (cmd->tx_argc < 3) goto usage;
 	    if (!strncmp(cmd->tx_argv[2], "inf", 3))
-		LocCapThreshold = INFINITE_THRESHOLD;
+		LocCapThreshold = INFINITE_THRESHOLD_F;
 	    else if (StrIsNumeric(cmd->tx_argv[2]))
 		LocCapThreshold = atoCap(cmd->tx_argv[2]);
 	    else 
@@ -597,14 +596,6 @@ runexttosim:
 	    fetInfo[i].resClassSub = sub_rclass;
 	    fetInfo[i].defSubs = subname;
 	}
-
-	/* Tcl variable substitution for substrate node names */
-	if (subname && (subname[0] == '$'))
-	{
-	    resstr = (char *)Tcl_GetVar(magicinterp, &subname[1],
-			TCL_GLOBAL_ONLY);
-	    if (resstr != NULL) fetInfo[i].defSubs = resstr;
-	}
     }
 
     /* Write the output file */
@@ -615,8 +606,8 @@ runexttosim:
 
     /* Convert the hierarchical description to a flat one */
     flatFlags = EF_FLATNODES;
-    if (LocCapThreshold < INFINITE_THRESHOLD) flatFlags |= EF_FLATCAPS;
-    if (LocResistThreshold < INFINITE_THRESHOLD) flatFlags |= EF_FLATRESISTS;
+    if (IS_FINITE_F(LocCapThreshold)) flatFlags |= EF_FLATCAPS;
+    if (LocResistThreshold != INFINITE_THRESHOLD) flatFlags |= EF_FLATRESISTS;
     EFFlatBuild(inName, flatFlags);
 
     if (esMergeDevsA || esMergeDevsC)
@@ -744,8 +735,8 @@ main(argc, argv)
 
     /* Convert the hierarchical description to a flat one */
     flatFlags = EF_FLATNODES;
-    if (EFCapThreshold < INFINITE_THRESHOLD) flatFlags |= EF_FLATCAPS;
-    if (EFResistThreshold < INFINITE_THRESHOLD) flatFlags |= EF_FLATRESISTS;
+    if (IS_FINITE_F(EFCapThreshold)) flatFlags |= EF_FLATCAPS;
+    if (EFResistThreshold != INFINITE_THRESHOLD) flatFlags |= EF_FLATRESISTS;
     EFFlatBuild(inName, flatFlags);
 
     if (esMergeDevsA || esMergeDevsC) {
@@ -888,7 +879,7 @@ simmainArgs(pargc, pargv)
 
 	    if ((cp = ArgStr(&argc,&argv,"resistance class")) == NULL)
 		goto usage;
-	    if ( (rp = (char *)index(cp,':')) == NULL )
+	    if ( (rp = strchr(cp,':')) == NULL )
 		goto usage;
 	    else *rp++ = '\0';
 	    if ( sscanf(rp, "%d/%d/%s", &rClass, &rClassSub, subsNode) != 3 ) {
@@ -1008,8 +999,9 @@ simdevVisit(dev, hierName, scale, trans)
     if (dev->dev_nterm < 1)
 	return 0;
 
-    /* If only one terminal, can't do much of anything either 	     */
-    /* (may want to provide eventual support for subcircuit devices) */
+    /* If one terminal, can't do much of anything, either, 	*/
+    /* except maybe with a subcircuit device.  That's not	*/
+    /* supported by ext2sim, though. . .			*/
 
     if (dev->dev_nterm < 2)
 	return 0;
@@ -1020,6 +1012,7 @@ simdevVisit(dev, hierName, scale, trans)
 
     /* Computation of length and width has been moved from efVisitDevs */
     EFGetLengthAndWidth(dev, &l, &w);
+    if (esMergeDevsA || esMergeDevsC) w *= getCurDevMult();
 
     /* If only two terminals, connect the source to the drain */
     gate = &dev->dev_terms[0];
@@ -1037,12 +1030,15 @@ simdevVisit(dev, hierName, scale, trans)
 	    fprintf(esSimF, "b");	/* sim format extension */
 	    break;
 	case DEV_DIODE:
+	case DEV_PDIODE:
+	case DEV_NDIODE:
 	    fprintf(esSimF, "D");
 	    break;
 	case DEV_RES:
 	    fprintf(esSimF, "r");
 	    break;
 	case DEV_CAP:
+	case DEV_CAPREV:
 	    fprintf(esSimF, "c");	/* sim format extension */
 	    break;
 	default:
@@ -1068,7 +1064,8 @@ simdevVisit(dev, hierName, scale, trans)
         sprintf(name, "fet");
         simdevOutNode(hierName, subnode->efnode_name->efnn_hier, name, esSimF); 
     }
-    else if (dev->dev_class == DEV_DIODE && dev->dev_nterm == 1 && subnode)
+    else if ((dev->dev_class == DEV_DIODE || dev->dev_class == DEV_PDIODE ||
+		dev->dev_class == DEV_NDIODE) && dev->dev_nterm == 1 && subnode)
     {
         sprintf(name, "fet");
         simdevOutNode(hierName, subnode->efnode_name->efnn_hier, name, esSimF); 
@@ -1117,7 +1114,11 @@ simdevVisit(dev, hierName, scale, trans)
     else if (dev->dev_class == DEV_CAP) {	/* generate a capacitor */
        fprintf(esSimF, " %f", (double)(dev->dev_cap));
     }
-    else if (dev->dev_class != DEV_DIODE) {
+    else if (dev->dev_class == DEV_CAPREV) {	/* generate a capacitor */
+       fprintf(esSimF, " %f", (double)(dev->dev_cap));
+    }
+    else if ((dev->dev_class != DEV_DIODE) && (dev->dev_class != DEV_PDIODE)
+		&& (dev->dev_class != DEV_NDIODE)) {
 
        /*
         * Scale L and W appropriately by the same amount as distance
@@ -1434,15 +1435,13 @@ int
 simresistVisit(hierName1, hierName2, res)
     HierName *hierName1;
     HierName *hierName2;
-    int res;
+    float res;
 {
-    res = (res+ 500)/1000;
-
     fprintf(esSimF, "r ");
     EFHNOut(hierName1, esSimF);
     fprintf(esSimF, " ");
     EFHNOut(hierName2, esSimF);
-    fprintf(esSimF, " %d\n", res);
+    fprintf(esSimF, " %g\n", res / 1000.);
     return 0;
 }
 

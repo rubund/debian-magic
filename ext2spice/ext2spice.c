@@ -48,14 +48,16 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
 bool esDoExtResis = FALSE;
 bool esDoPorts = TRUE;
 bool esDoHierarchy = FALSE;
+bool esDoBlackBox = FALSE;
 bool esDoRenumber = FALSE;
 bool esDoResistorTee = FALSE;
 int  esDoSubckt = AUTO;
 bool esDevNodesOnly = FALSE;
+bool esMergeNames = TRUE;
 bool esNoAttrs = FALSE;
 bool esHierAP = FALSE;
 char spcesDefaultOut[FNSIZE];
-int  esCapAccuracy = 1;
+int  esCapAccuracy = 2;
 char esSpiceCapFormat[FNSIZE];
 char *spcesOutName = spcesDefaultOut;
 FILE *esSpiceF = NULL;
@@ -90,7 +92,7 @@ typedef struct GLL {
 
 unsigned long	initMask = 0;
 
-bool esMergeDevsA = FALSE; /* aggresive merging of devs L1=L2 merge them */
+bool esMergeDevsA = FALSE; /* aggressive merging of devs L1=L2 merge them */
 bool esMergeDevsC = FALSE; /* conservative merging of devs L1=L2 and W1=W2 */
 			   /* used with the hspice multiplier */
 bool esDistrJunct = FALSE;
@@ -206,8 +208,10 @@ Exttospice_Init(interp)
 #define EXTTOSPC_SCALE		8
 #define EXTTOSPC_SUBCIRCUITS	9
 #define EXTTOSPC_HIERARCHY	10
-#define EXTTOSPC_RENUMBER	11
-#define EXTTOSPC_HELP		12
+#define EXTTOSPC_BLACKBOX	11
+#define EXTTOSPC_RENUMBER	12
+#define EXTTOSPC_MERGENAMES	13
+#define EXTTOSPC_HELP		14
 
 void
 CmdExtToSpice(w, cmd)
@@ -223,8 +227,9 @@ CmdExtToSpice(w, cmd)
     int argc = cmd->tx_argc;
     char **argv = cmd->tx_argv;
     char **msg;
+    char *resstr = NULL;
+    char *substr = NULL;
     bool err_result, locDoSubckt;
-    char *resstr;
 
     short sd_rclass;
     short sub_rclass;
@@ -235,6 +240,10 @@ CmdExtToSpice(w, cmd)
 
     static EFCapValue LocCapThreshold = 2;
     static int LocResistThreshold = INFINITE_THRESHOLD; 
+
+    static char *spiceFormats[] = {
+	"SPICE2", "SPICE3", "HSPICE", "NGSPICE", NULL
+    };
 
     static char *cmdExtToSpcOption[] = {
 	"[run] [options]	run exttospice on current cell\n"
@@ -249,8 +258,10 @@ CmdExtToSpice(w, cmd)
 	"scale [on|off]		use .option card for scaling",
 	"subcircuits [on|off]	standard cells become subcircuit calls",
 	"hierarchy [on|off]	output hierarchical spice for LVS",
+	"blackbox [on|off]	output abstract views as black-box entries",
 	"renumber [on|off]	on = number instances X1, X2, etc.\n"
 	"			off = keep instance ID names",
+	"global [on|off]	on = merge unconnected global nets by name",
 	"help			print help information",
 	NULL
     };
@@ -266,6 +277,7 @@ CmdExtToSpice(w, cmd)
 	"spice2",
 	"spice3",
 	"hspice",
+	"ngspice",
 	NULL
     };
 
@@ -364,6 +376,20 @@ CmdExtToSpice(w, cmd)
 		esDoHierarchy = FALSE;
 	    break;
 
+	case EXTTOSPC_BLACKBOX:
+	    if (cmd->tx_argc == 2)
+	    {
+		Tcl_SetResult(magicinterp, (esDoBlackBox) ? "on" : "off", NULL);
+		return;
+	    }
+	    idx = Lookup(cmd->tx_argv[2], yesno);
+	    if (idx < 0) goto usage;
+	    else if (idx < 3)	/* yes */
+		esDoBlackBox = TRUE;
+	    else	 /* no */
+		esDoBlackBox = FALSE;
+	    break;
+
 	case EXTTOSPC_RENUMBER:
 	    if (cmd->tx_argc == 2)
 	    {
@@ -376,6 +402,20 @@ CmdExtToSpice(w, cmd)
 		esDoRenumber = TRUE;
 	    else	 /* no */
 		esDoRenumber = FALSE;
+	    break;
+
+	case EXTTOSPC_MERGENAMES:
+	    if (cmd->tx_argc == 2)
+	    {
+		Tcl_SetResult(magicinterp, (esMergeNames) ? "on" : "off", NULL);
+		return;
+	    }
+	    idx = Lookup(cmd->tx_argv[2], yesno);
+	    if (idx < 0) goto usage;
+	    else if (idx < 3)	/* yes */
+		esMergeNames = TRUE;
+	    else	 /* no */
+		esMergeNames = FALSE;
 	    break;
 
 	case EXTTOSPC_SUBCIRCUITS:
@@ -404,7 +444,9 @@ CmdExtToSpice(w, cmd)
 		case IDX_TOP:
 		    if (cmd->tx_argc == 3)
 		    {
-			Tcl_SetResult(magicinterp, (esDoSubckt) ? "on" : "off", NULL);
+			Tcl_SetResult(magicinterp,
+				(esDoSubckt == 2) ? "auto" :
+				(esDoSubckt == 1) ? "on" : "off", NULL);
 			return;
 		    }
 		    break;
@@ -461,7 +503,7 @@ CmdExtToSpice(w, cmd)
 	case EXTTOSPC_CTHRESH:
 	    if (cmd->tx_argc == 2)
 	    {
-		if (LocCapThreshold == (EFCapValue)INFINITE_THRESHOLD)
+		if (!IS_FINITE_F(LocCapThreshold))
 		    Tcl_SetResult(magicinterp, "infinite", NULL);
 		else
 		    Tcl_SetObjResult(magicinterp,
@@ -476,7 +518,7 @@ CmdExtToSpice(w, cmd)
 	    /* we need to check this case first. . . 			*/
 
 	    if (!strncmp(cmd->tx_argv[2], "inf", 3))
-		LocCapThreshold = (EFCapValue)INFINITE_THRESHOLD;
+		LocCapThreshold = (EFCapValue)INFINITE_THRESHOLD_F;
 	    else if (StrIsNumeric(cmd->tx_argv[2]))
 		LocCapThreshold = atoCap(cmd->tx_argv[2]);
 	    else 
@@ -579,6 +621,7 @@ runexttospice:
     esNodeNum = 10; /* just in case we're extracting spice2 */
     esFMIndex = 0;
     esSpiceDevsMerged = 0;
+    esDevNodesOnly = FALSE;	/* so using -F doesn't become permanent */
 
     EFInit();
 
@@ -624,19 +667,21 @@ runexttospice:
     if (spcesOutName == spcesDefaultOut)
 	sprintf(spcesDefaultOut, "%s.spice", inName);
 
+    /* Read the hierarchical description of the input circuit */
+    if (EFReadFile(inName, TRUE, esDoExtResis, FALSE) == FALSE)
+    {
+	EFDone();
+        return;
+    }
+
+    /* If the .ext file was read without error, then open the output file */
+
     if ((esSpiceF = fopen(spcesOutName, "w")) == NULL)
     {
 	char *tclres = Tcl_Alloc(128);
 	sprintf(tclres, "exttospice: Unable to open file %s for writing\n",
 		spcesOutName);
 	Tcl_SetResult(magicinterp, tclres, TCL_DYNAMIC);
-	EFDone();
-        return;
-    }
-
-    /* Read the hierarchical description of the input circuit */
-    if (EFReadFile(inName, TRUE, esDoExtResis, FALSE) == FALSE)
-    {
 	EFDone();
         return;
     }
@@ -678,12 +723,15 @@ runexttospice:
 	    esFetInfo[i].defSubs = subname;
 	}
 
-	/* Tcl variable substitution for substrate node names */
-	if (subname && (subname[0] == '$'))
+	if (EFCompat == TRUE)
 	{
-	    resstr = (char *)Tcl_GetVar(magicinterp, &subname[1],
+	    /* Tcl variable substitution for substrate node names */
+	    if (subname && (subname[0] == '$'))
+	    {
+		resstr = (char *)Tcl_GetVar(magicinterp, &subname[1],
 			TCL_GLOBAL_ONLY);
-	    if (resstr != NULL) esFetInfo[i].defSubs = resstr;
+		if (resstr != NULL) esFetInfo[i].defSubs = resstr;
+	    }
 	}
 
 	if (esDoHierarchy && (subname != NULL))
@@ -724,31 +772,34 @@ runexttospice:
 	}
     }
 
-    /* Keep a pointer to the "GND" variable, if it exists. */
+    if (EFCompat == TRUE)
+    {
+	/* Keep a pointer to the "GND" variable, if it exists. */
 
-    resstr = (char *)Tcl_GetVar(magicinterp, "GND", TCL_GLOBAL_ONLY);
-    if (resstr == NULL) resstr = "GND";		/* default value */
+	resstr = (char *)Tcl_GetVar(magicinterp, "GND", TCL_GLOBAL_ONLY);
+	if (resstr == NULL) resstr = "GND";	/* default value */
+    }
 
     /* Write the output file */
 
     fprintf(esSpiceF, "* %s file created from %s.ext - technology: %s\n\n",
-	    (esFormat == SPICE2) ? "SPICE2" :  
-	      ( (esFormat == SPICE3) ? "SPICE3" : "HSPICE" ),  
-	    inName, EFTech);
+	    spiceFormats[esFormat], inName, EFTech);
     if (esScale < 0) 
-    	fprintf(esSpiceF,".option scale=%gu\n\n", EFScale / 100.0);
+    	fprintf(esSpiceF, ".option scale=%gu\n\n", EFScale / 100.0);
     else
 	esScale = EFScale / 100.0;
 
     /* Set output format flags */
 
     flatFlags = EF_FLATNODES;
+    if (esMergeNames == FALSE) flatFlags |= EF_NONAMEMERGE;
+
     // This forces options TRIMGLOB and CONVERTEQUAL, not sure that's such a
     // good idea. . .
     EFTrimFlags |= EF_TRIMGLOB | EF_CONVERTEQUAL;
-    if (EFCapThreshold < INFINITE_THRESHOLD) flatFlags |= EF_FLATCAPS;
-    if (esFormat == HSPICE )
-	EFTrimFlags |= EF_TRIMLOCAL ;
+    if (IS_FINITE_F(EFCapThreshold)) flatFlags |= EF_FLATCAPS;
+    if (esFormat == HSPICE)
+	EFTrimFlags |= EF_TRIMLOCAL;
 
     /* Write globals under a ".global" card */
 
@@ -757,13 +808,18 @@ runexttospice:
 	fprintf(esSpiceF, ".global ");
 	while (glist != NULL)
 	{
-	    /* Handle global names that are TCL variables */
-	    if (glist->gll_name[0] == '$')
+	    if (EFCompat == TRUE)
 	    {
-		resstr = (char *)Tcl_GetVar(magicinterp, &(glist->gll_name[1]),
-			TCL_GLOBAL_ONLY);
-		if (resstr != NULL)
-		    esFormatSubs(esSpiceF, resstr);
+		/* Handle global names that are TCL variables */
+		if (glist->gll_name[0] == '$')
+		{
+		    resstr = (char *)Tcl_GetVar(magicinterp,
+				&(glist->gll_name[1]), TCL_GLOBAL_ONLY);
+		    if (resstr != NULL)
+			esFormatSubs(esSpiceF, resstr);
+		    else
+			esFormatSubs(esSpiceF, glist->gll_name);
+		}
 		else
 		    esFormatSubs(esSpiceF, glist->gll_name);
 	    }
@@ -780,7 +836,7 @@ runexttospice:
 
     /* Convert the hierarchical description to a flat one */
 
-    if (esFormat == HSPICE ) {
+    if (esFormat == HSPICE) {
 	HashInit(&subcktNameTable, 32, HT_STRINGKEYS);
 #ifndef UNSORTED_SUBCKT
 	DQInit(&subcktNameQueue, 64);
@@ -789,7 +845,7 @@ runexttospice:
     locDoSubckt = FALSE;
     if (esDoHierarchy)
     {
-	ESGenerateHierarchy(inName);
+	ESGenerateHierarchy(inName, flatFlags);
     }
     else
     {
@@ -801,7 +857,7 @@ runexttospice:
 		locDoSubckt = TRUE;
 	}
 	if ((esDoSubckt == TRUE) || (locDoSubckt == TRUE))
-	    topVisit(efFlatRootDef);
+	    topVisit(efFlatRootDef, FALSE);
 
 	/* When generating subcircuits, remove the subcircuit	*/
 	/* flag from the top level cell.  Other than being	*/
@@ -841,9 +897,17 @@ runexttospice:
 	}
 	EFVisitResists(spcresistVisit, (ClientData) NULL);
 	EFVisitSubcircuits(subcktVisit, (ClientData) NULL);
+
+	/* Visit nodes to find the substrate node */
+	EFVisitNodes(spcsubVisit, (ClientData)&substr);
+	if (substr == NULL)
+	    substr = StrDup((char **)NULL, "0");
+
 	(void) sprintf( esSpiceCapFormat, "C%%d %%s %s %%.%dlffF%%s",
-			resstr, esCapAccuracy);
+			substr, esCapAccuracy);
 	EFVisitNodes(spcnodeVisit, (ClientData) NULL);
+
+	if (EFCompat == FALSE) freeMagic(substr);
 
 	if ((esDoSubckt == TRUE) || (locDoSubckt == TRUE))
 	    fprintf(esSpiceF, ".ends\n");
@@ -885,6 +949,10 @@ main(argc, argv)
     bool locDoSubckt;
 
     esSpiceDevsMerged = 0;
+
+    static char *spiceFormats[] = {
+	"SPICE2", "SPICE3", "HSPICE", "NGSPICE", NULL
+    };
 
     EFInit();
     EFResistThreshold = INFINITE_THRESHOLD ;
@@ -939,9 +1007,7 @@ main(argc, argv)
     }
 
     fprintf(esSpiceF, "* %s file created from %s.ext - technology: %s\n\n",
-	    (esFormat == SPICE2) ? "SPICE2" :  
-	      ( (esFormat == SPICE3) ? "SPICE3" : "HSPICE" ),  
-	    inName, EFTech);
+	    spiceFormats[esFormat], inName, EFTech);
     if (esScale < 0) 
     	fprintf(esSpiceF,".option scale=%gu\n\n", EFScale / 100.0);
     else
@@ -950,8 +1016,8 @@ main(argc, argv)
     /* Convert the hierarchical description to a flat one */
     flatFlags = EF_FLATNODES;
     EFTrimFlags |= EF_TRIMGLOB ;
-    if (EFCapThreshold < INFINITE_THRESHOLD) flatFlags |= EF_FLATCAPS;
-    if (esFormat == HSPICE ) {
+    if (IS_FINITE_F(EFCapThreshold)) flatFlags |= EF_FLATCAPS;
+    if (esFormat == HSPICE) {
 	EFTrimFlags |= EF_TRIMLOCAL ;
 	HashInit(&subcktNameTable, 32, HT_STRINGKEYS);
 #ifndef UNSORTED_SUBCKT
@@ -967,7 +1033,7 @@ main(argc, argv)
 	    locDoSubckt = TRUE;
     }
     if ((esDoSubckt == TRUE) || (locDoSubckt == TRUE))
-	topVisit(efFlatRootDef);
+	topVisit(efFlatRootDef, FALSE);
 
     /* If we don't want to write subcircuit calls, remove the	*/
     /* subcircuit flag from all cells at this time.		*/
@@ -1002,7 +1068,7 @@ main(argc, argv)
     if ((esDoSubckt == TRUE) || (locDoSubckt == TRUE))
 	fprintf(esSpiceF, ".ends\n");
 
-    if ( esFormat == HSPICE ) 
+    if (esFormat == HSPICE) 
 	printSubcktDict();
 
     EFFlatDone(); 
@@ -1075,15 +1141,17 @@ spcmainArgs(pargc, pargv)
 
 	     if ((ftmp = ArgStr(&argc, &argv, "format")) == NULL)
 		goto usage;
-	     if ( strcasecmp(ftmp,"SPICE2") == 0 )
-	        esFormat = SPICE2 ;
-	     else if ( strcasecmp(ftmp,"SPICE3") == 0 )
-		esFormat = SPICE3 ;
-	     else if ( strcasecmp(ftmp,"HSPICE") == 0 ) 
+	     if (strcasecmp(ftmp, "SPICE2") == 0)
+	        esFormat = SPICE2;
+	     else if (strcasecmp(ftmp, "SPICE3") == 0)
+		esFormat = SPICE3;
+	     else if (strcasecmp(ftmp, "HSPICE") == 0) 
 	     {
-		esFormat = HSPICE ;
+		esFormat = HSPICE;
 		esScale = -1.0;
 	     }
+	     else if (strcasecmp(ftmp, "NGSPICE") == 0) 
+		esFormat = NGSPICE;
 	     else goto usage;
 	     break;
 	     }
@@ -1117,7 +1185,7 @@ spcmainArgs(pargc, pargv)
 
 	    if ((cp = ArgStr(&argc,&argv,"resistance class")) == NULL)
 		goto usage;
-	    if ( (rp = (char *) index(cp,':')) == NULL )
+	    if ( (rp = (char *) strchr(cp,':')) == NULL )
 		goto usage;
 	    else *rp++ = '\0';
 	    if ( sscanf(rp, "%d/%d/%s", &rClass, &rClassSub, subsNode) != 3 ) {
@@ -1266,15 +1334,19 @@ subcktVisit(use, hierName, is_top)
     EFNode *snode;
     Def *def = use->use_def;
     EFNodeName *nodeName;
-    int portorder, portmax, imp_max;
+    int portorder, portmax, imp_max, tchars;
     char stmp[MAX_STR_SIZE];
-    char *instname;
+    char *instname, *subcktname;
+    DevParam *plist, *pptr;
 
     if (is_top == TRUE) return 0;	/* Ignore the top-level cell */
 
     /* Retain instance name unless esDoRenumber is set, or format is Spice2 */
     if (use->use_id == NULL || esDoRenumber == TRUE || esFormat == SPICE2)
+    {
 	fprintf(esSpiceF, "X%d", esSbckNum++);
+	tchars = 5;
+    }
     else
     {
 	int savflags = EFTrimFlags;
@@ -1285,6 +1357,7 @@ subcktVisit(use, hierName, is_top)
 	EFHNSprintf(stmp, hierName);
 	fprintf(esSpiceF, "X%s", stmp);
 	EFTrimFlags = savflags;
+	tchars = 1 + strlen(stmp);
     }
 
     /* This is not a DEV, but "spcdevOutNode" is a general-purpose routine that */
@@ -1312,7 +1385,12 @@ subcktVisit(use, hierName, is_top)
 		    if (nodeName->efnn_port >= 0)
 		    {
 			portmax++;
-			spcdevOutNode(hierName, nodeName->efnn_hier,
+			if (tchars > 80)
+			{
+			    fprintf(esSpiceF, "\n+");
+			    tchars = 1;
+			}
+			tchars += spcdevOutNode(hierName, nodeName->efnn_hier,
 					"subcircuit", esSpiceF); 
 		    }
 	}
@@ -1332,7 +1410,13 @@ subcktVisit(use, hierName, is_top)
 
 		/* This is not a hierarchical name or node! */
 		EFHNSprintf(stmp, nodeName->efnn_hier);
+		if (tchars > 80)
+		{
+		    fprintf(esSpiceF, "\n+");
+		    tchars = 1;
+		}
 		fprintf(esSpiceF, " %s", stmp);
+		tchars += (1 + strlen(stmp));
 	    }
 	}
     }
@@ -1355,7 +1439,12 @@ subcktVisit(use, hierName, is_top)
 		    int portidx = nodeName->efnn_port;
 		    if (portidx == portorder)
 		    {
-			spcdevOutNode(hierName, nodeName->efnn_hier,
+			if (tchars > 80)
+			{
+			    fprintf(esSpiceF, "\n+");
+			    tchars = 1;
+			}
+			tchars += spcdevOutNode(hierName, nodeName->efnn_hier,
 					"subcircuit", esSpiceF); 
 			break;
 		    }
@@ -1381,15 +1470,46 @@ subcktVisit(use, hierName, is_top)
 		{
 		    /* This is not a hierarchical name or node! */
 		    EFHNSprintf(stmp, nodeName->efnn_hier);
+		    if (tchars > 80)
+		    {
+			fprintf(esSpiceF, "\n+");
+			tchars = 1;
+		    }
 		    fprintf(esSpiceF, " %s", stmp);
+		    tchars += (1 + strlen(stmp));
 		}
 	    }
 	    portorder++;
 	}
     }
 
-    fprintf(esSpiceF, " %s\n", def->def_name);	/* subcircuit model name */
+    /* SPICE subcircuit names must begin with A-Z.  This will also be   */
+    /* enforced when writing X subcircuit calls.                        */
+    subcktname = def->def_name;
+    while (!isalpha(*subcktname)) subcktname++;
 
+    if (tchars > 80) fprintf(esSpiceF, "\n+");
+    fprintf(esSpiceF, " %s", subcktname);	/* subcircuit model name */
+
+    // Check for a "device parameter" defined with the name of the cell.
+    // This contains a list of parameter strings to be passed to the
+    // cell instance.
+
+    instname = mallocMagic(2 + strlen(def->def_name));
+    sprintf(instname, ":%s", def->def_name);
+    plist = efGetDeviceParams(instname);
+    for (pptr = plist; pptr; pptr = pptr->parm_next)
+    {
+	if (tchars > 80)
+	{
+	    fprintf(esSpiceF, "\n+");
+	    tchars = 1;
+	}
+	fprintf(esSpiceF, " %s", pptr->parm_name);
+	tchars += (1 + strlen(pptr->parm_name));
+    }    
+    freeMagic(instname);
+    fprintf(esSpiceF, "\n");
     return 0;
 }
 
@@ -1440,22 +1560,36 @@ subcktUndef(use, hierName, is_top)
  *
  * where
  *	node1 node2 ... noden are the nodes connecting to the ports of
- *	the subcircuit.  "name" is the name of the cell def.
+ *	the subcircuit.  "name" is the name of the cell def.  If "doStub"
+ *	is TRUE, then the subcircuit is a stub (empty declaration) for a
+ *	subcircuit, and implicit substrate connections should not be
+ *	output.
  *
  * ----------------------------------------------------------------------------
  */
  
 void
-topVisit(def)
+topVisit(def, doStub)
     Def *def;
+    bool doStub;
 {
     EFNode *snode;
     EFNodeName *sname, *nodeName;
     HashSearch hs;
     HashEntry *he;
-    int portorder, portmax;
+    int portorder, portmax, tchars;
+    DevParam *plist, *pptr;
+    char *instname;
+    char *subcktname;
+    char *pname;
 
-    fprintf(esSpiceF, ".subckt %s", def->def_name);
+    /* SPICE subcircuit names must begin with A-Z.  This will also be	*/
+    /* enforced when writing X subcircuit calls.			*/
+    subcktname = def->def_name;
+    while (!isalpha(*subcktname)) subcktname++;
+
+    fprintf(esSpiceF, ".subckt %s", subcktname);
+    tchars = 8 + strlen(subcktname);
 
     /* Note that the ports of the subcircuit will not necessarily be	*/
     /* ALL the entries in the hash table, so we have to check.		*/
@@ -1494,8 +1628,15 @@ topVisit(def)
 	    if (snode->efnode_flags & EF_PORT)
 		if (snode->efnode_name->efnn_port < 0)
 		{
-		    fprintf(esSpiceF, " %s",
-				nodeSpiceName(snode->efnode_name->efnn_hier));
+		    if (tchars > 80)
+		    {
+			/* Line continuation */
+			fprintf(esSpiceF, "\n+");
+			tchars = 1;
+		    }
+		    pname = nodeSpiceName(snode->efnode_name->efnn_hier);
+		    fprintf(esSpiceF, " %s", pname);
+		    tchars += strlen(pname) + 1;
 		    snode->efnode_name->efnn_port = portorder++;
 		}
 	}
@@ -1524,9 +1665,15 @@ topVisit(def)
 		    portidx = nodeName->efnn_port;
 		    if (portidx == portorder)
 		    {
-			// fprintf(esSpiceF, " %s", he->h_key.h_name);
-			fprintf(esSpiceF, " %s",
-				nodeSpiceName(snode->efnode_name->efnn_hier));
+			if (tchars > 80)
+			{
+			    /* Line continuation */
+			    fprintf(esSpiceF, "\n+");
+			    tchars = 1;
+			}
+			pname =	nodeSpiceName(snode->efnode_name->efnn_hier);
+			fprintf(esSpiceF, " %s", pname);
+			tchars += strlen(pname) + 1;
 			break;
 		    }
 		    else if (portidx < 0)
@@ -1535,8 +1682,14 @@ topVisit(def)
 		if (nodeName != NULL)
 		    break;
 		else if (portidx < 0)
-		    // Node has not been assigned a port number
-		    unnumbered->efnn_port = ++portmax;
+		{
+		    // Node has not been assigned a port number.
+		    // Give it one unless this is a black-box circuit
+		    // and "ext2spice blackbox on" is in effect.
+ 
+		    if (esDoBlackBox == FALSE || !(def->def_flags & DEF_ABSTRACT))
+			unnumbered->efnn_port = ++portmax;
+		}
 	    }
 	    portorder++;
 	}
@@ -1544,28 +1697,287 @@ topVisit(def)
 
     /* Add all implicitly-defined local substrate node names */
 
-    HashStartSearch(&hs);
-    while (he = HashNext(&def->def_nodes, &hs))
+    if (!doStub)
     {
-	sname = (EFNodeName *) HashGetValue(he);
-	if (sname == NULL) continue;
-	snode = sname->efnn_node;
-
-	if (snode->efnode_flags & EF_SUBS_PORT)
+	HashStartSearch(&hs);
+	while (he = HashNext(&def->def_nodes, &hs))
 	{
-	    if (snode->efnode_name->efnn_port < 0)
-	    {
-		char stmp[MAX_STR_SIZE];
+	    sname = (EFNodeName *) HashGetValue(he);
+	    if (sname == NULL) continue;
+	    snode = sname->efnn_node;
 
-		/* This is not a hierarchical name or node! */
-		EFHNSprintf(stmp, snode->efnode_name->efnn_hier);
-		fprintf(esSpiceF, " %s", stmp);
-		snode->efnode_name->efnn_port = portorder++;
+	    if (snode->efnode_flags & EF_SUBS_PORT)
+	    {
+		if (snode->efnode_name->efnn_port < 0)
+		{
+		    char stmp[MAX_STR_SIZE];
+
+		    if (tchars > 80)
+		    {
+			/* Line continuation */
+			fprintf(esSpiceF, "\n+");
+			tchars = 1;
+		    }
+		    /* This is not a hierarchical name or node! */
+		    EFHNSprintf(stmp, snode->efnode_name->efnn_hier);
+		    fprintf(esSpiceF, " %s", stmp);
+		    snode->efnode_name->efnn_port = portorder++;
+		    tchars += strlen(stmp) + 1;
+		}
 	    }
 	}
     }
 
+    // Add any parameters defined by "property parameter" in the cell
+
+    instname = mallocMagic(2 + strlen(def->def_name));
+    sprintf(instname, ":%s", def->def_name);
+    plist = efGetDeviceParams(instname);
+    for (pptr = plist; pptr; pptr = pptr->parm_next)
+    {
+	if (tchars > 80)
+	{
+	    /* Line continuation */
+	    fprintf(esSpiceF, "\n+");
+	    tchars = 1;
+	}
+	pname = pptr->parm_name;
+	fprintf(esSpiceF, " %s", pname);
+	tchars += strlen(pname) + 1;
+    }    
+    freeMagic(instname);
+
     fprintf(esSpiceF, "\n");
+}
+
+/*
+ * ----------------------------------------------------------------------------
+ *
+ * spcWriteParams ---
+ *
+ * Write parameters to a device line in SPICE output.  This is normally
+ * restricted to subcircuit devices but may include other devices to
+ * accomodate various extensions to the basic SPICE format.
+ *
+ * ----------------------------------------------------------------------------
+ */
+
+void
+spcWriteParams(dev, hierName, scale, l, w, sdM)
+    Dev *dev;		/* Dev being output */
+    HierName *hierName;	/* Hierarchical path down to this dev */
+    float scale;	/* Scale transform for output */
+    int l;		/* Device length, in internal units */
+    int w;		/* Device width, in internal units */
+    float sdM;		/* Device multiplier */
+{
+    bool hierD;
+    DevParam *plist;
+    int parmval;
+    EFNode *dnode, *subnodeFlat = NULL;
+
+    bool extHierSDAttr();
+
+    plist = efGetDeviceParams(EFDevTypes[dev->dev_type]);
+    while (plist != NULL)
+    {
+	switch (plist->parm_type[0])
+	{
+	    case 'a':
+		// Check for area of terminal node vs. device area
+		if (plist->parm_type[1] == '\0' || plist->parm_type[1] == '0')
+		{
+		    fprintf(esSpiceF, " %s=", plist->parm_name);
+		    parmval = dev->dev_area;
+		    if (esScale < 0)
+			fprintf(esSpiceF, "%g", parmval * scale * scale);
+		    else if (plist->parm_scale != 1.0)
+			fprintf(esSpiceF, "%g", parmval * scale * scale
+				* esScale * esScale * plist->parm_scale
+				* 1E-12);
+		    else
+			fprintf(esSpiceF, "%gp", parmval * scale * scale
+				* esScale * esScale);
+		}
+		else 
+		{
+		    int pn;
+
+		    pn = plist->parm_type[1] - '0';
+		    if (pn >= dev->dev_nterm) pn = dev->dev_nterm - 1;
+
+		    hierD = extHierSDAttr(&dev->dev_terms[pn]);
+
+		    // For parameter a<n> followed by parameter p<n>,
+		    // process both at the same time.
+
+		    if (plist->parm_next && plist->parm_next->parm_type[0]
+				== 'p' && plist->parm_next->parm_type[1]
+				== plist->parm_type[1])
+		    {
+			if (hierD)
+			    spcnAPHier(&dev->dev_terms[pn], hierName,
+				esFetInfo[dev->dev_type].resClassSD,
+				scale, plist->parm_type,
+				plist->parm_next->parm_type,
+				sdM, esSpiceF);
+			else
+			{
+			    dnode = SpiceGetNode(hierName,
+			 	dev->dev_terms[pn].dterm_node->efnode_name->efnn_hier);
+			    spcnAP(dnode, esFetInfo[dev->dev_type].resClassSD,
+				scale, plist->parm_name,
+				plist->parm_next->parm_name,
+				sdM, esSpiceF, w);
+		 	}
+			plist = plist->parm_next;
+		    }
+		    else
+		    {
+			if (hierD)
+			    spcnAPHier(&dev->dev_terms[pn], hierName,
+				esFetInfo[dev->dev_type].resClassSD,
+				scale, plist->parm_type, NULL,
+				sdM, esSpiceF);
+			else
+			{
+			    dnode = SpiceGetNode(hierName,
+			    	dev->dev_terms[pn].dterm_node->efnode_name->efnn_hier);
+			    spcnAP(dnode, esFetInfo[dev->dev_type].resClassSD,
+				scale, plist->parm_name, NULL,
+				sdM, esSpiceF, w);
+			}
+		    }
+		}
+
+		break;
+	    case 'p':
+		// Check for area of terminal node vs. device area
+		if (plist->parm_type[1] == '\0' || plist->parm_type[1] == '0')
+		{
+		    fprintf(esSpiceF, " %s=", plist->parm_name);
+		    parmval = dev->dev_perim;
+		    if (esScale < 0)
+			fprintf(esSpiceF, "%g", parmval * scale);
+		    else if (plist->parm_scale != 1.0)
+			fprintf(esSpiceF, "%g", parmval * scale
+				* esScale * plist->parm_scale * 1E-6);
+		    else
+			fprintf(esSpiceF, "%gu", parmval * scale * esScale);
+		}
+		else 
+		{
+		    int pn;
+
+		    pn = plist->parm_type[1] - '0';
+		    if (pn >= dev->dev_nterm) pn = dev->dev_nterm - 1;
+
+		    hierD = extHierSDAttr(&dev->dev_terms[pn]);
+
+		    // For parameter p<n> followed by parameter a<n>,
+		    // process both at the same time.
+
+		    if (plist->parm_next && plist->parm_next->parm_type[0]
+				== 'a' && plist->parm_next->parm_type[1]
+				== plist->parm_type[1])
+		    {
+			if (hierD)
+			    spcnAPHier(&dev->dev_terms[pn], hierName,
+				esFetInfo[dev->dev_type].resClassSD,
+				scale, plist->parm_next->parm_type,
+				plist->parm_type, sdM, esSpiceF);
+			else
+			{
+			    dnode = SpiceGetNode(hierName,
+			 	dev->dev_terms[pn].dterm_node->efnode_name->efnn_hier);
+			    spcnAP(dnode, esFetInfo[dev->dev_type].resClassSD,
+				scale, plist->parm_next->parm_name,
+				plist->parm_name, sdM, esSpiceF, w);
+		 	}
+			plist = plist->parm_next;
+		    }
+		    else
+		    {
+			if (hierD)
+			    spcnAPHier(&dev->dev_terms[pn], hierName,
+				esFetInfo[dev->dev_type].resClassSD,
+				scale, NULL, plist->parm_type,
+				sdM, esSpiceF);
+			else
+			{
+			    dnode = SpiceGetNode(hierName,
+			    	dev->dev_terms[pn].dterm_node->efnode_name->efnn_hier);
+			    spcnAP(dnode, esFetInfo[dev->dev_type].resClassSD,
+				scale, NULL, plist->parm_name,
+				sdM, esSpiceF, w);
+			}
+		    }
+		}
+		break;
+
+	    case 'l':
+		fprintf(esSpiceF, " %s=", plist->parm_name);
+		if (esScale < 0)
+		    fprintf(esSpiceF, "%g", l * scale);
+		else if (plist->parm_scale != 1.0)
+		    fprintf(esSpiceF, "%g", l * scale * esScale
+				* plist->parm_scale * 1E-6);
+		else
+		    fprintf(esSpiceF, "%gu", l * scale * esScale);
+		break;
+	    case 'w':
+		fprintf(esSpiceF, " %s=", plist->parm_name);
+		if (esScale < 0)
+		    fprintf(esSpiceF, "%g", w * scale);
+		else if (plist->parm_scale != 1.0)
+		    fprintf(esSpiceF, "%g", w * scale * esScale
+				* plist->parm_scale * 1E-6);
+		else
+		    fprintf(esSpiceF, "%gu", w * scale * esScale);
+		break;
+	    case 's':
+		fprintf(esSpiceF, " %s=", plist->parm_name);
+		subnodeFlat = spcdevSubstrate(hierName,
+			dev->dev_subsnode->efnode_name->efnn_hier,
+			dev->dev_type, esSpiceF);
+		break;
+	    case 'x':
+		fprintf(esSpiceF, " %s=", plist->parm_name);
+		if (esScale < 0)
+		    fprintf(esSpiceF, "%g", dev->dev_rect.r_xbot * scale);
+		else if (plist->parm_scale != 1.0)
+		    fprintf(esSpiceF, "%g", dev->dev_rect.r_xbot * scale
+				* esScale * plist->parm_scale * 1E-6);
+		else
+		    fprintf(esSpiceF, "%gu", dev->dev_rect.r_xbot * scale
+				* esScale);
+		break;
+	    case 'y':
+		fprintf(esSpiceF, " %s=", plist->parm_name);
+		if (esScale < 0)
+		    fprintf(esSpiceF, "%g", dev->dev_rect.r_ybot * scale);
+		else if (plist->parm_scale != 1.0)
+		    fprintf(esSpiceF, "%g", dev->dev_rect.r_ybot * scale
+				* esScale * plist->parm_scale * 1E-6);
+		else
+		    fprintf(esSpiceF, "%gu", dev->dev_rect.r_ybot * scale
+				* esScale);
+		break;
+	    case 'r':
+		fprintf(esSpiceF, " %s=", plist->parm_name);
+		fprintf(esSpiceF, "%f", (double)(dev->dev_res));
+		break;
+	    case 'c':
+		fprintf(esSpiceF, " %s=", plist->parm_name);
+		fprintf(esSpiceF, "%ff", (double)(dev->dev_cap));
+		break;
+	}
+	plist = plist->parm_next;
+    }
+
+    /* Add parameters that are to be copied verbatim */
+    for (plist = dev->dev_params; plist; plist = plist->parm_next)
+	fprintf(esSpiceF, " %s", plist->parm_name);
 }
 
 /*
@@ -1622,6 +2034,7 @@ esOutputResistor(dev, hierName, scale, term1, term2, has_model, l, w, dscale)
     {
 	fprintf(esSpiceF, " %f", ((double)(dev->dev_res)
 			/ (double)(dscale)) / (double)sdM);
+	spcWriteParams(dev, hierName, scale, l, w, sdM);
     }
     else
     {
@@ -1634,6 +2047,7 @@ esOutputResistor(dev, hierName, scale, term1, term2, has_model, l, w, dscale)
 		w * scale * esScale,
 		((l * scale * esScale) / dscale));
 
+	spcWriteParams(dev, hierName, scale, l, w, sdM);
 	if (sdM != 1.0)
 	    fprintf(esSpiceF, " M=%g", sdM);
     }
@@ -1707,7 +2121,22 @@ spcdevVisit(dev, hierName, scale, trans)
     if (dev->dev_nterm >= 2)
 	source = drain = &dev->dev_terms[1];
     if (dev->dev_nterm >= 3)
-	drain = &dev->dev_terms[2];
+    {
+	/* If any terminal is marked with attribute "D" or "S"	*/
+ 	/* (label "D$" or "S$" at poly-diffusion interface),	*/
+	/* then force order of source and drain accordingly.	*/
+
+	if ((dev->dev_terms[1].dterm_attrs &&
+		!strcmp(dev->dev_terms[1].dterm_attrs, "D")) ||
+		(dev->dev_terms[2].dterm_attrs &&
+		!strcmp(dev->dev_terms[2].dterm_attrs, "S")))
+	{
+	    drain = &dev->dev_terms[1];
+	    source = &dev->dev_terms[2];
+	}
+	else
+	    drain = &dev->dev_terms[2];
+    }
     subnode = dev->dev_subsnode;
 
     /* Check for minimum number of terminals. */
@@ -1719,6 +2148,8 @@ spcdevVisit(dev, hierName, scale, trans)
 	case DEV_MSUBCKT:
 	    break;
 	case DEV_DIODE:
+	case DEV_PDIODE:
+	case DEV_NDIODE:
 	    if ((dev->dev_nterm < 2) && (subnode == NULL))
 	    {
 		TxError("Diode has only one terminal\n");
@@ -1748,6 +2179,7 @@ spcdevVisit(dev, hierName, scale, trans)
     {
 	case DEV_RES:
 	case DEV_CAP:
+	case DEV_CAPREV:
 	    if (dev->dev_nterm < 1) 
 		return 0;
 	    if (dev->dev_type == esNoModelType)
@@ -1762,12 +2194,18 @@ spcdevVisit(dev, hierName, scale, trans)
 	case DEV_ASYMMETRIC:
 	case DEV_FET:
 	    if (source == drain)
+	    {
+		if (esFormat == NGSPICE) fprintf(esSpiceF, "; ");
 		fprintf(esSpiceF, "** SOURCE/DRAIN TIED\n");
+	    }
 	    break;
 
 	default:
 	    if (gate == source)
+	    {
+		if (esFormat == NGSPICE) fprintf(esSpiceF, "; ");
 		fprintf(esSpiceF, "** SHORTED DEVICE\n");
+	    }
 	    break;
     }
 
@@ -1783,12 +2221,15 @@ spcdevVisit(dev, hierName, scale, trans)
 	    devchar = 'Q';
 	    break;
 	case DEV_DIODE:
+	case DEV_NDIODE:
+	case DEV_PDIODE:
 	    devchar = 'D';
 	    break;
 	case DEV_RES:
 	    devchar = 'R';
 	    break;
 	case DEV_CAP:
+	case DEV_CAPREV:
 	    devchar = 'C';
 	    break;
 	case DEV_SUBCKT:
@@ -1819,9 +2260,12 @@ spcdevVisit(dev, hierName, scale, trans)
 		if (esDoResistorTee) fprintf(esSpiceF, "A");
 		break;
 	    case DEV_DIODE:
+	    case DEV_NDIODE:
+	    case DEV_PDIODE:
 		fprintf(esSpiceF, "%d", esDiodeNum++);
 		break;
 	    case DEV_CAP:
+	    case DEV_CAPREV:
 		fprintf(esSpiceF, "%d", esCapNum++);
 		break;
 	    case DEV_SUBCKT:
@@ -1858,6 +2302,7 @@ spcdevVisit(dev, hierName, scale, trans)
 			name, esSpiceF);
 
 	    fprintf(esSpiceF, " %s", EFDevTypes[dev->dev_type]);
+	    spcWriteParams(dev, hierName, scale, l, w, sdM);
 	    break;
 
 	case DEV_MSUBCKT:
@@ -1923,201 +2368,7 @@ spcdevVisit(dev, hierName, scale, trans)
 	    /* Write all requested parameters to the subcircuit call.	*/
 
 	    sdM = getCurDevMult();
-	    while (plist != NULL)
-	    {
-		switch (plist->parm_type[0])
-		{
-		    case 'a':
-			// Check for area of terminal node vs. device area
-			if (plist->parm_type[1] == '\0' || plist->parm_type[1] == '0')
-			{
-			    fprintf(esSpiceF, " %s=", plist->parm_name);
-			    parmval = dev->dev_area;
-			    if (esScale < 0)
-				fprintf(esSpiceF, "%g", parmval * scale * scale);
-			    else if (plist->parm_scale != 1.0)
-				fprintf(esSpiceF, "%g", parmval * scale * scale
-					* esScale * esScale * plist->parm_scale
-					* 1E-12);
-			    else
-				fprintf(esSpiceF, "%gp", parmval * scale * scale
-					* esScale * esScale);
-			}
-			else 
-			{
-			    int pn;
-
-			    pn = plist->parm_type[1] - '0';
-			    if (pn >= dev->dev_nterm) pn = dev->dev_nterm - 1;
-	
-			    hierD = extHierSDAttr(&dev->dev_terms[pn]);
-
-			    // For parameter a<n> followed by parameter p<n>,
-			    // process both at the same time.
-	
-			    if (plist->parm_next && plist->parm_next->parm_type[0]
-					== 'p' && plist->parm_next->parm_type[1]
-					== plist->parm_type[1])
-			    {
-				if (hierD)
-				    spcnAPHier(&dev->dev_terms[pn], hierName,
-					esFetInfo[dev->dev_type].resClassSD,
-					scale, plist->parm_type,
-					plist->parm_next->parm_type,
-					sdM, esSpiceF);
-				else
-				{
-				    dnode = SpiceGetNode(hierName,
-				 	dev->dev_terms[pn].dterm_node->efnode_name->efnn_hier);
-				    spcnAP(dnode, esFetInfo[dev->dev_type].resClassSD,
-					scale, plist->parm_name,
-					plist->parm_next->parm_name,
-					sdM, esSpiceF, w);
-			 	}
-				plist = plist->parm_next;
-			    }
-			    else
-			    {
-				if (hierD)
-				    spcnAPHier(&dev->dev_terms[pn], hierName,
-					esFetInfo[dev->dev_type].resClassSD,
-					scale, plist->parm_type, NULL,
-					sdM, esSpiceF);
-				else
-				{
-				    dnode = SpiceGetNode(hierName,
-				    	dev->dev_terms[pn].dterm_node->efnode_name->efnn_hier);
-				    spcnAP(dnode, esFetInfo[dev->dev_type].resClassSD,
-					scale, plist->parm_name, NULL,
-					sdM, esSpiceF, w);
-				}
-			    }
-			}
-
-			break;
-		    case 'p':
-			// Check for area of terminal node vs. device area
-			if (plist->parm_type[1] == '\0' || plist->parm_type[1] == '0')
-			{
-			    fprintf(esSpiceF, " %s=", plist->parm_name);
-			    parmval = dev->dev_perim;
-			    if (esScale < 0)
-				fprintf(esSpiceF, "%g", parmval * scale);
-			    else if (plist->parm_scale != 1.0)
-				fprintf(esSpiceF, "%g", parmval * scale
-					* esScale * plist->parm_scale * 1E-6);
-			    else
-				fprintf(esSpiceF, "%gu", parmval * scale * esScale);
-			}
-			else 
-			{
-			    int pn;
-
-			    pn = plist->parm_type[1] - '0';
-			    if (pn >= dev->dev_nterm) pn = dev->dev_nterm - 1;
-	
-			    hierD = extHierSDAttr(&dev->dev_terms[pn]);
-
-			    // For parameter p<n> followed by parameter a<n>,
-			    // process both at the same time.
-	
-			    if (plist->parm_next && plist->parm_next->parm_type[0]
-					== 'a' && plist->parm_next->parm_type[1]
-					== plist->parm_type[1])
-			    {
-				if (hierD)
-				    spcnAPHier(&dev->dev_terms[pn], hierName,
-					esFetInfo[dev->dev_type].resClassSD,
-					scale, plist->parm_next->parm_type,
-					plist->parm_type, sdM, esSpiceF);
-				else
-				{
-				    dnode = SpiceGetNode(hierName,
-				 	dev->dev_terms[pn].dterm_node->efnode_name->efnn_hier);
-				    spcnAP(dnode, esFetInfo[dev->dev_type].resClassSD,
-					scale, plist->parm_next->parm_name,
-					plist->parm_name, sdM, esSpiceF, w);
-			 	}
-				plist = plist->parm_next;
-			    }
-			    else
-			    {
-				if (hierD)
-				    spcnAPHier(&dev->dev_terms[pn], hierName,
-					esFetInfo[dev->dev_type].resClassSD,
-					scale, NULL, plist->parm_type,
-					sdM, esSpiceF);
-				else
-				{
-				    dnode = SpiceGetNode(hierName,
-				    	dev->dev_terms[pn].dterm_node->efnode_name->efnn_hier);
-				    spcnAP(dnode, esFetInfo[dev->dev_type].resClassSD,
-					scale, NULL, plist->parm_name,
-					sdM, esSpiceF, w);
-				}
-			    }
-			}
-			break;
-
-		    case 'l':
-			fprintf(esSpiceF, " %s=", plist->parm_name);
-			if (esScale < 0)
-			    fprintf(esSpiceF, "%g", l * scale);
-			else if (plist->parm_scale != 1.0)
-			    fprintf(esSpiceF, "%g", l * scale * esScale
-					* plist->parm_scale * 1E-6);
-			else
-			    fprintf(esSpiceF, "%gu", l * scale * esScale);
-			break;
-		    case 'w':
-			fprintf(esSpiceF, " %s=", plist->parm_name);
-			if (esScale < 0)
-			    fprintf(esSpiceF, "%g", w * scale);
-			else if (plist->parm_scale != 1.0)
-			    fprintf(esSpiceF, "%g", w * scale * esScale
-					* plist->parm_scale * 1E-6);
-			else
-			    fprintf(esSpiceF, "%gu", w * scale * esScale);
-			break;
-		    case 's':
-			fprintf(esSpiceF, " %s=", plist->parm_name);
-			subnodeFlat = spcdevSubstrate(hierName,
-				subnode->efnode_name->efnn_hier,
-				dev->dev_type, esSpiceF);
-			break;
-		    case 'x':
-			fprintf(esSpiceF, " %s=", plist->parm_name);
-			if (esScale < 0)
-			    fprintf(esSpiceF, "%g", dev->dev_rect.r_xbot * scale);
-			else if (plist->parm_scale != 1.0)
-			    fprintf(esSpiceF, "%g", dev->dev_rect.r_xbot * scale
-					* esScale * plist->parm_scale * 1E-6);
-			else
-			    fprintf(esSpiceF, "%gu", dev->dev_rect.r_xbot * scale
-					* esScale);
-			break;
-		    case 'y':
-			fprintf(esSpiceF, " %s=", plist->parm_name);
-			if (esScale < 0)
-			    fprintf(esSpiceF, "%g", dev->dev_rect.r_ybot * scale);
-			else if (plist->parm_scale != 1.0)
-			    fprintf(esSpiceF, "%g", dev->dev_rect.r_ybot * scale
-					* esScale * plist->parm_scale * 1E-6);
-			else
-			    fprintf(esSpiceF, "%gu", dev->dev_rect.r_ybot * scale
-					* esScale);
-			break;
-		    case 'r':
-			fprintf(esSpiceF, " %s=", plist->parm_name);
-			fprintf(esSpiceF, "%f", (double)(dev->dev_res));
-			break;
-		    case 'c':
-			fprintf(esSpiceF, " %s=", plist->parm_name);
-			fprintf(esSpiceF, "%ff", (double)(dev->dev_cap));
-			break;
-		}
-		plist = plist->parm_next;
-	    }
+	    spcWriteParams(dev, hierName, scale, l, w, sdM);
 	    if (sdM != 1.0)
 		fprintf(esSpiceF, " M=%g", sdM);
 	    break;
@@ -2157,6 +2408,7 @@ spcdevVisit(dev, hierName, scale, trans)
 	    break;
 
 	case DEV_DIODE:
+	case DEV_PDIODE:
 
 	    /* Diode is "Dnnn top bottom model"	*/
 
@@ -2170,6 +2422,24 @@ spcdevVisit(dev, hierName, scale, trans)
 			name, esSpiceF); 
 
 	    fprintf(esSpiceF, " %s", EFDevTypes[dev->dev_type]);
+	    spcWriteParams(dev, hierName, scale, l, w, sdM);
+	    break;
+
+	case DEV_NDIODE:
+
+	    /* Diode is "Dnnn bottom top model"	*/
+
+	    if (dev->dev_nterm > 1)
+		spcdevOutNode(hierName, source->dterm_node->efnode_name->efnn_hier,
+			name, esSpiceF);
+	    else if (subnode)
+		spcdevOutNode(hierName, subnode->efnode_name->efnn_hier,
+			name, esSpiceF); 
+	    spcdevOutNode(hierName, gate->dterm_node->efnode_name->efnn_hier,
+			name, esSpiceF);
+
+	    fprintf(esSpiceF, " %s", EFDevTypes[dev->dev_type]);
+	    spcWriteParams(dev, hierName, scale, l, w, sdM);
 	    break;
 
 	case DEV_CAP:
@@ -2194,6 +2464,7 @@ spcdevVisit(dev, hierName, scale, trans)
 	    {
 		fprintf(esSpiceF, " %ffF", (double)sdM *
 				(double)(dev->dev_cap));
+		spcWriteParams(dev, hierName, scale, l, w, sdM);
 	    }
 	    else
 	    {
@@ -2206,6 +2477,48 @@ spcdevVisit(dev, hierName, scale, trans)
 			w * scale * esScale,
 			l * scale * esScale);
 
+		spcWriteParams(dev, hierName, scale, l, w, sdM);
+		if (sdM != 1.0)
+		    fprintf(esSpiceF, " M=%g", sdM);
+	    }
+	    break;
+
+	case DEV_CAPREV:
+
+	    /* Capacitor is "Cnnn bottom top value"	*/
+	    /* extraction sets top=source bottom=gate	*/
+	    /* extracted units are fF; output is in fF */
+
+	    spcdevOutNode(hierName, source->dterm_node->efnode_name->efnn_hier,
+			name, esSpiceF);
+	    spcdevOutNode(hierName, gate->dterm_node->efnode_name->efnn_hier,
+			name, esSpiceF);
+
+	    sdM = getCurDevMult();
+
+	    /* SPICE has two capacitor types.  If the "name" (EFDevTypes) is */
+	    /* "None", the simple capacitor type is used, and a value given. */
+	    /* If not, the "semiconductor capacitor" is used, and L and W    */
+	    /* and the device name are output.				     */
+
+	    if (!has_model)
+	    {
+		fprintf(esSpiceF, " %ffF", (double)sdM *
+				(double)(dev->dev_cap));
+		spcWriteParams(dev, hierName, scale, l, w, sdM);
+	    }
+	    else
+	    {
+		fprintf(esSpiceF, " %s", EFDevTypes[dev->dev_type]);
+
+		if (esScale < 0)
+		    fprintf(esSpiceF, " w=%g l=%g", w*scale, l*scale);
+		else
+		    fprintf(esSpiceF, " w=%gu l=%gu",
+			w * scale * esScale,
+			l * scale * esScale);
+
+		spcWriteParams(dev, hierName, scale, l, w, sdM);
 		if (sdM != 1.0)
 		    fprintf(esSpiceF, " M=%g", sdM);
 	    }
@@ -2250,6 +2563,7 @@ spcdevVisit(dev, hierName, scale, trans)
 			w * scale * esScale,
 			l * scale * esScale);
 
+	    spcWriteParams(dev, hierName, scale, l, w, sdM);
 	    if (sdM != 1.0)
 		fprintf(esSpiceF, " M=%g", sdM);
 
@@ -2358,6 +2672,12 @@ FILE *outf;
     	nn = (EFNodeName *) HashGetValue(he);
 	if (outf) 
 	   fprintf(outf, "%s", nodeSpiceName(nn->efnn_node->efnode_name->efnn_hier));
+
+	/* Mark node as visited */
+	if ((nodeClient *)nn->efnn_node->efnode_client == (ClientData)NULL)
+	    initNodeClientHier(nn->efnn_node);
+
+	((nodeClient *)nn->efnn_node->efnode_client)->m_w.visitMask |= DEV_CONNECT_MASK;
         return nn->efnn_node;
    }
 }
@@ -2433,6 +2753,7 @@ int spcnAP(node, resClass, scale, asterm, psterm, m, outf, w)
 			((float)node->efnode_pa[resClass].pa_perim * scale)
 			* esScale * dsc);
     }
+
     return 0;
 
 oldFmt:
@@ -2502,7 +2823,7 @@ int spcnAPHier(dterm, hierName, resClass, scale, asterm, psterm, m, outf)
     else
 	markVisited((nodeClientHier *)node->efnode_client, resClass);
 
-    if (esScale < HSPICE)
+    if (esScale < 0)
     {
 	fprintf(outf, afmt,
 		node->efnode_pa[resClass].pa_area * scale * scale / m);
@@ -2532,7 +2853,7 @@ int spcnAPHier(dterm, hierName, resClass, scale, asterm, psterm, m, outf)
  *
  *
  * Results:
- *	Return 0 on success, 1 on error.
+ *	Return number of characters printed on success, 0 on error.
  *
  * Side effects:
  *	Writes to the file 'outf'.
@@ -2550,16 +2871,20 @@ spcdevOutNode(prefix, suffix, name, outf)
 {
     HashEntry *he;
     EFNodeName *nn;
+    char *nname;
 
     he = EFHNConcatLook(prefix, suffix, name);
     if (he == NULL)
     {
 	fprintf(outf, " errGnd!");
-	return 1;
+	return 0;
     }
     nn = (EFNodeName *) HashGetValue(he);
-    fprintf(outf, " %s", nodeSpiceName(nn->efnn_node->efnode_name->efnn_hier));
-    return 0;
+    nname = nodeSpiceName(nn->efnn_node->efnode_name->efnn_hier);
+    fprintf(outf, " %s", nname);
+    /* Mark node as visited */
+    ((nodeClient *)nn->efnn_node->efnode_client)->m_w.visitMask |= DEV_CONNECT_MASK;
+    return (1 + strlen(nname));
 }
 
 
@@ -2632,16 +2957,51 @@ int
 spcresistVisit(hierName1, hierName2, res)
     HierName *hierName1;
     HierName *hierName2;
-    int res;
+    float res;
 {
-    res = (res + 500) / 1000;
-
-    fprintf(esSpiceF, "R%d %s %s %d\n", esResNum++, nodeSpiceName(hierName1),
-                                          nodeSpiceName(hierName2), res);
+    fprintf(esSpiceF, "R%d %s %s %g\n", esResNum++, nodeSpiceName(hierName1),
+			nodeSpiceName(hierName2), res / 1000.);
 
     return 0;
 }
 
+
+/*
+ * ----------------------------------------------------------------------------
+ *
+ * spcsubVisit --
+ *
+ *	Routine to find the node that connects to substrate.  Copy the
+ *	string name of this node into "resstr" to be returned to the
+ *	caller.
+ *
+ * Results:
+ *	Return 1 if the substrate node has been found, to stop the search.
+ *	Otherwise return 0 to keep the search going.
+ *
+ * ----------------------------------------------------------------------------
+ */
+
+int
+spcsubVisit(node, res, cap, resstr)
+    EFNode *node;
+    int res; 		// Unused
+    double cap;		// Unused
+    char **resstr;
+{
+    HierName *hierName;
+    char *nsn;
+
+    if (node->efnode_flags & EF_SUBS_NODE)
+    {
+	hierName = (HierName *) node->efnode_name->efnn_hier;
+	nsn = nodeSpiceName(hierName);
+	*resstr = StrDup((char **)NULL, nsn);
+	return 1;
+    }
+    return 0;
+}
+
 /*
  * ----------------------------------------------------------------------------
  *
@@ -2691,16 +3051,20 @@ spcnodeVisit(node, res, cap)
 	static char ntmp[MAX_STR_SIZE];
 
 	EFHNSprintf(ntmp, hierName);
+	if (esFormat == NGSPICE) fprintf(esSpiceF, "; ");
 	fprintf(esSpiceF, "** %s == %s\n", ntmp, nsn);
     }
     cap = cap  / 1000;
     if (cap > EFCapThreshold)
     {
 	fprintf(esSpiceF, esSpiceCapFormat, esCapNum++, nsn, cap,
-			  (isConnected) ?  "\n" : " **FLOATING\n");
+			(isConnected) ?  "\n" : 
+			(esFormat == NGSPICE) ? " ; **FLOATING\n" :
+			" **FLOATING\n");
     }
     if (node->efnode_attrs && !esNoAttrs)
     {
+	if (esFormat == NGSPICE) fprintf(esSpiceF, " ; ");
 	fprintf(esSpiceF, "**nodeattr %s :",nsn );
 	for (fmt = " %s", ap = node->efnode_attrs; ap; ap = ap->efa_next)
 	{
@@ -3087,6 +3451,7 @@ parallelDevs(f1, f2)
 	/* not know when it is safe to do so.				*/
 
 	case DEV_CAP:
+	case DEV_CAPREV:
 	    if ((f1->g != f2->g) || (f1->s != f2->s))
 		return NOT_PARALLEL;
 
@@ -3115,6 +3480,8 @@ parallelDevs(f1, f2)
 
 	case DEV_BJT:
 	case DEV_DIODE:
+	case DEV_NDIODE:
+	case DEV_PDIODE:
 	    break;
 
 	/* There is no way to merge subcircuit devices */
@@ -3299,6 +3666,7 @@ mergeThem:
 		        m = esFMult[cfp->esFMIndex] + (fp->l / cfp->l);
 		    break;
 		case DEV_CAP:
+		case DEV_CAPREV:
 		    if (fp->dev->dev_type == esNoModelType)
 		        m = esFMult[cfp->esFMIndex] + (fp->dev->dev_cap
 				/ cfp->dev->dev_cap);

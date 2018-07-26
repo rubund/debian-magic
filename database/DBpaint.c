@@ -237,7 +237,7 @@ dbJoinUndo(tile, splitx, undo)
  */
 
 void
-DBPaintPlane0(plane, area, resultTbl, undo, mark)
+DBPaintPlane0(plane, area, resultTbl, undo, method)
     Plane *plane;		/* Plane whose paint is to be modified */
     Rect *area;			/* Area to be changed */
     PaintResultType *resultTbl;	/* Table, indexed by the type of tile already
@@ -249,7 +249,7 @@ DBPaintPlane0(plane, area, resultTbl, undo, mark)
 				 * save undo entries for this operation.
 				 * If NULL, the undo package is not used.
 				 */
-    bool mark;			/* If TRUE the routine marks tiles as it
+    unsigned char method;	/* If PAINT_MARK, the routine marks tiles as it
 				 * goes to avoid processing tiles twice.
 				 */
 {
@@ -290,8 +290,8 @@ enumerate:
 	clipTop = TOP(tile);
 	if (clipTop > area->r_ytop) clipTop = area->r_ytop;
 
-	/* Skip processed tiles, if the "mark" option was chosen */
-	if (mark)
+	/* Skip processed tiles, if the "method" option was PAINT_MARK */
+	if (method == (unsigned char)PAINT_MARK)
 	    if (tile->ti_client != (ClientData) CLIENTDEFAULT)
 		goto paintdone;
 
@@ -323,12 +323,14 @@ enumerate:
 
 	/* If the source tile is split, apply table to each side */
 
-	if (IsSplit(tile))
+	if (method == (unsigned char)PAINT_XOR)
+	    newType = *resultTbl;
+	else if (!IsSplit(tile))
+	    newType = resultTbl[oldType];
+	else
 	    newType = resultTbl[SplitLeftType(tile)]
 		| (resultTbl[SplitRightType(tile)] << 14)
 		| (oldType & (TT_DIAGONAL | TT_DIRECTION | TT_SIDE));
-	else
-	    newType = resultTbl[oldType];
 
 	if (oldType != newType)
 	{
@@ -348,7 +350,8 @@ enumerate:
 		    if (!IsSplit(tile))
 		    {
 			oldType = TiGetTypeExact(tile);
-			newType = resultTbl[oldType];
+			newType = (method == (unsigned char)PAINT_XOR) ?
+				 *resultTbl : resultTbl[oldType];
 
 			tile = TiNMMergeLeft(tile, plane);
 			TiNMMergeRight(TR(newtile), plane);
@@ -382,7 +385,8 @@ enumerate:
 		    if (!IsSplit(tile))
 		    {
 			oldType = TiGetTypeExact(tile);
-			newType = resultTbl[oldType];
+			newType = (method == (unsigned char)PAINT_XOR) ?
+				 *resultTbl : resultTbl[oldType];
 
 			tile = TiNMMergeLeft(tile, plane);
 			TiNMMergeRight(TR(newtile), plane);
@@ -416,7 +420,8 @@ enumerate:
 		    if (!IsSplit(tile))
 		    {
 			oldType = TiGetTypeExact(tile);
-			newType = resultTbl[oldType];
+			newType = (method == (unsigned char)PAINT_XOR) ?
+				 *resultTbl : resultTbl[oldType];
 
 			tile = TiNMMergeLeft(tile, plane);
 			TiNMMergeRight(LB(newtile), plane);
@@ -458,7 +463,8 @@ enumerate:
 		    if (!IsSplit(tile))
 		    {
 			oldType = TiGetTypeExact(tile);
-			newType = resultTbl[oldType];
+			newType = (method == (unsigned char)PAINT_XOR) ?
+				 *resultTbl : resultTbl[oldType];
 
 			// tile = TiNMMergeRight(tile, plane);
 			TiNMMergeLeft(LB(newtile), plane);
@@ -510,7 +516,7 @@ clipdone:
 		if (undo && UndoIsEnabled())
 		    DBPAINTUNDO(tile, newType, undo);
 		TiSetBody(tile, newType);
-	 	// if (mark) tile->ti_client = (ClientData)1;
+	 	// if (method == PAINT_MARK) tile->ti_client = (ClientData)1;
 		/* Reinstate the left and right merge requirements */
 		mergeFlags |= MRG_LEFT;
 		if (RIGHT(tile) >= area->r_xtop) mergeFlags |= MRG_RIGHT;
@@ -532,7 +538,8 @@ clipdone:
 		if (TiGetTypeExact(tp) == newType)
 		{
 		    tile = dbPaintMerge(tile, newType, area, plane, mergeFlags,
-					undo, mark);
+					undo, (method == (unsigned char)PAINT_MARK)
+					? TRUE : FALSE);
 		    goto paintdone;
 		}
 	    mergeFlags &= ~MRG_LEFT;
@@ -543,7 +550,8 @@ clipdone:
 		if (TiGetTypeExact(tp) == newType)
 		{
 		    tile = dbPaintMerge(tile, newType, area, plane, mergeFlags,
-					undo, mark);
+					undo, (method == (unsigned char)PAINT_MARK)
+					? TRUE : FALSE);
 		    goto paintdone;
 		}
 	    mergeFlags &= ~MRG_RIGHT;
@@ -561,7 +569,7 @@ clipdone:
 		DBPAINTUNDO(tile, newType, undo);
 
 	TiSetBody(tile, newType);
-	if (mark) tile->ti_client = (ClientData)1;
+	if (method == (unsigned char)PAINT_MARK) tile->ti_client = (ClientData)1;
 
 #ifdef	PAINTDEBUG
 	if (dbPaintDebug)
@@ -627,15 +635,25 @@ paintdone:
 
 done:
 
-    if (mark)
+    if (method == (unsigned char)PAINT_MARK)
     {
 	/* Now unmark the processed tiles with the same search algorithm */
+	/* Expand the area by one to catch tiles that were clipped at	 */
+	/* the area boundary.						 */
+	
+	area->r_xbot -= 1;
+	area->r_ybot -= 1;
+	area->r_xtop += 1;
+	area->r_ytop += 1;
+	start.p_x = area->r_xbot;
+	start.p_y = area->r_ytop - 1;
+
 	tile = plane->pl_hint;
 	GOTOPOINT(tile, &start);
 
-enum2:
 	while (TOP(tile) > area->r_ybot)
 	{
+enum2:
 	    clipTop = TOP(tile);
 	    if (clipTop > area->r_ytop) clipTop = area->r_ytop;
 
@@ -1435,7 +1453,7 @@ typedef struct
  */
 
 void
-DBNMPaintPlane0(plane, exacttype, area, resultTbl, undo, mark)
+DBNMPaintPlane0(plane, exacttype, area, resultTbl, undo, method)
     Plane *plane;		/* Plane whose paint is to be modified */
     TileType exacttype;		/* diagonal info for tile to be changed */
     Rect *area;	/* Area to be changed */
@@ -1448,7 +1466,7 @@ DBNMPaintPlane0(plane, exacttype, area, resultTbl, undo, mark)
 				 * save undo entries for this operation.
 				 * If NULL, the undo package is not used.
 				 */
-    bool mark;			/* If true, track tiles as they are processed */
+    unsigned char method;	/* If true, track tiles as they are processed */
 
 #define RES_LEFT	0	/* Result is rect to left of diagonal */
 #define RES_DIAG	1	/* Resulting rectangle is on diagonal */
@@ -1598,6 +1616,12 @@ DBNMPaintPlane0(plane, exacttype, area, resultTbl, undo, mark)
 			}
 			TiSetBody(tile, newType);
 		    }
+		    else if (method == (unsigned char)PAINT_XOR)
+		    {
+			PaintResultType tempTbl;
+			tempTbl = newType;
+			DBPaintPlane0(plane, &(lr->r_r), &tempTbl, undo, method);
+		    }
 		    else
 			DBPaintPlane(plane, &(lr->r_r), resultTbl, undo);
 
@@ -1731,7 +1755,7 @@ paintrect:
 	    if (resstate == RES_DIAG)
 	    {
 		/* Recursive call to self on sub-area */
-		DBNMPaintPlane0(plane, exacttype, &(lr->r_r), resultTbl, undo, mark);
+		DBNMPaintPlane0(plane, exacttype, &(lr->r_r), resultTbl, undo, method);
 	    }
 	    else if ((resstate == RES_LEFT && !dinfo.side) ||
 		     (resstate == RES_RIGHT && dinfo.side)) {
@@ -1750,7 +1774,8 @@ nextrect:
 	}
     }
     else
-	DBPaintPlane0(plane, area, resultTbl, undo, mark);
+	DBPaintPlane0(plane, area, resultTbl, undo, (method == PAINT_MARK) ?
+		method : PAINT_NORMAL);
 }
 
 /*

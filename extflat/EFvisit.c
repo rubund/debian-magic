@@ -184,7 +184,10 @@ EFGetLengthAndWidth(dev, lptr, wptr)
 	case DEV_MSUBCKT:
 	case DEV_RSUBCKT:
 	case DEV_DIODE:
+	case DEV_PDIODE:
+	case DEV_NDIODE:
 	case DEV_CAP:
+	case DEV_CAPREV:
 	case DEV_RES:
 	    l = dev->dev_length;
 	    w = dev->dev_width;
@@ -675,8 +678,16 @@ EFVisitNodes(nodeProc, cdata)
 	res = EFNodeResist(node);
 	cap = node->efnode_cap;
 	hierName = (HierName *) node->efnode_name->efnn_hier;
-	if (EFHNIsGND(hierName))
-	    cap = 0;
+	if (EFCompat)
+	{
+	    if (EFHNIsGND(hierName))
+		cap = 0;
+	}
+	else
+	{
+	    if (node->efnode_flags & EF_SUBS_NODE)
+		cap = 0;
+	}
 	if (efWatchNodes)
 	{
 	    for (nn = node->efnode_name; nn; nn = nn->efnn_next)
@@ -770,8 +781,8 @@ EFNodeResist(node)
 
 	    fperim = (float) perim;
 	    dresist = (fperim + s)/(fperim - s) * efResists[n];
-	    if (dresist + (double) resist > (double) MAXINT)
-		resist = MAXINT;
+	    if (dresist + (double) resist > (double) INT_MAX)
+		resist = INT_MAX;
 	    else
 		resist += dresist;
 	}

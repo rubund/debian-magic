@@ -40,8 +40,8 @@ macro i "select cell"
 macro I "select more cell"
 ifdef([XLIB],[macro Control_XK_i "select less cell"],[dnl])
 # L key
-ifdef([USE_READLINE],[imacro l "labelpaint "],[dnl])
-ifdef([MAGIC_WRAPPER],[imacro l "labelpaint "],[dnl])
+ifdef([USE_READLINE],[imacro l "label "],[dnl])
+ifdef([MAGIC_WRAPPER],[imacro l "label "],[dnl])
 macro L "shell ls"
 macro ^L "redraw"
 # M key
@@ -93,6 +93,9 @@ macro , "select clear"
 ifdef([USE_READLINE],[imacro ! "shell "],[dnl])
 # Space bar
 macro " " "tool"
+# Colon and semicolon (interactive command)
+imacro XK_colon ":"
+imacro XK_semicolon ":"
 ifdef([XLIB],[dnl
 macro Shift_XK_space "tool box"
 macro Control_XK_space "tool wiring"
@@ -123,17 +126,11 @@ macro XK_0 "box size 7 2"
 macro Control_XK_KP_0 "box size 2 7"
 macro Control_XK_KP_Insert "box size 2 7"
 macro XK_KP_End "move sw 1"
-macro XK_KP_1 "stretch sw 1"
-macro Shift_XK_KP_1 "stretch sw 1"
-macro XK_1 "stretch sw 1"
 macro XK_KP_Down "move d 1"
 macro XK_KP_2 "stretch d 1"
 macro Shift_XK_KP_2 "stretch d 1"
 macro XK_2 "stretch d 1"
 macro XK_KP_Next "move se 1"
-macro XK_KP_3 "stretch se 1"
-macro Shift_XK_KP_3 "stretch se 1"
-macro XK_3 "stretch se 1"
 macro XK_KP_Left "move l 1"
 macro XK_KP_4 "stretch l 1"
 macro Shift_XK_KP_4 "stretch l 1"
@@ -147,17 +144,11 @@ macro XK_KP_6 "stretch r 1"
 macro Shift_XK_KP_6 "stretch r 1"
 macro XK_6 "stretch r 1"
 macro XK_KP_Home "move nw 1"
-macro XK_KP_7 "stretch nw 1"
-macro Shift_XK_KP_7 "stretch nw 1"
-macro XK_7 "stretch nw 1"
 macro XK_KP_Up "move u 1"
 macro XK_KP_8 "stretch u 1"
 macro Shift_XK_KP_8 "stretch u 1"
 macro XK_8 "stretch u 1"
 macro XK_KP_Prior "move ne 1"
-macro XK_KP_9 "stretch ne 1"
-macro Shift_XK_KP_9 "stretch ne 1"
-macro XK_9 "stretch ne 1"
 # Scroll wheel bindings
 macro XK_Pointer_Button4 "scroll u .05 w"
 macro XK_Pointer_Button5 "scroll d .05 w"
@@ -219,6 +210,8 @@ macro ? "help"
 macro o "openwindow"
 macro O "closewindow"
 macro " " "tool"
+imacro XK_colon ":"
+imacro XK_semicolon ":"
 macro ^R "iroute route -dBox"
 macro ^N "iroute route -dSelection"
 ])dnl	(ifdef USE_NEW_MACROS)

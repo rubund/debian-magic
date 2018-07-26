@@ -43,7 +43,8 @@ static char rcsid[] __attribute__ ((unused)) = "$Header: /usr/cvsroot/magic-8.0/
 #ifndef MAGIC_WRAPPER
 /* This must match the definition for extDevTable in extract/ExtBasic.c */
 char *extDevTable[] = {"fet", "mosfet", "asymmetric", "bjt", "devres",
-		"devcap", "diode", "subckt", "rsubckt", "msubckt", NULL};
+		"devcap", "devcaprev", "diode", "pdiode", "ndiode",
+		"subckt", "rsubckt", "msubckt", NULL};
 #endif
 
 /*
@@ -52,9 +53,9 @@ char *extDevTable[] = {"fet", "mosfet", "asymmetric", "bjt", "devres",
  */
 typedef enum
 {
-    ADJUST, ATTR, CAP, DEVICE, DIST, EQUIV, FET, KILLNODE, MERGE, NODE,
-    PARAMETERS, PORT, RESISTOR, RESISTCLASS, RNODE, SCALE, TECH,
-    TIMESTAMP, USE, VERSION, EXT_STYLE
+    ABSTRACT, ADJUST, ATTR, CAP, DEVICE, DIST, EQUIV, FET, KILLNODE, MERGE,
+    NODE, PARAMETERS, PORT, RESISTOR, RESISTCLASS, RNODE, SCALE, SUBCAP,
+    SUBSTRATE, TECH, TIMESTAMP, USE, VERSION, EXT_STYLE
 } Key;
 
 static struct
@@ -65,6 +66,7 @@ static struct
 }
 keyTable[] =
 {
+    "abstract",		ABSTRACT,	0,	/* defines a LEF-like view */
     "adjust",		ADJUST,		4,
     "attr",		ATTR,		8,
     "cap",		CAP,		4,
@@ -81,6 +83,8 @@ keyTable[] =
     "resistclasses",	RESISTCLASS,	1,
     "rnode",		RNODE,		5,
     "scale",		SCALE,		4,
+    "subcap",		SUBCAP,		3,
+    "substrate",	SUBSTRATE,	3,
     "tech",		TECH,		2,
     "timestamp",	TIMESTAMP,	2,
     "use",		USE,		9,
@@ -135,7 +139,7 @@ EFReadFile(name, dosubckt, resist, noscale)
     if (def == NULL)
 	def = efDefNew(name);
 
-    rc = efReadDef(def, dosubckt, resist, noscale);
+    rc = efReadDef(def, dosubckt, resist, noscale, TRUE);
     if (EFArgTech) EFTech = StrDup((char **) NULL, EFArgTech);
     if (EFScale == 0.0) EFScale = 1.0;
 
@@ -163,9 +167,9 @@ EFReadFile(name, dosubckt, resist, noscale)
  */
 
 bool
-efReadDef(def, dosubckt, resist, noscale)
+efReadDef(def, dosubckt, resist, noscale, toplevel)
    Def *def;
-   bool dosubckt, resist, noscale;
+   bool dosubckt, resist, noscale, toplevel;
 {
     int argc, ac, n;
     EFCapValue cap;
@@ -184,6 +188,15 @@ efReadDef(def, dosubckt, resist, noscale)
     def->def_flags |= DEF_AVAILABLE;
     name = def->def_name;
     inf = PaOpen(name, "r", ".ext", EFSearchPath, EFLibPath, &efReadFileName);
+    if (inf == NULL)
+    {
+	/* Complementary to .ext file write:  If file is in a read-only	*/
+	/* directory, then .ext	file is written to CWD.			*/
+	char *proot;
+	proot = strrchr(name, '/');
+	if (proot != NULL)
+	    inf = PaOpen(proot + 1, "r", ".ext", ".", ".", &efReadFileName);
+    }
     if (inf == NULL)
     {
 #ifdef MAGIC_WRAPPER
@@ -260,6 +273,12 @@ readfile:
 		efBuildCap(def, argv[1], argv[2], (double) cap);
 		break;
 
+	    /* subcap node capacitance */
+	    case SUBCAP:
+		cap = cscale*atoCap(argv[2]);
+		efAdjustSubCap(def, argv[1], cap);
+		break;
+
 	    /* equiv node1 node2 */
 	    case EQUIV:
 		efBuildEquiv(def, argv[1], argv[2]);
@@ -289,9 +308,12 @@ readfile:
 			ac = 10;
 			break;
 		    case DEV_DIODE:
+		    case DEV_NDIODE:
+		    case DEV_PDIODE:
 			ac = 7;
 			break;
 		    case DEV_CAP:
+		    case DEV_CAPREV:
 		    case DEV_RES:
 			if (!strcmp(argv[2], "None"))	/* Has device value */
 			   ac = 8;
@@ -346,12 +368,14 @@ readfile:
 		}
 		*/
 
-		cap = (argc > 3) ? atoCap(argv[3]) * cscale : 0;
-		efBuildConnect(def, argv[1], argv[2], (double) cap, &argv[4], argc - 4);
+		/* cap = (argc > 3) ? atoCap(argv[3]) * cscale : 0; */
+		/* 3/1/2017:  Cap adjustments now handled under SUBCAP. */
+		efBuildConnect(def, argv[1], argv[2], (double)0.0, &argv[4], argc - 4);
 		break;
 
 	    /* node name R C x y layer a1 p1 a2 p2 ... [ attrs ] */
 	    case NODE:
+	    case SUBSTRATE:
 		attrs = NULL;
 		ac = argc - 7;
 		if (ac & 01)
@@ -363,7 +387,9 @@ readfile:
 		}
 		/* Note: resistance is ignored; we use perim/area instead */
 		cap = atoCap(argv[3])*cscale;
-		efBuildNode(def, argv[1], (double) cap,
+		efBuildNode(def,
+			    (keyTable[n].k_key == SUBSTRATE) ? TRUE : FALSE,
+			    argv[1], (double) cap,
 			    atoi(argv[4]), atoi(argv[5]), argv[6],
 			    &argv[7], ac);
 		break;
@@ -379,19 +405,19 @@ readfile:
 		{
 		    DoResist = FALSE;
 		    def->def_flags |= DEF_SUBCIRCUIT;
-		    efBuildPortNode(def, argv[1], atoi(argv[2]), atoi(argv[3]),
-					atoi(argv[4]), argv[7]);
 		}
+		efBuildPortNode(def, argv[1], atoi(argv[2]), atoi(argv[3]),
+					atoi(argv[4]), argv[7]);
 		break;
 
 	    /*
-	     * rnode name C x y layer
+	     * rnode name R C x y layer
 	     * These are nodes resulting from resistance extraction and
 	     * so have no "intrinsic" resistance per se.
 	     */
 	    case RNODE:
 		cap = atoCap(argv[3])*cscale;
-		efBuildNode(def, argv[1], (double) cap,
+		efBuildNode(def, FALSE, argv[1], (double) cap,
 			    atoi(argv[4]), atoi(argv[5]), argv[6],
 			    (char **) NULL, 0);
 		break;
@@ -530,6 +556,11 @@ resistChanged:
 		efBuildResistor(def, argv[1], argv[2], rscale*atoi(argv[3]));
 		break;
 
+	    /* abstract (no options/arguments) */
+	    case ABSTRACT:
+		def->def_flags |= DEF_ABSTRACT;
+		break;
+
 	    /* To-do: compare timestamp against the cell */
 	    case TIMESTAMP:
 		break;
@@ -554,13 +585,14 @@ resistChanged:
     /* If we are considering standard cells, only the first level of	*/
     /* subcircuits is meaningful.					*/
 
-    if (def->def_flags & DEF_SUBCIRCUIT)
+    if ((def->def_flags & DEF_SUBCIRCUIT) && (toplevel != TRUE))
 	DoSubCircuit = FALSE;
 
     /* Read in each def that has not yet been read in */
     for (use = def->def_uses; use; use = use->use_next)
 	if ((use->use_def->def_flags & DEF_AVAILABLE) == 0)
-	    if(efReadDef(use->use_def, DoSubCircuit, resist, noscale) != TRUE)
+	    if (efReadDef(use->use_def, DoSubCircuit, resist, noscale, FALSE)
+			!= TRUE)
 		rc = FALSE;
 
     return rc;

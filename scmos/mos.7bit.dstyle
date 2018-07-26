@@ -99,7 +99,7 @@ display_styles 7
 #
 # num   mask    color   outline  fill  number   name    name
 # ----+------+--------+--------+------+-------+------+--------------
-0	0x7f	000	0x00	solid	0	-	no_color_at_all
+0	0x00	000	0x00	solid	0	.	no_color_at_all
 #
 # Opaque styles used for drawing and erasing highlights, window borders,
 # etc.

@@ -91,7 +91,7 @@ drcCheckArea(starttile,arg,cptr)
 
 {
     int			arealimit;
-    int			area=0;
+    long		area = 0L;
     TileTypeBitMask	*oktypes = &cptr->drcc_mask;
     Tile		*tile,*tp;
     Rect		*cliprect = arg->dCD_rect;
@@ -109,7 +109,7 @@ drcCheckArea(starttile,arg,cptr)
     {
 	tile = (Tile *) STACKPOP(DRCstack);
 	if (tile->ti_client != (ClientData)DRC_PENDING) continue;
-	area += (RIGHT(tile)-LEFT(tile))*(TOP(tile)-BOTTOM(tile));
+	area += (long)(RIGHT(tile)-LEFT(tile))*(TOP(tile)-BOTTOM(tile));
 	tile->ti_client = (ClientData)DRC_PROCESSED;
 	/* are we at the clip boundary? If so, skip to the end */
 	if (RIGHT(tile) == cliprect->r_xtop ||
@@ -117,7 +117,7 @@ drcCheckArea(starttile,arg,cptr)
 	    BOTTOM(tile) == cliprect->r_ybot ||
 	    TOP(tile) == cliprect->r_ytop) goto forgetit;
 
-        if (area >= arealimit) goto forgetit;
+        if (area >= (long)arealimit) goto forgetit;
 
 	/* Top */
 	for (tp = RT(tile); RIGHT(tp) > LEFT(tile); tp = BL(tp))
@@ -136,7 +136,7 @@ drcCheckArea(starttile,arg,cptr)
 	    if (TTMaskHasType(oktypes, TiGetLeftType(tp))) PUSHTILE(tp);
      }
 
-     if (area < arealimit)
+     if (area < (long)arealimit)
      {
 	 Rect	rect;
 	 TiToRect(starttile,&rect);

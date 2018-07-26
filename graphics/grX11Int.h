@@ -78,7 +78,7 @@ extern GR_CURRENT grCurrent;
 extern GR_DISPLAY grDisplay;
 extern GC grGCFill, grGCText, grGCDraw, grGCCopy, grGCGlyph;
 
-extern bool grx11GetCursorPos();
+extern bool grx11GetCursorRootPos();
 extern bool grx11DrawGrid();
 extern void GrX11EnableTablet();
 extern void GrX11DisableTablet();

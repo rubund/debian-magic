@@ -58,6 +58,8 @@ Tcl_Interp *consoleinterp;
 
 HashTable txTclTagTable;
 
+Tcl_ChannelType inChannel;
+
 /* Forward declarations */
 
 int TerminalInputProc(ClientData, char *, int, int *);
@@ -300,6 +302,7 @@ static int
 _tcl_dispatch(ClientData clientData,
         Tcl_Interp *interp, int argc, char *argv[])
 {
+    int wval; 
     int result, idx;
     Tcl_Obj *objv0;
     char *argv0, *tkwind;
@@ -369,12 +372,24 @@ _tcl_dispatch(ClientData clientData,
 	/* has an extension which is not ".mag", we will return the 	*/
 	/* error.							*/
 
+	/* Updated 1/20/2015:  Need to check for a '.' AFTER the last	*/
+	/* slash, so as to avoid problems with ./, ../, etc.		*/
+
 	if (idx == IDX_LOAD)
 	{
-	    char *dotptr;
-	    if ((argc >= 2) && (dotptr = strrchr(argv[1], '.')) != NULL)
-		if (strcmp(dotptr + 1, "mag"))
-		    return result;
+	    char *dotptr, *slashptr;
+	    if (argc >= 2)
+	    {
+		slashptr = strrchr(argv[1], '/');
+		if (slashptr == NULL)
+		    slashptr = argv[1];
+		else
+		    slashptr++;
+
+		if ((dotptr = strrchr(slashptr, '.')) != NULL)
+		    if (strcmp(dotptr + 1, "mag"))
+			return result;
+	    }
 	}
     }
     Tcl_ResetResult(interp);
@@ -382,7 +397,8 @@ _tcl_dispatch(ClientData clientData,
     if (TxInputRedirect == TX_INPUT_REDIRECTED)
 	TxInputRedirect = TX_INPUT_PENDING_RESET;
 
-    TxTclDispatch(clientData, argc, argv);
+    wval = TxTclDispatch(clientData, argc, argv, TRUE);
+
     if (TxInputRedirect == TX_INPUT_PENDING_RESET)
 	TxInputRedirect = TX_INPUT_NORMAL;
 
@@ -406,6 +422,9 @@ _tcl_dispatch(ClientData clientData,
     }
     else
 	tkwind = NULL;
+
+    // Pass back an error if TxTclDispatch failed
+    if (wval != 0) return TCL_ERROR;
 
     return TagCallback(interp, tkwind, argc, argv);
 }
@@ -452,7 +471,7 @@ _tk_dispatch(ClientData clientData,
 	argv++;
     }
 
-    TxTclDispatch(clientData, argc, argv);
+    TxTclDispatch(clientData, argc, argv, FALSE);
 
     /* Get pathname of window and pass to TagCallback */
     return TagCallback(interp, arg0, argc, argv);
@@ -500,6 +519,14 @@ _magic_initialize(ClientData clientData,
     if ((consoleinterp = Tcl_GetMaster(interp)) == NULL)
 	consoleinterp = interp;
 
+    // Force tkcon to send output to terminal during initialization
+    else
+    {
+  	RuntimeFlags |= (MAIN_TK_CONSOLE | MAIN_TK_PRINTF);
+    	Tcl_Eval(consoleinterp, "rename ::puts ::unused_puts\n");
+    	Tcl_Eval(consoleinterp, "rename ::tkcon_tcl_puts ::puts\n");
+    }
+
     /* Did we start in the same interpreter as we initialized? */
     if (magicinterp != interp)
     {
@@ -507,11 +534,23 @@ _magic_initialize(ClientData clientData,
 		"to handle this.\n");
 	magicinterp = interp;
     }
-    TxPrintf("Starting magic under Tcl interpreter\n");
 
     if (mainInitBeforeArgs(argc, argv) != 0) goto magicfatal;
     if (mainDoArgs(argc, argv) != 0) goto magicfatal;
 
+    // Redirect output back to the console
+    if (TxTkConsole)
+    {
+  	RuntimeFlags &= ~MAIN_TK_PRINTF;
+    	Tcl_Eval(consoleinterp, "rename ::puts ::tkcon_tcl_puts\n");
+    	Tcl_Eval(consoleinterp, "rename ::unused_puts ::puts\n");
+    }
+
+    /* Identify version and revision */
+
+    TxPrintf("\nMagic %s revision %s - Compiled on %s.\n", MagicVersion,
+                MagicRevision, MagicCompileTime);
+    TxPrintf("Starting magic under Tcl interpreter\n");
     if (TxTkConsole)
 	TxPrintf("Using Tk console window\n");
     else
@@ -548,12 +587,127 @@ _magic_initialize(ClientData clientData,
 
     if (strcmp(MainDisplayType, "NULL"))
 	RegisterTkCommands(interp);
+
+    /* Set up the console so that its menu option File->Exit	*/
+    /* calls magic's exit routine first.  This should not be	*/
+    /* done in console.tcl, or else it puts the console in a	*/
+    /* state where it is difficult to exit, if magic doesn't	*/
+    /* start up correctly.					*/
+
+    if (TxTkConsole)
+    {
+	Tcl_Eval(consoleinterp, "rename ::exit ::quit\n");
+	Tcl_Eval(consoleinterp, "proc ::exit args {slave eval quit}\n");
+    }
+
     return TCL_OK;
 
 magicfatal:
     TxResetTerminal();
     Tcl_SetResult(interp, "Magic initialization encountered a fatal error.", NULL);
     return TCL_ERROR;
+}
+
+/*--------------------------------------------------------------*/
+
+typedef struct FileState {
+    Tcl_Channel channel;
+    int fd;
+    int validMask;
+} FileState;
+
+/*--------------------------------------------------------------*/
+/* "Wizard" command for manipulating run-time flags.		*/
+/*--------------------------------------------------------------*/
+
+static int
+_magic_flags(ClientData clientData,
+        Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[])
+{
+    int index, index2;
+    bool value;
+    static char *flagOptions[] = {"debug", "recover", "silent",
+		"window", "console", "printf", (char *)NULL};
+    static char *yesNo[] = {"off", "no", "false", "0", "on", "yes",
+		"true", "1", (char *)NULL};
+
+    if ((objc != 2) && (objc != 3)) {
+	Tcl_WrongNumArgs(interp, 1, objv, "flag ?value?"); 
+	return TCL_ERROR;
+    }
+    if (Tcl_GetIndexFromObj(interp, objv[1], (CONST84 char **)flagOptions,
+		"option", 0, &index) != TCL_OK) {
+	return TCL_ERROR;
+    }
+    if (objc == 2) {
+	switch (index) {
+	    case 0:
+	        value = (RuntimeFlags & MAIN_DEBUG) ? TRUE : FALSE;
+		break;
+	    case 1:
+	        value = (RuntimeFlags & MAIN_RECOVER) ? TRUE : FALSE;
+		break;
+	    case 2:
+	        value = (RuntimeFlags & MAIN_SILENT) ? TRUE : FALSE;
+		break;
+	    case 3:
+	        value = (RuntimeFlags & MAIN_MAKE_WINDOW) ? TRUE : FALSE;
+		break;
+	    case 4:
+	        value = (RuntimeFlags & MAIN_TK_CONSOLE) ? TRUE : FALSE;
+		break;
+	    case 5:
+	        value = (RuntimeFlags & MAIN_TK_PRINTF) ? TRUE : FALSE;
+		break;
+	}
+	Tcl_SetObjResult(interp, Tcl_NewBooleanObj(value));
+    }
+    else {
+	if (Tcl_GetIndexFromObj(interp, objv[2], (CONST84 char **)yesNo,
+		"value", 0, &index2) != TCL_OK)
+	    return TCL_ERROR;
+
+	value = (index2 > 3) ? TRUE : FALSE;
+	switch (index) {
+	    case 0:
+		if (value == TRUE)
+		    RuntimeFlags |= MAIN_DEBUG;
+		else
+		    RuntimeFlags &= ~MAIN_DEBUG;
+		break;
+	    case 1:
+		if (value == TRUE)
+		    RuntimeFlags |= MAIN_RECOVER;
+		else
+		    RuntimeFlags &= ~MAIN_RECOVER;
+		break;
+	    case 2:
+		if (value == TRUE)
+		    RuntimeFlags |= MAIN_SILENT;
+		else
+		    RuntimeFlags &= ~MAIN_SILENT;
+		break;
+	    case 3:
+		if (value == TRUE)
+		    RuntimeFlags |= MAIN_MAKE_WINDOW;
+		else
+		    RuntimeFlags &= ~MAIN_MAKE_WINDOW;
+		break;
+	    case 4:
+		if (value == TRUE)
+		    RuntimeFlags |= MAIN_TK_CONSOLE;
+		else
+		    RuntimeFlags &= ~MAIN_TK_CONSOLE;
+		break;
+	    case 5:
+		if (value == TRUE)
+		    RuntimeFlags |= MAIN_TK_PRINTF;
+		else
+		    RuntimeFlags &= ~MAIN_TK_PRINTF;
+		break;
+	}
+    }
+    return TCL_OK;
 }
 
 /*--------------------------------------------------------------*/
@@ -566,8 +720,6 @@ static int
 _magic_startup(ClientData clientData,
         Tcl_Interp *interp, int argc, char *argv[])
 {
-    Tcl_ChannelType *inChannel;
-
     /* Execute contents of startup files and load any initial cell */
 
     if (mainInitFinal() != 0)
@@ -591,11 +743,29 @@ _magic_startup(ClientData clientData,
     }
     else
     {
+	Tcl_Channel oldchannel;
+	Tcl_ChannelType *stdChannel;
+	FileState *fsPtr, *fsOrig;
+
 	/* Use the terminal.				  */
 	/* Replace the input proc for stdin with our own. */
 
-	inChannel = Tcl_GetChannelType(Tcl_GetStdChannel(TCL_STDIN));
-	inChannel->inputProc = TerminalInputProc;
+	oldchannel = Tcl_GetStdChannel(TCL_STDIN);	// Get existing stdin
+	fsOrig = Tcl_GetChannelInstanceData(oldchannel);
+
+	/* Copy the structure from the old to the new channel */
+	stdChannel = (Tcl_ChannelType *)Tcl_GetChannelType(oldchannel);
+	memcpy(&inChannel, stdChannel, sizeof(Tcl_ChannelType));
+	inChannel.inputProc = TerminalInputProc;
+
+	fsPtr = (FileState *)Tcl_Alloc(sizeof(FileState));
+	fsPtr->validMask = fsOrig->validMask;
+	fsPtr->fd = fsOrig->fd;
+	fsPtr->channel = Tcl_CreateChannel(&inChannel, "stdin",
+	 	(ClientData)fsPtr, TCL_READABLE);
+
+	Tcl_SetStdChannel(fsPtr->channel, TCL_STDIN);	// Apply new stdin
+	Tcl_RegisterChannel(NULL, fsPtr->channel);
     }
 
     return TCL_OK;
@@ -829,6 +999,13 @@ TxFlush()
 /*								*/
 /* 6/17/04---Routine extended to escape double-dollar-sign '$$'	*/
 /* which is used by some tools when generating via cells.	*/
+/*								*/
+/* 12/23/16---Noted that using consoleinterp simply prevents	*/
+/* the output from being redirected to another window such as	*/
+/* the command entry window.  Split off another bit TxTkOutput	*/
+/* from TxTkConsole and set it to zero by default.  The		*/
+/* original behavior can be restored using the *flags wizard	*/
+/* command (*flags printf true).				*/
 /*--------------------------------------------------------------*/
 
 int
@@ -838,7 +1015,7 @@ Tcl_printf(FILE *f, char *fmt, va_list args_in)
     static char outstr[128] = "puts -nonewline std";
     char *outptr, *bigstr = NULL, *finalstr = NULL;
     int i, nchars, result, escapes = 0, limit;
-    Tcl_Interp *printinterp = (TxTkConsole) ? consoleinterp : magicinterp;
+    Tcl_Interp *printinterp = (TxTkOutput) ? consoleinterp : magicinterp;
 
     strcpy (outstr + 19, (f == stderr) ? "err \"" : "out \"");
 
@@ -960,16 +1137,6 @@ Tcl_escape(instring)
 }
 
 /*--------------------------------------------------------------*/
-/* Provide input to Tcl from outside the terminal window by	*/
-/* stacking the "stdin" channel.				*/
-/*--------------------------------------------------------------*/
-
-typedef struct {
-    Tcl_Channel channel;	/* This is all the info we need */
-    int fd;
-} FileState;
-
-/*--------------------------------------------------------------*/
 
 int
 TerminalInputProc(instanceData, buf, toRead, errorCodePtr)
@@ -978,7 +1145,7 @@ TerminalInputProc(instanceData, buf, toRead, errorCodePtr)
     int toRead;
     int *errorCodePtr;
 {
-    FileState *fsPtr = (FileState *) instanceData;
+    FileState *fsPtr = (FileState *)instanceData;
     int bytesRead, i, tlen;
     char *locbuf;
 
@@ -1003,11 +1170,18 @@ TerminalInputProc(instanceData, buf, toRead, errorCodePtr)
        }
     }
 
-    bytesRead = read(fsPtr->fd, buf, (size_t) toRead);
-    if (bytesRead > -1)
-	return bytesRead;
+    while (1) {
+	bytesRead = read(fsPtr->fd, buf, (size_t) toRead);
+	if (bytesRead > -1)
+	    return bytesRead;
 
+	// Ignore interrupts, which may be generated by new
+	// terminal windows (added by Tim, 9/30/2014)
+
+	if (errno != EINTR) break;
+    }
     *errorCodePtr = errno;
+	
     return -1;
 }
 
@@ -1037,6 +1211,10 @@ Tclmagic_Init(interp)
 
     HashInit(&txTclTagTable, 10, HT_STRINGKEYS);
     Tcl_CreateCommand(interp, "magic::tag", (Tcl_CmdProc *)AddCommandTag,
+			(ClientData)NULL, (Tcl_CmdDeleteProc *) NULL);
+
+    /* Add "*flags" command for manipulating run-time flags */
+    Tcl_CreateObjCommand(interp, "magic::*flags", (Tcl_ObjCmdProc *)_magic_flags,
 			(ClientData)NULL, (Tcl_CmdDeleteProc *) NULL);
 
     /* Add the magic TCL directory to the Tcl library search path */

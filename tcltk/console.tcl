@@ -133,4 +133,3 @@ proc ::tkcon::New {} {
    list set argv $argv0   
    ::tkcon::NewConsole 
 }
-

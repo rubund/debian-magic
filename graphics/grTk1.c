@@ -369,6 +369,8 @@ GrTkInit(dispType)
     int color_base, color_reserved;
     int status;
 
+    if (Tk_InitStubs(magicinterp, "8.5", 0) == NULL) return FALSE;
+
     grCurrent.window = Tk_MainWindow(magicinterp);
 
     if (grCurrent.window == NULL)
@@ -466,7 +468,7 @@ GrTkInit(dispType)
 		visual_table[2] = j; /* GreyScale */
 	    if ((grvisual_get[j].class == 3) && (grvisual_get[j].depth == 8)
 			&& (visual_table[3] == -1))
-		visual_table[3] = j; /* Psuedocolor */
+		visual_table[3] = j; /* Pseudocolor */
 	    if ((grvisual_get[j].class == 4) && (grvisual_get[j].depth == 15)
 			&& (visual_table[4] == -1))
 		visual_table[4] = j; /* TrueColor */
@@ -902,7 +904,7 @@ keys_and_buttons:
 				Tcl_EvalEx(magicinterp, "history event 0", 15,
 						0);
 				MacroDefine(mw->w_client, (int)'.',
-					Tcl_GetStringResult(magicinterp),
+					Tcl_GetStringResult(magicinterp), NULL,
 					FALSE);
 				Tcl_RestoreResult(magicinterp, &state);
 				break;
@@ -971,7 +973,7 @@ keys_and_buttons:
 			    *(TxBuffer + tl) = '\n';
 			    *(TxBuffer + tl + 1) = '\0';
 			    if (tl != 0) MacroDefine(mw->w_client, (int)'.',
-					TxBuffer, FALSE);
+					TxBuffer, NULL, FALSE);
 			    TxInputRedirect = TX_INPUT_NORMAL;
 			    TxSetPoint(KeyPressedEvent->x,
 					grXToMagic(KeyPressedEvent->y),
@@ -989,25 +991,28 @@ keys_and_buttons:
 			    TxFlushOut();
 			}
 		    }
-		    else if ((keywstate == (int)TX_LONG_CMD)
-				|| (keywstate == (int)TX_LONG_CMD2))
-		    {
-			/* Redirect input into the interpreter's terminal window */
-			TxInputRedirect = TX_INPUT_REDIRECTED;
-			if (TxTkConsole)
-			    TxSetPrompt(':');
-			else
-			{
-			    TxPrintf("\b\b: ");
-			    TxFlushOut();
-			}
-		    }
 		    else
 		    {
 			bool iMacro;
 			char *macroDef;
 
 			macroDef = MacroRetrieve(mw->w_client, keywstate, &iMacro);
+
+			/* Special handling:  An imacro beginning with ':'	*/
+			/* sets the prompt to ':' and moves to the next char.	*/
+
+			if (macroDef != NULL && *macroDef == ':' && iMacro)
+			{
+			    if (TxTkConsole)
+				TxSetPrompt(':');
+			    else
+			    {
+				TxPrintf("\b\b: ");
+				TxFlushOut();
+			    }
+			    memmove(macroDef, macroDef + 1, strlen(macroDef + 1) + 1);
+			}
+
 			macroDef = MacroSubstitute(macroDef, "%W", Tk_PathName(wind));
 
 			if (macroDef == NULL)
@@ -1079,8 +1084,8 @@ keys_and_buttons:
 			    grtkCreateBackingStore(mw);
 			    if (mw->w_backingStore != (ClientData)NULL)
 			    {
-				WindAreaChanged(mw, &mw->w_allArea);
-				WindUpdate();
+			    	WindAreaChanged(mw, &mw->w_allArea);
+			    	WindUpdate();
 			    }
 			}
 			break;
@@ -1125,6 +1130,7 @@ keys_and_buttons:
 	    {
 		XConfigureEvent *ConfigureEvent = (XConfigureEvent*) xevent;
 		Rect screenRect;
+		bool need_resize;
 		    
 		entry = HashLookOnly(&grTkWindowTable, (char *)wind);
 		mw = (entry)?(MagWindow *)HashGetValue(entry):0;
@@ -1138,8 +1144,14 @@ keys_and_buttons:
             	screenRect.r_ybot = grXsToMagic(ConfigureEvent->y+
 					    ConfigureEvent->height);
 
+		need_resize = (screenRect.r_xbot != mw->w_screenArea.r_xbot ||
+			screenRect.r_xtop != mw->w_screenArea.r_xtop ||
+			screenRect.r_ybot != mw->w_screenArea.r_ybot ||
+			screenRect.r_ytop != mw->w_screenArea.r_ytop);
+
 		WindReframe(mw, &screenRect, FALSE, FALSE);
 		WindRedisplay(mw);
+		if (need_resize) grtkCreateBackingStore(mw);
             }
             break;
 
@@ -1219,6 +1231,7 @@ x11SetDisplay (dispType, outFileName, mouseFileName)
     GrWindowIdPtr = GrTkWindowId;
     GrWindowNamePtr = GrTkWindowName;
     GrGetCursorPosPtr = grtkGetCursorPos;
+    GrGetCursorRootPosPtr = grtkGetCursorRootPos;
 
     /* local indirections */
     grSetSPatternPtr = grtkSetSPattern;
@@ -1735,7 +1748,7 @@ GrTkIconUpdate(w, text)		/* See Blt code */
     class.res_class = "magic";
 
     XSetClassHint( grXdpy, wind, &class);
-    if (brack = index(text,'['))
+    if (brack = strchr(text,'['))
     {
      	brack--;
 	*brack = 0;
@@ -1744,7 +1757,7 @@ GrTkIconUpdate(w, text)		/* See Blt code */
      	*brack = ' ';
 	return;
     }
-    if (brack = rindex(text,' ')) text = brack+1;
+    if (brack = strrchr(text,' ')) text = brack+1;
     XSetIconName(grXdpy,wind,text);
     XStoreName(grXdpy,wind,text);
 }

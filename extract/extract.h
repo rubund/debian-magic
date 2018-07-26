@@ -45,10 +45,13 @@ extern int ExtDoWarn;		/* Bitmask of above */
 #define DEV_BJT         3		/* Bipolar Junction Transistor */
 #define DEV_RES         4		/* Resistor */
 #define DEV_CAP         5		/* Capacitor */
-#define DEV_DIODE	6		/* Diode */
-#define DEV_SUBCKT      7		/* general-purpose subcircuit	*/
-#define DEV_RSUBCKT     8		/* Resistor-like subcircuit.	*/
-#define DEV_MSUBCKT     9		/* MOSFET-like subcircuit.	*/
+#define DEV_CAPREV      6		/* Capacitor, terminals reversed */
+#define DEV_DIODE	7		/* Diode */
+#define DEV_PDIODE	8		/* pDiode, same as Diode	*/
+#define DEV_NDIODE	9		/* nDiode, terminals reversed	*/
+#define DEV_SUBCKT     10		/* general-purpose subcircuit	*/
+#define DEV_RSUBCKT    11		/* Resistor-like subcircuit.	*/
+#define DEV_MSUBCKT    12		/* MOSFET-like subcircuit.	*/
 
 /* Device names for .ext file output (new in version 7.2)	*/
 /* (defined in extract/ExtBasic.c *and* extflat/EFread.c)	*/
@@ -80,5 +83,7 @@ extern bool ExtCompareStyle();
 #ifdef THREE_D
 extern void ExtGetZAxis();
 #endif
+
+extern void ExtDumpCaps();
 
 #endif /* _EXTRACT_H */

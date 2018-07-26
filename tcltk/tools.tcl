@@ -8,34 +8,40 @@
 # Suspend and resume drawing in windows
 # Modified 8/17/04 so that calls to suspendall and resumeall
 # may nest.
+# Modified 11/23/16
+# Modified 12/30/16 to add automatic button accelerator text
 
 proc magic::suspendall {} {
    global Winopts
-   foreach window [magic::windownames layout] {
-      set framename [winfo parent $window]
-      if {$framename == "."} {
-	 set framename $window
-      }
-      if {[catch {incr Winopts(${framename},suspend)}]} {
-	 set Winopts(${framename},suspend) 1
-	 $window update suspend
+   if {[info commands winfo] != ""} {
+      foreach window [magic::windownames layout] {
+         set framename [winfo toplevel $window]
+         if {$framename == "."} {
+	    set framename $window
+         }
+         if {[incr Winopts(${framename},suspend)] == 1} {
+	    $window update suspend
+         }
       }
    }
 }
 
 proc magic::resumeall {} {
    global Winopts
-   foreach window [magic::windownames layout] {
-      set framename [winfo parent $window]
-      if {$framename == "."} {
-	 set framename $window
-      }
-      if {[catch {incr Winopts($framename,suspend) -1}]} {
-	 error "resume called without suspend"
-      } else {
-	 if { $Winopts(${framename},suspend) <= 0 } {
-	    unset Winopts(${framename},suspend)
-	    $window update resume
+   if {[info commands winfo] != ""} {
+      foreach window [magic::windownames layout] {
+         set framename [winfo toplevel $window]
+         if {$framename == "."} {
+	    set framename $window
+         }
+         if {$Winopts($framename,suspend) <= 0} {
+      	    error "resume called without suspend"
+         } else {
+	    incr Winopts($framename,suspend) -1
+	    if { $Winopts(${framename},suspend) <= 0 } {
+	       unset Winopts(${framename},suspend)
+	       $window update resume
+	    }
 	 }
       }
    }
@@ -97,12 +103,13 @@ proc magic::pushstack {{name ""}} {
    if {[catch {lindex $editstack end}]} {
       set editstack {}
    }
+   lappend editstack [view get]
    lappend editstack [cellname list window]
    set ltag [tag load]
    tag load {}
    load $name
    catch {magic::cellmanager}
-   magic::captions
+   catch {magic::captions}
    tag load $ltag
    return
 }
@@ -115,10 +122,11 @@ proc magic::popstack {} {
       set ltag [tag load]
       tag load {}
       load [lindex $editstack end]             
+      view [lindex $editstack end-1]             
       tag load $ltag
-      set editstack [lrange $editstack 0 end-1]
+      set editstack [lrange $editstack 0 end-2]
       catch {magic::cellmanager}
-      magic::captions
+      catch {magic::captions}
    }
    return
 }
@@ -203,6 +211,36 @@ proc magic::peekbox {{type values}} {
       error "No stack"
    }
    return $b
+}
+
+#---------------------------------------------------------------------
+# Automatic handling of menu button accelerator text
+#---------------------------------------------------------------------
+
+proc magic::button_auto_bind_text {framename} {
+    set macrolist [string trimleft [string trimright \
+		[string map {magic:: {}} [macro list -reverse]]]]
+    set macrodict [dict create {*}${macrolist}]
+    set menutop [winfo children ${framename}.titlebar.mbuttons]
+    foreach menub $menutop {
+	set menuw [lindex [winfo children $menub] 0]
+	set items [$menuw index end]
+        for {set i 0} {$i <= $items} {incr i} {
+	    set itype [$menuw type $i]
+	    if {$itype == "command"} {
+		set icmd [string trimleft [string trimright \
+			[string map {magic:: {}} [$menuw entrycget $i -command]]]]
+		if {![catch {set keyname [dict get $macrodict $icmd]}]} {
+ 		    set canonname [string map \
+				{Control_ ^ XK_ {} less < more > comma , question ?}\
+				$keyname]
+		    $menuw entryconfigure $i -accelerator "(${canonname})"
+		} else {
+		    $menuw entryconfigure $i -accelerator ""
+		}
+	    }
+	}
+    }
 }
 
 #---------------------------------------------------------------------
@@ -447,16 +485,17 @@ proc magic::enable_tools {} {
 
 proc magic::trackwire {window {option {}}} {
    global Opts
+
    if {$Opts(motion) == {}} {
       if {$option == "done"} {
 	 wire switch
       } elseif {$option == "pick"} {
 	 puts stdout $window
 	 wire type
-         set Opts(motion) [bind ${window} <Motion>]
-         bind ${window} <Motion> [subst {$Opts(motion); *bypass wire show}]
+	 set Opts(motion) [bind ${window} <Motion>]
+	 bind ${window} <Motion> [subst {$Opts(motion); *bypass wire show}]
 	 if {$Opts(motion) == {}} {set Opts(motion) "null"}
-         cursor 21
+	 cursor 21
       }
    } else {
       if {$option != "cancel"} {
@@ -597,16 +636,16 @@ proc magic::tool {{type next}} {
 	 puts stdout {Switching to BOX tool.}
 	 set Opts(tool) box
 	 cursor 0	;# sets the cursor
-	 macro  Button1          "box move bl cursor"
-	 macro  Shift_Button1    "box corner bl cursor"
+	 macro  Button1          "box move bl cursor; magic::boxview %W %1"
+	 macro  Shift_Button1    "box corner bl cursor; magic::boxview %W %1"
 	 macro  Button2          "paint cursor"
 	 macro  Shift_Button2    "erase cursor"
 	 macro  Button3          "box corner ur cursor"
-	 macro  Shift_Button3    "box move ur cursor"
-	 macro  Button4 "scroll u .05 w"
-	 macro  Button5 "scroll d .05 w"
-	 macro  Shift_Button4 "scroll r .05 w"
-	 macro  Shift_Button5 "scroll l .05 w"
+	 macro  Shift_Button3    "box move ur cursor; magic::boxview %W %1"
+	 macro  Button4 "scroll u .05 w; magic::boxview %W %1"
+	 macro  Button5 "scroll d .05 w; magic::boxview %W %1"
+	 macro  Shift_XK_Pointer_Button4 "scroll r .05 w; magic::boxview %W %1"
+	 macro  Shift_XK_Pointer_Button5 "scroll l .05 w; magic::boxview %W %1"
 
       }
       wiring {
@@ -653,7 +692,6 @@ proc magic::tool {{type next}} {
    }
 
    # Update window captions with the new tool info
-   foreach window [magic::windownames layout] {
-      catch {magic::caption $window}
-   }
+   catch {magic::captions}
+   return
 }

@@ -249,9 +249,11 @@ ExtLabelRegions(def, connTo, nodeList, clipArea)
 	    // Unconnected node label.  This may be a "sticky label".
 	    // If it is not connected to TT_SPACE, then create a new
 	    // node region for it.
+	    // (3/24/2015---changed from GEO_LABEL_IN_AREA to GEO_SURROUND)
 
-	    if (GEO_LABEL_IN_AREA(clipArea, &lab->lab_rect) &&
-				(lab->lab_type != TT_SPACE))
+	    if ((GEO_SURROUND(&lab->lab_rect, clipArea) ||
+			GEO_TOUCH(&lab->lab_rect, clipArea))
+			 && (lab->lab_type != TT_SPACE))
 	    {
 		NodeRegion *newNode;
 		int n;

@@ -391,7 +391,11 @@ oglSetProjection(llx, lly, width, height)
 
     /* scale to fit window */
 
+#ifdef OGL_INVERT_Y
+    glScalef(1.0 / (float)(width >> 1), -1.0 / (float)(height >> 1), 1.0);
+#else
     glScalef(1.0 / (float)(width >> 1), 1.0 / (float)(height >> 1), 1.0);
+#endif
 
     /* magic origin maps to window center; move to window origin */
 
@@ -1059,7 +1063,7 @@ GrOGLIconUpdate(w,text)
      class.res_class = "magic";
      XSetClassHint( grXdpy, wind, &class);
 
-     if (brack = index(text,'['))
+     if (brack = strchr(text,'['))
      {
      	  brack--;
 	  *brack = 0;
@@ -1068,7 +1072,7 @@ GrOGLIconUpdate(w,text)
      	  *brack = ' ';
 	  return;
      }
-     if (brack = rindex(text,' ')) text = brack+1;
+     if (brack = strrchr(text,' ')) text = brack+1;
      XSetIconName(grXdpy,wind,text);
      XStoreName(grXdpy,wind,text);
 }

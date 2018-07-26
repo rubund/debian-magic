@@ -29,6 +29,10 @@ magic_AppInit(interp)
     /* magic's startup script.					*/
 
     Tcl_SetVar(interp, "tcl_rcFileName", TCL_DIR "/magic.tcl", TCL_GLOBAL_ONLY);
+
+    /* Additional variable can be used to tell if magic is in batch mode */
+    Tcl_SetVar(interp, "batch_mode", "true", TCL_GLOBAL_ONLY);
+
     return TCL_OK;
 }
 
