@@ -3,7 +3,7 @@ Upstream-Name: magic
 Source: http://www.opencircuitdesign.com/magic/index.html
 
 Files: *
-Copyright: 2010 Tim Edwards (Johns Hopkins APL)
+Copyright: 2010-2017 Tim Edwards (Johns Hopkins APL)
            2010 Mike Godfrey (Stanford, Pixeldevices)
            2010 Wes Hansford (MOSIS)
            2010 Rajit Manohar (Cornell) 
@@ -27,7 +27,8 @@ License: BSD-style:
     *********************************************************************
 
 Files: debian/*
-Copyright: 2011 Roland Stigge <stigge@antcom.de>
+Copyright: 2011-2017 Roland Stigge <stigge@antcom.de>
+           2018 Ruben Undheim <ruben.undheim@gmail.com>
 License: BSD-style-as-above
  The Debian packaging of this package can be distributed with the same license
  as the package itself.
