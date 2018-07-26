@@ -1,3 +1,11 @@
+magic (8.1.214-1) experimental; urgency=low
+
+  * Non-maintainer upload.
+  * New upstream release
+  * 
+
+ -- Ruben Undheim <ruben.undheim@gmail.com>  Thu, 26 Jul 2018 18:16:56 +0000
+
 magic (8.0.210-2) unstable; urgency=medium
 
   * Added 08-reproducible-build.patch to support reproducible builds,
