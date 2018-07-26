@@ -4,10 +4,24 @@ Subject: Move images to an FHS conformant directory
 
 This patch moves some XBM images to an FHS conformant directory in /usr/share
 ---
+ Makefile          |  2 +-
  magic/Makefile    |  8 ++++----
  tcltk/wrapper.tcl | 12 ++++++------
- 2 files changed, 10 insertions(+), 10 deletions(-)
+ 3 files changed, 11 insertions(+), 11 deletions(-)
 
+diff --git a/Makefile b/Makefile
+index 74c3988..ed848a6 100644
+--- a/Makefile
++++ b/Makefile
+@@ -75,7 +75,7 @@ install-real: install-dirs
+ 
+ install-tcl-dirs:
+ 	${MAGICDIR}/scripts/mkdirs $(DESTDIR)${BINDIR} $(DESTDIR)${MANDIR} \
+-		$(DESTDIR)${SYSDIR} $(DESTDIR)${TCLDIR} $(DESTDIR)${TCLDIR}/bitmaps
++		$(DESTDIR)${SYSDIR} $(DESTDIR)${TCLDIR}
+ 
+ install-dirs:
+ 	${MAGICDIR}/scripts/mkdirs $(DESTDIR)${BINDIR} $(DESTDIR)${MANDIR} \
 diff --git a/magic/Makefile b/magic/Makefile
 index 0de376c..175435b 100644
 --- a/magic/Makefile
