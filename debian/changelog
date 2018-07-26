@@ -1,4 +1,4 @@
-magic (8.1.214-1) experimental; urgency=low
+magic (8.1.214-1) unstable; urgency=low
 
   * New upstream release
   * debian/control:
