@@ -19,7 +19,6 @@ magic (8.1.214-1) experimental; urgency=low
     - 0008-Some-spelling-errors-fixed.patch - fix spelling errors
     - 0009-Tutorials-and-ps-files-installed-in-usr-share-doc-ma.patch
       - Put these files in FHS compliant directories
-    - Fix error in 07-fix-tcltk-interpreter-dir.patch
     - Refreshed all other patches and make them work with gbp-pq
   * debian/rules:
     - Set hardening flags
