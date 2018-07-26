@@ -12,7 +12,7 @@ export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
 
 override_dh_autoreconf:
-	cd scripts && dh_autoreconf
+	cd scripts && autoreconf -i
 
 override_dh_auto_install:
 	dh_auto_install
