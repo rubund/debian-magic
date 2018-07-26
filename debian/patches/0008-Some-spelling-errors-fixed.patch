@@ -1,0 +1,131 @@
+From: Ruben Undheim <ruben.undheim@gmail.com>
+Date: Thu, 26 Jul 2018 18:44:40 +0000
+Subject: Some spelling errors fixed
+
+---
+ doc/man/ext2sim.1   | 10 +++++-----
+ doc/man/ext2spice.1 | 10 +++++-----
+ drc/DRCtech.c       |  2 +-
+ netmenu/NMmain.c    |  2 +-
+ 4 files changed, 12 insertions(+), 12 deletions(-)
+
+diff --git a/doc/man/ext2sim.1 b/doc/man/ext2sim.1
+index 98e8381..c03803d 100644
+--- a/doc/man/ext2sim.1
++++ b/doc/man/ext2sim.1
+@@ -74,7 +74,7 @@ Don't output transistor or node attributes in the \fB.sim\fR file.
+ This option will also disable the output of information such as
+ the area and perimeter of source and drain diffusion and the
+ fet substrate. For compatibitlity reasons the latest version of ext2sim
+-outputs this information as node attibutes.
++outputs this information as node attributes.
+ This option is necessary when preparing input for programs that
+ don't know about attributes, such as \fIsim2spice\fR\|(1) (which is
+ actually made obsolete by \fIext2spice\fR\|(1), anyway),
+@@ -101,7 +101,7 @@ SU is the internal Stanford format which is described also in \fIsim\fR(5)
+ and includes areas and perimeters of fet sources, drains and substrates.
+ .TP 1.0i
+ .B \-y \fInum\fR
+-Select the precision for outputing capacitors. The default is 1 which means
++Select the precision for outputting capacitors. The default is 1 which means
+ that the capacitors will be printed to a precision of .1 fF.
+ .TP 1.0i
+ .B \-J \fIhier|flat\fR
+@@ -120,7 +120,7 @@ individually control how a terminal of a specific fet will be extracted
+ if you put a source/drain attribute. \fIext:aph\fR makes the extraction
+ for that specific terminal hierarchical and \fIext:apf\fR makes the
+ extraction flat (see the magic tutorial about attaching attribute labels).
+-Additionaly to ease extraction of bipolar transistors the gate attribute
++Additionally to ease extraction of bipolar transistors the gate attribute
+ \fIext:aps\fR forces the output of the substrate area and perimeter for
+ a specific fet (in flat mode only).
+ .TP 1.0i
+@@ -145,7 +145,7 @@ pump).
+ To get the correct substrate info in these cases the fet(s) with
+ separate wells should be in their own separate subcell with ext:aph attributes
+ attached to their sensitive terminals (also all the transistors which share
+-sensistive terminals with these should be in another subcell with the same
++sensitive terminals with these should be in another subcell with the same
+ attributes).
+ 
+ 
+@@ -177,7 +177,7 @@ capacitances, as most analysis tools compute the gate capacitance directly
+ from the gate area.
+ The \fB-c\fR flag therefore provides a limit only on non-gate capacitance.
+ The areas and perimeters of fet sources and drains work only with the
+-simple extraction algorith and not with the extresis flow. So you have
++simple extraction algorithm and not with the extresis flow. So you have
+ to model them as linear capacitors (create a special extraction style)
+ if you want to extract parasitic resistances with extresis.
+ 
+diff --git a/doc/man/ext2spice.1 b/doc/man/ext2spice.1
+index a371f0a..005da46 100644
+--- a/doc/man/ext2spice.1
++++ b/doc/man/ext2spice.1
+@@ -59,12 +59,12 @@ hspice.
+ .TP 1.0i
+ .B -\fIM|m\fR
+ Merge parallel fets. \fI-m\fR means conservative merging of fets that have
+-equal widths only (usefull with hspice format multiplier if delta W
++equal widths only (useful with hspice format multiplier if delta W
+ effects need to be taken care of). -M means aggressive merging: the fets
+ are merged if they have the same terminals and the same length.
+ .TP 1.0i
+ .B \-y \fInum\fR
+-Select the precision for outputing capacitors. The default is 1 which means
++Select the precision for outputting capacitors. The default is 1 which means
+ that the capacitors will be printed to a precision of .1 fF.
+ .TP 1.0i
+ .B \-f \fIhspice|spice2|spice3\fR
+@@ -102,7 +102,7 @@ individually control how a terminal of a specific fet will be extracted
+ if you put a source/drain attribute. \fIext:aph\fR makes the extraction
+ for that specific terminal hierarchical and \fIext:apf\fR makes the
+ extraction flat (see the magic tutorial about attaching attribute labels).
+-Additionaly to ease extraction of bipolar transistors the gate attribute
++Additionally to ease extraction of bipolar transistors the gate attribute
+ \fIext:aps\fR forces the output of the substrate area and perimeter for
+ a specific fet (in flat mode only).
+ .TP 1.0i
+@@ -127,7 +127,7 @@ pump).
+ To get the correct substrate info in these cases the fet(s) with
+ separate wells should be in their own separate subcell with ext:aph attributes
+ attached to their sensitive terminals (also all the transistors which share
+-sensistive terminals with these should be in another subcell with the same
++sensitive terminals with these should be in another subcell with the same
+ attributes).
+ 
+ 
+@@ -147,6 +147,6 @@ Stefanos Sidiropoulos.
+ 
+ .SH BUGS
+ The areas and perimeters of fet sources and drains work only with the
+-simple extraction algorith and not with the extresis flow. So you have
++simple extraction algorithm and not with the extresis flow. So you have
+ to model them as linear capacitors (create a special extraction style)
+ if you want to extract parasitic resistances with extresis.
+diff --git a/drc/DRCtech.c b/drc/DRCtech.c
+index 38798c5..a940150 100644
+--- a/drc/DRCtech.c
++++ b/drc/DRCtech.c
+@@ -3672,7 +3672,7 @@ DRCTechRuleStats()
+     
+     /* Print out the results. */
+ 
+-    TxPrintf("Total number of rules specifed in tech file: %d\n",
++    TxPrintf("Total number of rules specified in tech file: %d\n",
+ 	drcRulesSpecified);
+     TxPrintf("Edge rules optimized away: %d\n", drcRulesOptimized);
+     TxPrintf("Edge rules left in database: %d\n", edgeRules);
+diff --git a/netmenu/NMmain.c b/netmenu/NMmain.c
+index b9bb6a4..817b38b 100644
+--- a/netmenu/NMmain.c
++++ b/netmenu/NMmain.c
+@@ -140,7 +140,7 @@ NMcreate(window, argc, argv)
+     char *argv[];		/* Pointers to additional arguments. */
+ {
+     if (argc > 0)
+-        TxError("Ignoring extra argments for netlist menu creation.\n");
++        TxError("Ignoring extra arguments for netlist menu creation.\n");
+     if (NMWindow != NULL)
+     {
+ 	TxError("Sorry, can't have more than one netlist menu at a time.\n");
