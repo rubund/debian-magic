@@ -11,10 +11,6 @@ export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 	dh $@ --with autoreconf
 
 
-# Not an ideal solution, but works when the autoconf files are in a separate directory:
-override_dh_autoreconf:
-	cd scripts && autoreconf -i
-
 override_dh_auto_install:
 	dh_auto_install
 	sed -i -e "s,/usr/bin/wish,$(shell readlink -f /usr/bin/wish)," debian/magic/usr/bin/magic
