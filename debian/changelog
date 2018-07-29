@@ -30,6 +30,8 @@ magic (8.1.214+ds1-1) unstable; urgency=low
     - Use autoreconf instead of autools_dev
     - Added debian/autoreconf to specify directory to run autoreconf
   * debian/watch:
+    - Add dversionmangle and oversionmangle in order to properly add +ds1
+      suffix to upstream version
     - Updated watch file so that it looks for all versions in the 8.1.x range.
       Earlier it was watching only 7.x versions.
 
