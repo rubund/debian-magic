@@ -1,5 +1,5 @@
 # until magic 8.2 is released as "stable", we stick to the 8.1.x line
 version=3
-opts=dversionmangle=s/\+ds\d+//,\
-oversionmangle=s/$/\+ds1/ \
+opts=dversionmangle=s/\+ds\.\d+//,\
+oversionmangle=s/$/\+ds\.1/ \
 http://opencircuitdesign.com/magic/download.html .*magic-(8\.1\..*).tgz
