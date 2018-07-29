@@ -14,6 +14,8 @@ magic (8.1.214+ds1-1) unstable; urgency=low
     - Updated some copyright years.
     - Added myself to listing for debian/*
     - Added Files-Excluded for embedded readline library
+  * debian/gbp.conf:
+    - Specify that pristine-tar is used
   * debian/lintian-overrides
     - Override some wrongly detected lintian errors
   * debian/patches:
