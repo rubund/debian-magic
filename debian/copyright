@@ -1,6 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: magic
 Source: http://www.opencircuitdesign.com/magic/index.html
+Files-Excluded: readline/readline-4.3 readline/README
 
 Files: *
 Copyright: 2010-2017 Tim Edwards (Johns Hopkins APL)
