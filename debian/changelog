@@ -1,4 +1,4 @@
-magic (8.1.214-1) unstable; urgency=low
+magic (8.1.214+ds1-1) unstable; urgency=low
 
   * New upstream release
   * debian/control:
@@ -13,6 +13,7 @@ magic (8.1.214-1) unstable; urgency=low
     - Format field uses https
     - Updated some copyright years.
     - Added myself to listing for debian/*
+    - Added Files-Excluded for embedded readline library
   * debian/lintian-overrides
     - Override some wrongly detected lintian errors
   * debian/patches:
@@ -20,6 +21,8 @@ magic (8.1.214-1) unstable; urgency=low
     - 0009-Tutorials-and-ps-files-installed-in-usr-share-doc-ma.patch
       - Put these files in FHS compliant directories
     - Refreshed all other patches and make them work with gbp-pq
+  * debian/README.source:
+    - Specify what is excluded in repacked source
   * debian/rules:
     - Set hardening flags
     - Use autoreconf instead of autools_dev
