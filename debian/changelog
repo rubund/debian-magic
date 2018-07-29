@@ -23,12 +23,12 @@ magic (8.1.214-1) unstable; urgency=low
   * debian/rules:
     - Set hardening flags
     - Use autoreconf instead of autools_dev
-    - Added a workaround for autoconf files being placed in a subdir
+    - Added debian/autoreconf to specify directory to run autoreconf
   * debian/watch:
     - Updated watch file so that it looks for all versions in the 8.1.x range.
       Earlier it was watching only 7.x versions.
 
- -- Ruben Undheim <ruben.undheim@gmail.com>  Thu, 26 Jul 2018 18:16:56 +0000
+ -- Ruben Undheim <ruben.undheim@gmail.com>  Sun, 29 Jul 2018 11:40:39 +0200
 
 magic (8.0.210-2) unstable; urgency=medium
 
